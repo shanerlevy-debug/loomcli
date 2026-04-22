@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/mcp-server-registration.schema.json",
+  "title": "MCPServerRegistration",
+  "description": "Manual registration of a pre-existing MCP server URL (BYO). If you want Powerloom to deploy + manage the server instead, use MCPDeployment — it will auto-create the matching registration.",
+  "type": "object",
+  "x-powerloom-apply-order": 60,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "MCPServerRegistration" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "jira-readonly"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "url"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Jira (read-only)"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["mcp"],
+            "on_change": "full-reconcile",
+            "cost": "cheap"
+          },
+          "x-powerloom-example": "https://jira-mcp.acme.com"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}

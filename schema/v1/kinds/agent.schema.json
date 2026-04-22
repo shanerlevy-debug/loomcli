@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/agent.schema.json",
+  "title": "Agent",
+  "description": "A Claude Managed Agent principal. Inline skills[] and mcp_servers[] expand at plan time into AgentSkill and AgentMCPServer attachments — it's a convenience for the common case.",
+  "type": "object",
+  "x-powerloom-apply-order": 80,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Agent" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "code-reviewer"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "model", "system_prompt", "owner_principal_ref"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Code Reviewer"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "model": {
+          "type": "string",
+          "description": "Anthropic model ID (e.g. 'claude-sonnet-4-6').",
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["agent"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          },
+          "x-powerloom-default-from-server": {
+            "source": "org-policy",
+            "policy_key": "agent.default_model"
+          },
+          "x-powerloom-example": "claude-sonnet-4-6"
+        },
+        "system_prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32000,
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["agent"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          },
+          "x-powerloom-example": "You are a code reviewer. Given a diff, surface correctness, security, and style issues with precise line references."
+        },
+        "agent_kind": {
+          "type": "string",
+          "enum": ["user"],
+          "default": "user",
+          "description": "v009–v024 only supports 'user'. 'company'/service-principal agents land post-Phase 12.",
+          "x-powerloom-immutable": true
+        },
+        "owner_principal_ref": {
+          "type": "string",
+          "pattern": "^user:[^\\s]+@[^\\s]+$",
+          "description": "Must be a user principal — 'user:<email>'. Groups and other agents cannot own agents in v1.",
+          "x-powerloom-ref": { "kind": "Principal" },
+          "x-powerloom-example": "user:jane@acme.com"
+        },
+        "skills": {
+          "type": "array",
+          "description": "Skill names resolved within the agent's OU. Expands to AgentSkill attachments.",
+          "items": { "$ref": "../common.schema.json#/$defs/resource_name" },
+          "uniqueItems": true,
+          "default": [],
+          "x-powerloom-example": ["slack-digest"]
+        },
+        "mcp_servers": {
+          "type": "array",
+          "description": "MCP registration names resolved within the agent's OU. Expands to AgentMCPServer attachments.",
+          "items": { "$ref": "../common.schema.json#/$defs/resource_name" },
+          "uniqueItems": true,
+          "default": [],
+          "x-powerloom-example": ["jira-readonly"]
+        }
+      }
+    }
+  }
+}

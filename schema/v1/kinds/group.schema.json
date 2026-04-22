@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/group.schema.json",
+  "title": "Group",
+  "description": "A named set of principals scoped to an OU. Groups can be granted role bindings; they can contain users or other groups (nested).",
+  "type": "object",
+  "x-powerloom-apply-order": 20,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Group" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "senior-engineers"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "/acme/engineering"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Senior Engineers"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}

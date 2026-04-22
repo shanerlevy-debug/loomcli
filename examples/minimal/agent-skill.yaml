@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/agent-skill.schema.json
+apiVersion: powerloom.app/v1
+kind: AgentSkill
+metadata:
+  agent_path: /acme/engineering/code-reviewer
+  skill_path: /acme/engineering/slack-digest
+spec:
+  skill_version_id: null

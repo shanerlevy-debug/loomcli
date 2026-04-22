@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/agent-skill.schema.json",
+  "title": "AgentSkill",
+  "description": "Attaches a Skill to an Agent. Identity = (agent_path, skill_path). Optionally pins a specific skill version; if null, tracks the Skill's current_version_id.",
+  "type": "object",
+  "x-powerloom-apply-order": 90,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "AgentSkill" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_path", "skill_path"],
+      "properties": {
+        "agent_path": {
+          "$ref": "../common.schema.json#/$defs/agent_path",
+          "x-powerloom-ref": { "kind": "Agent", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        },
+        "skill_path": {
+          "$ref": "../common.schema.json#/$defs/skill_path",
+          "x-powerloom-ref": { "kind": "Skill", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skill_version_id": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/uuid" },
+            { "type": "null" }
+          ],
+          "description": "Pin to a specific Skill version. Null = track the Skill's current_version_id.",
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["agent", "skill"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          }
+        }
+      }
+    }
+  }
+}

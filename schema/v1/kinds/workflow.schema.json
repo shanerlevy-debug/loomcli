@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/workflow.schema.json",
+  "title": "Workflow (preview)",
+  "description": "A DAG of agent nodes, conditions, approvals, transforms, and outputs. Runtime lands in Powerloom monorepo Phase 14; schema published at schema-v1.0.0 so operators and LLM sessions can begin authoring.",
+  "type": "object",
+  "x-powerloom-apply-order": 100,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "x-powerloom-tier-availability": {
+    "tiers": ["team", "business", "enterprise"],
+    "cap_metric": "workflows_per_org"
+  },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "$defs": {
+    "node_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/node_id" },
+        "kind": {
+          "type": "string",
+          "enum": ["trigger", "agent", "condition", "approval", "transform", "subflow", "output"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "trigger" } }, "required": ["kind"] },
+          "then": {
+            "required": ["trigger_kind"],
+            "properties": {
+              "trigger_kind": {
+                "type": "string",
+                "enum": ["manual", "scheduled", "webhook", "session_completed"]
+              },
+              "cron": { "type": "string" },
+              "webhook_path": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "agent" } }, "required": ["kind"] },
+          "then": {
+            "required": ["agent_ref"],
+            "properties": {
+              "agent_ref": {
+                "$ref": "../common.schema.json#/$defs/resource_name",
+                "x-powerloom-ref": { "kind": "Agent", "scope": "ou" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "condition" } }, "required": ["kind"] },
+          "then": {
+            "required": ["when"],
+            "properties": { "when": { "type": "string" } }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "approval" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "approver_role": {
+                "type": "string",
+                "enum": ["OrgAdmin", "OUAdmin", "Approver"]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "transform" } }, "required": ["kind"] },
+          "then": {
+            "required": ["expression"],
+            "properties": { "expression": { "type": "string" } }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "subflow" } }, "required": ["kind"] },
+          "then": {
+            "required": ["workflow_ref"],
+            "properties": {
+              "workflow_ref": {
+                "$ref": "../common.schema.json#/$defs/resource_name",
+                "x-powerloom-ref": { "kind": "Workflow", "scope": "ou" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "output" } }, "required": ["kind"] },
+          "then": {
+            "required": ["output_kind"],
+            "properties": {
+              "output_kind": {
+                "type": "string",
+                "enum": ["email", "webhook", "db-write", "noop"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "$ref": "#/$defs/node_id" },
+        "to": { "$ref": "#/$defs/node_id" },
+        "when_true": { "type": "boolean", "description": "For edges out of a condition node." }
+      }
+    }
+  },
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Workflow" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "support-triage-pipeline"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "nodes", "edges"],
+      "properties": {
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" },
+        "description": { "type": ["string", "null"], "maxLength": 2048 },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "deployed", "archived"],
+          "default": "draft"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/edge" }
+        }
+      }
+    }
+  }
+}

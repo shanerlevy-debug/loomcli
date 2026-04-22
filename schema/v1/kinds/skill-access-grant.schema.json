@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/skill-access-grant.schema.json",
+  "title": "SkillAccessGrant",
+  "description": "Grants a principal access to a skill outside of the OU-inheritance RBAC model. Identity = (skill_path, principal_ref).",
+  "type": "object",
+  "x-powerloom-apply-order": 55,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "SkillAccessGrant" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skill_path", "principal_ref"],
+      "properties": {
+        "skill_path": {
+          "$ref": "../common.schema.json#/$defs/skill_path",
+          "x-powerloom-ref": { "kind": "Skill", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        },
+        "principal_ref": {
+          "$ref": "../common.schema.json#/$defs/principal_ref",
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false
+    }
+  }
+}

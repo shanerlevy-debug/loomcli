@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/mcp-deployment.schema.json",
+  "title": "MCPDeployment",
+  "description": "A Powerloom-managed MCP server deployment from a template. Creates the server (on shared fleet for non-Enterprise, dedicated for Enterprise) and auto-registers the URL.",
+  "type": "object",
+  "x-powerloom-apply-order": 70,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "MCPDeployment" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "team-files"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "template_kind"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Team Files"
+        },
+        "template_kind": {
+          "type": "string",
+          "enum": ["files", "postgres", "slack", "echo"],
+          "x-powerloom-immutable": true,
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["mcp"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          },
+          "x-powerloom-example": "files"
+        },
+        "config": {
+          "type": "object",
+          "description": "Template-specific config. Shape validated server-side against the template's config schema.",
+          "default": {},
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["mcp"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          },
+          "x-powerloom-example": { "bucket_prefix": "team-files" }
+        },
+        "policy": {
+          "type": "object",
+          "description": "Runtime policy for the deployment (rate limits, scopes, approval requirements).",
+          "default": {},
+          "x-powerloom-example": {}
+        }
+      }
+    }
+  }
+}

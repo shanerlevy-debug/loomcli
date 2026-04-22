@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/powerloom-dialect.schema.json",
+  "title": "Powerloom Schema Dialect v1",
+  "description": "Meta-schema defining the x-powerloom-* annotation keywords layered on top of JSON Schema Draft 2020-12. These keywords carry control-plane semantics (server-populated fields, immutability, cross-kind refs, reconciler hints, tier gating, secret resolution, auxiliary extensions, apply-order). Tooling that understands this dialect should honor the keywords; tooling that does not will treat them as inert annotations (vanilla JSON Schema behavior).",
+  "type": "object",
+  "$defs": {
+    "x-powerloom-ref": {
+      "type": "object",
+      "description": "Declares that a string field is a reference to another Powerloom resource. The CLI resolves these at apply time; the API validates target existence at admit time.",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Target kind the reference resolves to.",
+          "enum": [
+            "OU",
+            "Group",
+            "RoleBinding",
+            "Skill",
+            "Credential",
+            "MCPServerRegistration",
+            "MCPDeployment",
+            "Agent",
+            "Principal",
+            "Workflow",
+            "CustomResourceDefinition",
+            "AuxiliaryClass",
+            "AttributeDefinition"
+          ]
+        },
+        "resolve_by": {
+          "type": "string",
+          "enum": ["name", "id", "path"],
+          "default": "name",
+          "description": "Whether the reference string is a human-authored name/path or a server-issued ID."
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["organization", "ou", "global"],
+          "default": "organization",
+          "description": "Search scope for the ref. 'ou' means the ref must resolve within the target OU subtree."
+        },
+        "on_missing": {
+          "type": "string",
+          "enum": ["error", "create-if-absent"],
+          "default": "error",
+          "description": "Behavior when the target does not exist at apply time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "x-powerloom-server-field": {
+      "type": "boolean",
+      "description": "true means the field is populated by the server (e.g. IDs, timestamps, hash chains). Client-authored manifests MUST NOT set it; the schema rejects it if present on input."
+    },
+    "x-powerloom-immutable": {
+      "type": "boolean",
+      "description": "true means the field cannot change after create. PATCH requests that attempt to change an immutable field are rejected with a specific error."
+    },
+    "x-powerloom-reconciler-hint": {
+      "type": "object",
+      "description": "Declares which reconciler(s) care about this field and whether a change should force a full re-reconcile or a cheap drift-only pass.",
+      "properties": {
+        "reconcilers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["agent", "mcp", "skill", "workflow", "principal", "audit"]
+          },
+          "minItems": 1
+        },
+        "on_change": {
+          "type": "string",
+          "enum": ["full-reconcile", "drift-check", "no-op"],
+          "default": "full-reconcile"
+        },
+        "cost": {
+          "type": "string",
+          "enum": ["cheap", "expensive"],
+          "description": "Cheap = DB-only delta; expensive = external provider call (Anthropic, AWS, etc.)."
+        }
+      },
+      "required": ["reconcilers"],
+      "additionalProperties": false
+    },
+    "x-powerloom-secret-ref": {
+      "type": "object",
+      "description": "Declares that a field, once resolved, yields a secret value retrieved via the CredentialStore. Manifests author the *reference*, never the secret value itself.",
+      "properties": {
+        "credential_kind": {
+          "type": "string",
+          "enum": ["api_key", "oauth_refresh_token", "basic_auth", "bearer_token", "certificate", "generic"]
+        },
+        "rotation": {
+          "type": "string",
+          "enum": ["manual", "scheduled", "on-demand"],
+          "default": "manual"
+        }
+      },
+      "required": ["credential_kind"],
+      "additionalProperties": false
+    },
+    "x-powerloom-default-from-server": {
+      "type": "object",
+      "description": "The server will populate this field if the client omits it, based on organization/OU policy. Distinct from x-powerloom-server-field: the client MAY set it to override the policy default (subject to RBAC).",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["org-policy", "ou-policy", "tier-default", "system-default"]
+        },
+        "policy_key": {
+          "type": "string",
+          "description": "Key in the policy document (e.g. 'agent.default_model')."
+        }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    "x-powerloom-auxiliary": {
+      "type": "object",
+      "description": "Marks the containing object as accepting auxiliary attributes from one or more AuxiliaryClass definitions (AD-style auxiliary class pattern). Lands in Phase 15.4.",
+      "properties": {
+        "storage": {
+          "type": "string",
+          "enum": ["x_attributes"],
+          "default": "x_attributes",
+          "description": "Where auxiliary attributes are persisted on the target row."
+        },
+        "allowed_classes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "If set, restricts which AuxiliaryClass names may extend this kind. Empty = any."
+        }
+      },
+      "additionalProperties": false
+    },
+    "x-powerloom-example": {
+      "description": "A minimal, valid, agent-demo-grade example payload for this field or kind. Powers the luddite-demo target: Claude sessions should be able to pattern-match off these.",
+      "oneOf": [
+        { "type": "object" },
+        { "type": "array" },
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "integer" },
+        { "type": "boolean" }
+      ]
+    },
+    "x-powerloom-tier-availability": {
+      "type": "object",
+      "description": "Which tiers may use this field/kind/feature. Absent = all tiers.",
+      "properties": {
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["free", "starter", "team", "business", "enterprise"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "cap_metric": {
+          "type": "string",
+          "description": "Name of the quota metric enforced by Phase 15 middleware (e.g. 'agents_per_org', 'workflow_runs_per_month')."
+        }
+      },
+      "required": ["tiers"],
+      "additionalProperties": false
+    },
+    "x-powerloom-apply-order": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Hint to the CLI planner for ordering apply operations across kinds. Lower = earlier. Typical values: OU=10, Group=20, RoleBinding=30, Credential=40, Skill=50, MCPServerRegistration=60, MCPDeployment=70, Agent=80, AgentSkill=90, AgentMCPServer=95, Workflow=100."
+    }
+  },
+  "properties": {
+    "x-powerloom-ref": { "$ref": "#/$defs/x-powerloom-ref" },
+    "x-powerloom-server-field": { "$ref": "#/$defs/x-powerloom-server-field" },
+    "x-powerloom-immutable": { "$ref": "#/$defs/x-powerloom-immutable" },
+    "x-powerloom-reconciler-hint": { "$ref": "#/$defs/x-powerloom-reconciler-hint" },
+    "x-powerloom-secret-ref": { "$ref": "#/$defs/x-powerloom-secret-ref" },
+    "x-powerloom-default-from-server": { "$ref": "#/$defs/x-powerloom-default-from-server" },
+    "x-powerloom-auxiliary": { "$ref": "#/$defs/x-powerloom-auxiliary" },
+    "x-powerloom-example": { "$ref": "#/$defs/x-powerloom-example" },
+    "x-powerloom-tier-availability": { "$ref": "#/$defs/x-powerloom-tier-availability" },
+    "x-powerloom-apply-order": { "$ref": "#/$defs/x-powerloom-apply-order" }
+  }
+}

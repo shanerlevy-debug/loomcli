@@ -1,0 +1,100 @@
+"""Typer app root — wires subcommands + global options.
+
+Subcommands live in loomcli.commands.*. Each one registers its
+own Typer sub-app here.
+
+Global options:
+    --api-url      override POWERLOOM_API_BASE_URL
+    --config-dir   override POWERLOOM_HOME (credentials + config location)
+"""
+from __future__ import annotations
+
+import os
+from typing import Annotated, Optional
+
+import typer
+
+from loomcli import __version__
+from loomcli.commands import agent_session_cmd
+from loomcli.commands import apply as apply_cmd
+from loomcli.commands import auth_cmd
+from loomcli.commands import describe as describe_cmd
+from loomcli.commands import destroy as destroy_cmd
+from loomcli.commands import get as get_cmd
+from loomcli.commands import import_ as import_cmd
+from loomcli.commands import plan as plan_cmd
+from loomcli.commands import workflow_cmd
+
+
+app = typer.Typer(
+    help=(
+        "Weave: the Powerloom CLI. Declarative manifests + resource "
+        "inspection against the control plane."
+    ),
+    no_args_is_help=True,
+    add_completion=True,
+)
+
+
+def _apply_global_options(
+    api_url: Optional[str], config_dir: Optional[str]
+) -> None:
+    """Mutate process env before subcommand runs. Typer doesn't have
+    first-class "run before subcommand" hooks; setting env here is
+    equivalent and means config.load_runtime_config() picks it up."""
+    if api_url:
+        os.environ["POWERLOOM_API_BASE_URL"] = api_url
+    if config_dir:
+        os.environ["POWERLOOM_HOME"] = config_dir
+
+
+@app.callback(invoke_without_command=True)
+def _root(
+    ctx: typer.Context,
+    api_url: Annotated[
+        Optional[str],
+        typer.Option(
+            "--api-url",
+            envvar="POWERLOOM_API_BASE_URL",
+            help="Base URL of the control plane. Default: http://localhost:8000.",
+        ),
+    ] = None,
+    config_dir: Annotated[
+        Optional[str],
+        typer.Option(
+            "--config-dir",
+            envvar="POWERLOOM_HOME",
+            help="Override the CLI config directory (token + settings).",
+        ),
+    ] = None,
+    version: Annotated[
+        bool,
+        typer.Option("--version", help="Print version and exit."),
+    ] = False,
+) -> None:
+    if version:
+        typer.echo(__version__)
+        raise typer.Exit()
+    _apply_global_options(api_url, config_dir)
+    if ctx.invoked_subcommand is None:
+        # No subcommand given and no --version: show help + exit non-zero.
+        # Matches `no_args_is_help=True` behavior we want for everything
+        # except the --version path.
+        typer.echo(ctx.get_help())
+        raise typer.Exit(0)
+
+
+# Register subcommands.
+app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami.")
+app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
+app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
+app.command("apply", help="Apply a manifest (create/update resources).")(apply_cmd.apply_command)
+app.command("plan", help="Show what apply would do, without making changes.")(plan_cmd.plan_command)
+app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.destroy_command)
+app.command("get", help="List or show a resource kind.")(get_cmd.get_command)
+app.command("describe", help="Show a single resource with full detail.")(describe_cmd.describe_command)
+app.command("import", help="Adopt an existing resource into a manifest.")(import_cmd.import_command)
+
+
+if __name__ == "__main__":
+    app()

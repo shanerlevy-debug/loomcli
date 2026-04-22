@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/skill-access-grant.schema.json
+apiVersion: powerloom.app/v1
+kind: SkillAccessGrant
+metadata:
+  skill_path: /acme/engineering/slack-digest
+  principal_ref: user:jane@acme.com

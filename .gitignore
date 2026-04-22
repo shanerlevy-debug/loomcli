@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+*.egg
+.eggs/
+
+# Build artifacts
+build/
+dist/
+*.whl
+*.tar.gz
+
+# PyInstaller
+*.spec.bak
+
+# Venvs
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Force-include staging artifact (generated during wheel build)
+loomcli/_bundled_schema/

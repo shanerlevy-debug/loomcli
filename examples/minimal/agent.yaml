@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/agent.schema.json
+apiVersion: powerloom.app/v1
+kind: Agent
+metadata:
+  name: code-reviewer
+  ou_path: /acme/engineering
+spec:
+  display_name: Code Reviewer
+  model: claude-sonnet-4-6
+  system_prompt: |
+    You are a code reviewer. Given a diff, surface correctness,
+    security, and style issues with precise line references.
+  owner_principal_ref: user:jane@acme.com
+  skills:
+    - slack-digest
+  mcp_servers:
+    - jira-readonly

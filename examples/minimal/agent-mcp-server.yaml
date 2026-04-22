@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/agent-mcp-server.schema.json
+apiVersion: powerloom.app/v1
+kind: AgentMCPServer
+metadata:
+  agent_path: /acme/engineering/code-reviewer
+  mcp_registration_path: /acme/engineering/jira-readonly

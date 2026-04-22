@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/ou.schema.json
+apiVersion: powerloom.app/v1
+kind: OU
+metadata:
+  name: engineering
+  parent_ou_path: /acme
+spec:
+  display_name: Engineering

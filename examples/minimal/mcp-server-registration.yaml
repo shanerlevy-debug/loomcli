@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/mcp-server-registration.schema.json
+apiVersion: powerloom.app/v1
+kind: MCPServerRegistration
+metadata:
+  name: jira-readonly
+  ou_path: /acme/engineering
+spec:
+  display_name: Jira (read-only)
+  url: https://jira-mcp.acme.com

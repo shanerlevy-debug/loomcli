@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/common.schema.json",
+  "title": "Powerloom common definitions",
+  "description": "Shared $defs referenced by every kind schema.",
+  "$defs": {
+    "api_version": {
+      "type": "string",
+      "enum": ["powerloom.app/v1", "powerloom/v1"],
+      "description": "Canonical is 'powerloom.app/v1'. 'powerloom/v1' is accepted for backward compatibility with monorepo builds v009–v024."
+    },
+    "resource_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "minLength": 1,
+      "maxLength": 63,
+      "description": "DNS-compatible slug. Lowercase letters, digits, hyphens; must start with alnum; 1–63 chars."
+    },
+    "ou_path": {
+      "type": "string",
+      "pattern": "^/([a-z0-9][a-z0-9-]{0,62})(/[a-z0-9][a-z0-9-]{0,62})*$",
+      "description": "Absolute OU path, e.g. /acme/engineering/platform. Segments follow resource_name rules."
+    },
+    "agent_path": {
+      "type": "string",
+      "pattern": "^/([a-z0-9][a-z0-9-]{0,62})(/[a-z0-9][a-z0-9-]{0,62})+$",
+      "description": "Absolute path to an Agent: /{org}/{ou...}/{agent-name}."
+    },
+    "skill_path": { "$ref": "#/$defs/agent_path" },
+    "group_path": { "$ref": "#/$defs/agent_path" },
+    "mcp_registration_path": { "$ref": "#/$defs/agent_path" },
+    "principal_ref": {
+      "type": "string",
+      "pattern": "^(user:[^\\s]+@[^\\s]+|group:/.+|agent:/.+)$",
+      "description": "One of 'user:<email>', 'group:<group_path>', or 'agent:<agent_path>'.",
+      "x-powerloom-example": "user:jane@acme.com"
+    },
+    "member_ref": {
+      "type": "string",
+      "pattern": "^(user:[^\\s]+@[^\\s]+|group:/.+)$",
+      "description": "GroupMembership member reference — 'user:<email>' or 'group:<group_path>'."
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Human-readable label; no formatting rules beyond length."
+    }
+  }
+}

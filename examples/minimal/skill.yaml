@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/skill.schema.json
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: slack-digest
+  ou_path: /acme/engineering
+spec:
+  display_name: Slack Digest
+  description: Summarizes yesterday's channel activity into a digest.

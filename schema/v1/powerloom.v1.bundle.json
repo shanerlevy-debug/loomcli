@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/powerloom.v1.bundle.json",
+  "title": "Powerloom manifest (bundle v1)",
+  "description": "Discriminated union over all Powerloom kinds. Use this schema when you don't know the kind up-front (e.g. validating a mixed multi-doc YAML file). For a single-kind file, prefer the per-kind schema for better IDE diagnostics.",
+  "oneOf": [
+    { "$ref": "kinds/ou.schema.json" },
+    { "$ref": "kinds/group.schema.json" },
+    { "$ref": "kinds/group-membership.schema.json" },
+    { "$ref": "kinds/role-binding.schema.json" },
+    { "$ref": "kinds/skill.schema.json" },
+    { "$ref": "kinds/skill-access-grant.schema.json" },
+    { "$ref": "kinds/credential.schema.json" },
+    { "$ref": "kinds/mcp-server-registration.schema.json" },
+    { "$ref": "kinds/mcp-deployment.schema.json" },
+    { "$ref": "kinds/agent.schema.json" },
+    { "$ref": "kinds/agent-skill.schema.json" },
+    { "$ref": "kinds/agent-mcp-server.schema.json" },
+    { "$ref": "kinds/workflow.schema.json" }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/group-membership.schema.json",
+  "title": "GroupMembership",
+  "description": "Declares that a principal (user or nested group) is a member of a group. The manifest's identity is the (group_path, member_ref) pair — spec is empty.",
+  "type": "object",
+  "x-powerloom-apply-order": 25,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "GroupMembership" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_path", "member_ref"],
+      "properties": {
+        "group_path": {
+          "$ref": "../common.schema.json#/$defs/group_path",
+          "x-powerloom-ref": { "kind": "Group", "resolve_by": "path" },
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "/acme/engineering/senior-engineers"
+        },
+        "member_ref": {
+          "$ref": "../common.schema.json#/$defs/member_ref",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "user:jane@acme.com"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "No spec fields; GroupMembership is fully defined by metadata."
+    }
+  }
+}

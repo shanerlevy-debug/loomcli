@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/workflow.schema.json
+apiVersion: powerloom.app/v1
+kind: Workflow
+metadata:
+  name: support-triage-pipeline
+  ou_path: /acme/support
+spec:
+  display_name: Support Triage
+  status: draft
+  nodes:
+    - id: entry
+      kind: trigger
+      trigger_kind: webhook
+      webhook_path: /hooks/support-ticket
+    - id: classify
+      kind: agent
+      agent_ref: support-triage
+    - id: route
+      kind: condition
+      when: "$.priority == 'high'"
+    - id: page-oncall
+      kind: agent
+      agent_ref: pagerduty-notifier
+    - id: standard-flow
+      kind: agent
+      agent_ref: ticket-responder
+    - id: done
+      kind: output
+      output_kind: noop
+  edges:
+    - from: entry
+      to: classify
+    - from: classify
+      to: route
+    - from: route
+      to: page-oncall
+      when_true: true
+    - from: route
+      to: standard-flow
+      when_true: false
+    - from: page-oncall
+      to: done
+    - from: standard-flow
+      to: done

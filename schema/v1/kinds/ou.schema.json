@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/ou.schema.json",
+  "title": "OU (Organizational Unit)",
+  "description": "A node in the Powerloom OU tree. OUs are the primary scoping unit for RBAC bindings, agents, skills, and MCP deployments.",
+  "type": "object",
+  "x-powerloom-apply-order": 10,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "OU" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "engineering"
+        },
+        "parent_ou_path": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/ou_path" },
+            { "type": "null" }
+          ],
+          "description": "Parent OU's absolute path. Null/omitted for root OU.",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "/acme"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Engineering"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/role-binding.schema.json
+apiVersion: powerloom.app/v1
+kind: RoleBinding
+metadata:
+  principal_ref: group:/acme/engineering/senior-engineers
+  role: AgentOperator
+  scope_ou_path: /acme/engineering
+  decision_type: allow

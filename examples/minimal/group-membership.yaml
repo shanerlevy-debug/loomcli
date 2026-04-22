@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/group-membership.schema.json
+apiVersion: powerloom.app/v1
+kind: GroupMembership
+metadata:
+  group_path: /acme/engineering/senior-engineers
+  member_ref: user:jane@acme.com

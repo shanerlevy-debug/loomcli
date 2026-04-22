@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/agent-mcp-server.schema.json",
+  "title": "AgentMCPServer",
+  "description": "Attaches an MCPServerRegistration to an Agent, granting the agent access to that server via a Credential. Apply creates a matching Credential row server-side if one doesn't exist.",
+  "type": "object",
+  "x-powerloom-apply-order": 95,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "AgentMCPServer" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_path", "mcp_registration_path"],
+      "properties": {
+        "agent_path": {
+          "$ref": "../common.schema.json#/$defs/agent_path",
+          "x-powerloom-ref": { "kind": "Agent", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        },
+        "mcp_registration_path": {
+          "$ref": "../common.schema.json#/$defs/mcp_registration_path",
+          "x-powerloom-ref": { "kind": "MCPServerRegistration", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false
+    }
+  }
+}

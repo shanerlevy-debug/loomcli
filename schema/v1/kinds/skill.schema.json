@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/skill.schema.json",
+  "title": "Skill",
+  "description": "An Anthropic Claude Skill package uploaded to Powerloom. The manifest references an already-uploaded version by ID — archive uploads happen via REST, not manifest-driven.",
+  "type": "object",
+  "x-powerloom-apply-order": 50,
+  "x-powerloom-auxiliary": { "storage": "x_attributes" },
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Skill" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "slack-digest"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Slack Digest"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 1024
+        },
+        "current_version_id": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/uuid" },
+            { "type": "null" }
+          ],
+          "description": "UUID of the uploaded skill version to mark current. Upload versions via REST before referencing.",
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["skill"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          }
+        }
+      }
+    }
+  }
+}

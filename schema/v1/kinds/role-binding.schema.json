@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/role-binding.schema.json",
+  "title": "RoleBinding",
+  "description": "Grants (or explicitly denies) a role to a principal at an OU scope. Deny-override semantics — see architecture §RBAC.",
+  "type": "object",
+  "x-powerloom-apply-order": 30,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "RoleBinding" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principal_ref", "role", "scope_ou_path"],
+      "properties": {
+        "principal_ref": {
+          "$ref": "../common.schema.json#/$defs/principal_ref",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "group:/acme/engineering/senior-engineers"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "OrgAdmin",
+            "OUAdmin",
+            "GroupAdmin",
+            "AgentOwner",
+            "AgentOperator",
+            "AgentViewer",
+            "SkillOwner",
+            "SkillUser",
+            "Auditor",
+            "Approver"
+          ],
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "AgentOperator"
+        },
+        "scope_ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "/acme/engineering"
+        },
+        "decision_type": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "default": "allow",
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "No spec fields; RoleBinding is fully defined by metadata."
+    }
+  }
+}
