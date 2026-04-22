@@ -39,7 +39,11 @@
         },
         "template_kind": {
           "type": "string",
-          "enum": ["files", "postgres", "slack", "echo"],
+          "enum": [
+            "files", "postgres", "slack", "echo", "powerloom_meta",
+            "github", "google_drive", "notion", "jira", "confluence",
+            "microsoft365", "salesforce", "zendesk", "hubspot", "linear"
+          ],
           "x-powerloom-immutable": true,
           "x-powerloom-reconciler-hint": {
             "reconcilers": ["mcp"],
@@ -47,6 +51,14 @@
             "cost": "expensive"
           },
           "x-powerloom-example": "files"
+        },
+        "isolation_mode": {
+          "type": "string",
+          "enum": ["shared", "dedicated"],
+          "default": "shared",
+          "description": "'shared' uses the multiplexer fleet (~20× cheaper, 10s warm-up). 'dedicated' provisions a per-deployment Terraform stack (Enterprise).",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "shared"
         },
         "config": {
           "type": "object",

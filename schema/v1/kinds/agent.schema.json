@@ -58,7 +58,7 @@
         "system_prompt": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 32000,
+          "maxLength": 32768,
           "x-powerloom-reconciler-hint": {
             "reconcilers": ["agent"],
             "on_change": "full-reconcile",
@@ -66,11 +66,19 @@
           },
           "x-powerloom-example": "You are a code reviewer. Given a diff, surface correctness, security, and style issues with precise line references."
         },
+        "runtime_type": {
+          "type": "string",
+          "enum": ["cma"],
+          "default": "cma",
+          "description": "Agent runtime backend. Currently only 'cma' (Claude Managed Agent) is supported.",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "cma"
+        },
         "agent_kind": {
           "type": "string",
-          "enum": ["user"],
+          "enum": ["user", "service"],
           "default": "user",
-          "description": "v009–v024 only supports 'user'. 'company'/service-principal agents land post-Phase 12.",
+          "description": "'user' — agent inherits owner user's permissions. 'service' — OU-scoped service principal.",
           "x-powerloom-immutable": true
         },
         "owner_principal_ref": {

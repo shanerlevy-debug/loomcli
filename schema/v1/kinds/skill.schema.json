@@ -39,14 +39,32 @@
         },
         "description": {
           "type": ["string", "null"],
-          "maxLength": 1024
+          "maxLength": 2048
+        },
+        "skill_type": {
+          "type": "string",
+          "enum": ["archive", "tool_definition"],
+          "default": "archive",
+          "description": "'archive' — traditional packaged skill uploaded via REST. 'tool_definition' — inline JSON tool schema; requires tool_schema.",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "archive"
+        },
+        "tool_schema": {
+          "type": ["object", "null"],
+          "description": "Required when skill_type is 'tool_definition'. Must be null (or omitted) for archive skills.",
+          "default": null,
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["skill"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          }
         },
         "current_version_id": {
           "oneOf": [
             { "$ref": "../common.schema.json#/$defs/uuid" },
             { "type": "null" }
           ],
-          "description": "UUID of the uploaded skill version to mark current. Upload versions via REST before referencing.",
+          "description": "UUID of the uploaded skill version to mark current. Upload versions via REST before referencing. Applicable only when skill_type is 'archive'.",
           "x-powerloom-reconciler-hint": {
             "reconcilers": ["skill"],
             "on_change": "full-reconcile",

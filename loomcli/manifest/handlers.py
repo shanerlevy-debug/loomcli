@@ -406,15 +406,16 @@ class SkillHandler:
 
     def create(self, r, resolver, client):
         ou_id = resolver.ou_path_to_id(r.metadata.ou_path)
-        out = client.post(
-            "/skills",
-            {
-                "name": r.metadata.name,
-                "display_name": r.spec.display_name,
-                "description": r.spec.description,
-                "ou_id": ou_id,
-            },
-        )
+        body: dict = {
+            "name": r.metadata.name,
+            "display_name": r.spec.display_name,
+            "description": r.spec.description,
+            "ou_id": ou_id,
+            "skill_type": r.spec.skill_type,
+        }
+        if r.spec.tool_schema is not None:
+            body["tool_schema"] = r.spec.tool_schema
+        out = client.post("/skills", body)
         resolver.invalidate_cache_for("/skills")
         return out
 
@@ -522,6 +523,7 @@ class McpDeploymentHandler:
                 "display_name": r.spec.display_name,
                 "ou_id": ou_id,
                 "template_kind": r.spec.template_kind,
+                "isolation_mode": r.spec.isolation_mode,
                 "config_json": r.spec.config,
                 "policy_json": r.spec.policy,
             },
@@ -584,6 +586,7 @@ class AgentHandler:
                 "ou_id": ou_id,
                 "model": r.spec.model,
                 "system_prompt": r.spec.system_prompt,
+                "runtime_type": r.spec.runtime_type,
                 "agent_kind": r.spec.agent_kind,
                 "owner_principal_id": owner_principal_id,
             },

@@ -118,9 +118,10 @@ class RoleBindingSpec(_BaseSpec):
 class SkillSpec(_BaseSpec):
     display_name: str
     description: str | None = None
+    skill_type: Literal["archive", "tool_definition"] = "archive"
+    tool_schema: dict[str, Any] | None = None
     # Manifests reference skill versions by id — local archive uploads
-    # are out of scope for v009 (Q5 decision). Admins upload versions
-    # via REST first, put the resulting uuid here.
+    # happen via REST; put the resulting uuid here.
     current_version_id: str | None = None
 
 
@@ -141,6 +142,7 @@ class McpDeploymentSpec(_BaseSpec):
         "github", "google_drive", "notion", "jira", "confluence",
         "microsoft365", "salesforce", "zendesk", "hubspot", "linear",
     ]
+    isolation_mode: Literal["shared", "dedicated"] = "shared"
     config: dict[str, Any] = Field(default_factory=dict)
     policy: dict[str, Any] = Field(default_factory=dict)
 
@@ -150,12 +152,9 @@ class AgentSpec(_BaseSpec):
     description: str | None = None
     model: str
     system_prompt: str
-    runtime: Literal[
-        "cma", "openai", "azure_openai", "mistral", "cohere",
-        "ollama", "bedrock", "vertex", "langchain", "crewai", "autogen",
-    ] = "cma"
-    agent_kind: Literal["user"] = "user"
-    owner_principal_ref: str  # "user:email" — only user principals in v009
+    runtime_type: Literal["cma"] = "cma"
+    agent_kind: Literal["user", "service"] = "user"
+    owner_principal_ref: str  # "user:email" or "user:email" for service kind
     # Convenience: inline attachments. Equivalent to declaring a
     # separate AgentSkill / AgentMCPServer resource, but more ergonomic
     # for the common case. Applier expands these at plan time.
