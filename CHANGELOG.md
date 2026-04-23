@@ -5,6 +5,14 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.5.0 — 2026-04-23 (CLI)
+
+**Ships schema-v1.2.0 to PyPI.** First CLI release since the renumber-to-PEP-440 fix (prior `pyproject.toml` carried an invalid `v0.4.0` string that the publish preflight would have rejected — no wheel ever reached PyPI at that version). Bumping straight to `0.5.0` to keep CLI-stream numbering monotonic and to pair cleanly with the schema-v1.2.0 payload.
+
+- Schema bundle in wheel now includes `workflow-type`, `memory-policy`, `scope` kinds + v1.2.0 Agent/Skill extensions.
+- No CLI-surface breaking changes. `weave --help` unchanged. Existing manifests keep validating.
+- Gated on Powerloom engine v052 for the new kinds (earlier engines tolerate them as unknown and will 404 on apply).
+
 ## v0.3.0 — 2026-04-22 (CLI)
 
 **First PyPI publish — `pip install loomcli` installs the `weave` console script.**
@@ -26,7 +34,7 @@ Consolidates the repo from schema-only (weavecli era) into the authoritative hom
 - Auth — `weave auth login` (OIDC device-code stubbed; dev-mode impersonation works), `weave auth whoami`.
 - PyInstaller single-binary build (`build-binary.sh` + `loomcli.spec`).
 
-## schema-v1.2.0 — 2026-04-23 (draft, unreleased)
+## schema-v1.2.0 — 2026-04-23
 
 **Additive release. No breaking changes.** All v1.1.0 manifests continue to validate. Engine negotiation advertises `supported_schema_versions: ["1.0.0", "1.1.0", "1.2.0"]`; CLI picks highest mutual.
 
