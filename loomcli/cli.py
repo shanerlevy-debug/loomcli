@@ -24,6 +24,7 @@ from loomcli.commands import get as get_cmd
 from loomcli.commands import import_ as import_cmd
 from loomcli.commands import plan as plan_cmd
 from loomcli.commands import workflow_cmd
+from loomcli.commands import antigravity_worker_cmd
 
 
 app = typer.Typer(
@@ -88,6 +89,7 @@ def _root(
 app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami.")
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
+app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
 app.command("apply", help="Apply a manifest (create/update resources).")(apply_cmd.apply_command)
 app.command("plan", help="Show what apply would do, without making changes.")(plan_cmd.plan_command)
 app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.destroy_command)
