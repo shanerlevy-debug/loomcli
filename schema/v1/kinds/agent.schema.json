@@ -103,6 +103,35 @@
           "uniqueItems": true,
           "default": [],
           "x-powerloom-example": ["jira-readonly"]
+        },
+        "coordinator_role": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.2.0 -- if true, this agent is an LLM-coordinator that grades sessions and routes work. Auto-attaches grading skills at reconcile time."
+        },
+        "task_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["routing", "qa", "analogy", "execution", "coordination"]
+          },
+          "uniqueItems": true,
+          "default": [],
+          "description": "v1.2.0 -- which task kinds this agent handles. Drives context-assembler representation selection. Empty = all kinds accepted."
+        },
+        "memory_permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": [],
+          "description": "v1.2.0 -- scope refs (dotted paths) the agent has memory read access to. Empty = inherit home_ou scope (pre-1.2.0 behavior)."
+        },
+        "reranker_model": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "v1.2.0 -- optional override for the LLM-judge reranker model. Falls back to MemoryPolicy / org default if null."
         }
       }
     }

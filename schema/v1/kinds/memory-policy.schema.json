@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/memory-policy.schema.json",
+  "title": "MemoryPolicy",
+  "description": "Declarative per-org memory governance. Configures review cadence, timeout behavior, tentative-weight, approval gating, and per-session caps. Added in schema 1.2.0.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "powerloom.app/v1"
+    },
+    "kind": {
+      "const": "MemoryPolicy"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "name",
+        "ou_id"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "ou_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "review_cadence_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760,
+          "default": 24,
+          "description": "How often the governance service sweeps pending tentative memories for this policy's scope."
+        },
+        "timeout_action": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "forget",
+            "escalate"
+          ],
+          "default": "forget",
+          "description": "What happens to a tentative memory that sits past its review deadline without explicit action."
+        },
+        "review_deadline_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4320,
+          "default": 72,
+          "description": "Hours from tentative-status entry until the timeout_action fires."
+        },
+        "tentative_weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.25,
+          "description": "Retrieval weight for tentative (unreviewed) memories vs. approved ones. Lower values keep unreviewed memory out of the hot path."
+        },
+        "org_scope_requires_approval": {
+          "type": "boolean",
+          "default": true,
+          "description": "Org-wide memory writes always go through review, even from high-trust agents."
+        },
+        "max_memories_per_session": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "description": "Upper bound on remember() calls per session before the agent is rate-limited."
+        },
+        "consolidation_gate": {
+          "type": "string",
+          "enum": [
+            "kairos",
+            "none"
+          ],
+          "default": "kairos",
+          "description": "Whether consolidation flows through the 4-dimensional Kairos validation gate (logical / factual / novelty / alignment). `none` skips the gate \u2014 fast but unsafe."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

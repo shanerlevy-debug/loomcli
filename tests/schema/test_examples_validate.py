@@ -40,6 +40,10 @@ EXAMPLE_TO_KIND_SCHEMA = {
     "agent-skill.yaml": "agent-skill.schema.json",
     "agent-mcp-server.yaml": "agent-mcp-server.schema.json",
     "workflow.yaml": "workflow.schema.json",
+    # v1.2.0 additions (memory system + loomcli schema evolution)
+    "workflow-type.yaml": "workflow-type.schema.json",
+    "memory-policy.yaml": "memory-policy.schema.json",
+    "scope.yaml": "scope.schema.json",
 }
 
 

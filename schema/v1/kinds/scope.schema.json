@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v1/kinds/scope.schema.json",
+  "title": "Scope",
+  "description": "Explicit scope declaration. Previously implicit via OU hierarchy; 1.2.0 makes scopes first-class so manifests can reference them by name for memory permissions + type-cell namespacing. Added in schema 1.2.0.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "powerloom.app/v1"
+    },
+    "kind": {
+      "const": "Scope"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "name",
+        "ou_id"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 128,
+          "description": "Stable scope identifier. Dots allowed for hierarchical naming (e.g., `home.research.infra`)."
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "ou_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "parent_scope_ref": {
+          "type": "string",
+          "description": "Dotted-path reference to parent scope (e.g., `home.research`). Empty = root of this OU."
+        },
+        "inheritance_mode": {
+          "type": "string",
+          "enum": [
+            "full",
+            "isolated",
+            "selective"
+          ],
+          "default": "full",
+          "description": "How memory from the parent scope flows into this scope. `full` = read-all inheritance; `isolated` = no inheritance; `selective` = uses the selective_inheritance block below."
+        },
+        "selective_inheritance": {
+          "type": "object",
+          "description": "Only consulted when inheritance_mode=selective. Lists which parent representations / type memories are inherited.",
+          "properties": {
+            "from_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Type names whose memory inherits from the parent scope."
+            },
+            "memory_kinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "grammar",
+                  "lexicon",
+                  "procedural",
+                  "concepts"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "retention_override": {
+          "type": "object",
+          "description": "Optional per-scope retention override. If set, wins over the parent MemoryPolicy for memories scoped here.",
+          "properties": {
+            "decay_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            },
+            "forget_after_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

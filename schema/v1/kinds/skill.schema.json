@@ -70,6 +70,46 @@
             "on_change": "full-reconcile",
             "cost": "expensive"
           }
+        },
+        "system": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.2.0 -- marks skill as system-authored; auto-attached per auto_attach_to selector at reconcile time. User-declared skills default false."
+        },
+        "auto_attach_to": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "agent_kinds": {
+                  "type": "array",
+                  "items": { "type": "string", "enum": ["user", "service"] },
+                  "uniqueItems": true
+                },
+                "task_kinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["routing", "qa", "analogy", "execution", "coordination"]
+                  },
+                  "uniqueItems": true
+                },
+                "runtime_types": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "uniqueItems": true
+                },
+                "coordinator_role_required": {
+                  "type": "boolean",
+                  "default": false
+                }
+              }
+            },
+            { "type": "null" }
+          ],
+          "default": null,
+          "description": "v1.2.0 -- selector describing which agents get this skill auto-attached when system=true. Conditions are ANDed; empty object matches any. Ignored when system=false."
         }
       }
     }

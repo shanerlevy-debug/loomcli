@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/scope.schema.json
+apiVersion: powerloom.app/v1
+kind: Scope
+metadata:
+  name: home.research
+  display_name: Home Research Scope
+  ou_id: 00000000-0000-0000-0000-000000000001
+spec:
+  parent_scope_ref: home
+  inheritance_mode: full

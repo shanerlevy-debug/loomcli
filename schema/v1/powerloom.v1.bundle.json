@@ -16,6 +16,9 @@
     { "$ref": "kinds/agent.schema.json" },
     { "$ref": "kinds/agent-skill.schema.json" },
     { "$ref": "kinds/agent-mcp-server.schema.json" },
-    { "$ref": "kinds/workflow.schema.json" }
+    { "$ref": "kinds/workflow.schema.json" },
+    { "$ref": "kinds/workflow-type.schema.json" },
+    { "$ref": "kinds/memory-policy.schema.json" },
+    { "$ref": "kinds/scope.schema.json" }
   ]
 }

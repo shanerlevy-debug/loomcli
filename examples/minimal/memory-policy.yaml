@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../schema/v1/kinds/memory-policy.schema.json
+apiVersion: powerloom.app/v1
+kind: MemoryPolicy
+metadata:
+  name: default-policy
+  display_name: Default Memory Policy
+  ou_id: 00000000-0000-0000-0000-000000000001
+spec:
+  review_cadence_hours: 24
+  timeout_action: forget
+  review_deadline_hours: 72
+  tentative_weight: 0.25
+  org_scope_requires_approval: true
+  max_memories_per_session: 50
+  consolidation_gate: kairos
