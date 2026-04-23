@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/agent.schema.json",
+  "title": "Agent (v2 stdlib derivation)",
+  "description": "A Claude Managed Agent principal. Derivation: compose(Process[agent_runtime], Policy[system_prompt, model, capabilities], Scope[owner_principal]). Hand-authored at v2.0.0 with shape parity to v1.2.0 — existing Agent manifests migrate unchanged except for apiVersion.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Process", "Policy", "Scope"],
+    "roles": {
+      "Process": "agent_runtime",
+      "Policy": "behavior",
+      "Scope": "ownership"
+    }
+  },
+  "x-powerloom-apply-order": 80,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Agent" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "code-reviewer"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "model", "system_prompt", "owner_principal_ref"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Code Reviewer"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "model": {
+          "type": "string",
+          "description": "Anthropic model ID.",
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["agent"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          },
+          "x-powerloom-default-from-server": {
+            "source": "org-policy",
+            "policy_key": "agent.default_model"
+          }
+        },
+        "system_prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32768,
+          "x-powerloom-reconciler-hint": {
+            "reconcilers": ["agent"],
+            "on_change": "full-reconcile",
+            "cost": "expensive"
+          }
+        },
+        "runtime_type": {
+          "type": "string",
+          "enum": ["cma"],
+          "default": "cma",
+          "x-powerloom-immutable": true
+        },
+        "agent_kind": {
+          "type": "string",
+          "enum": ["user", "service"],
+          "default": "user",
+          "x-powerloom-immutable": true
+        },
+        "owner_principal_ref": {
+          "type": "string",
+          "pattern": "^user:[^\\s]+@[^\\s]+$",
+          "x-powerloom-ref": { "kind": "Principal" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "$ref": "../common.schema.json#/$defs/resource_name" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "mcp_servers": {
+          "type": "array",
+          "items": { "$ref": "../common.schema.json#/$defs/resource_name" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "coordinator_role": {
+          "type": "boolean",
+          "default": false,
+          "description": "LLM-coordinator marker; auto-attaches grading skills."
+        },
+        "task_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["routing", "qa", "analogy", "execution", "coordination"]
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "memory_permissions": {
+          "type": "array",
+          "items": { "$ref": "../common.schema.json#/$defs/scope_ref" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "reranker_model": {
+          "type": ["string", "null"],
+          "default": null
+        }
+      }
+    }
+  }
+}

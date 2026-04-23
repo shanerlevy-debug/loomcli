@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/ou.schema.json",
+  "title": "OU (v2 stdlib derivation)",
+  "description": "Organizational Unit — a node in the OU tree. Derivation: Scope[scope_type=ou, parent_scope_ref=<org-or-parent-ou>]. Shape parity with v1.2.0.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Scope"],
+    "roles": {
+      "Scope": "organizational_unit"
+    }
+  },
+  "x-powerloom-apply-order": 15,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "OU" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true
+        },
+        "parent_ou_path": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/ou_path" },
+            { "type": "null" }
+          ],
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "properties": {
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    }
+  }
+}

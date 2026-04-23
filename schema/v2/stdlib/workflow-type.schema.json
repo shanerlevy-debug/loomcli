@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/workflow-type.schema.json",
+  "title": "WorkflowType (v2 stdlib derivation)",
+  "description": "Reusable workflow-type template. Derivation: compose(Process[template], Policy[memory_policy_id, task_kinds], Scope[coordinator_scope]). Shape parity with v1.2.0.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Process", "Policy", "Scope"],
+    "roles": {
+      "Process": "template",
+      "Policy": "governance",
+      "Scope": "coordinator"
+    }
+  },
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "WorkflowType" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "ou_id"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "ou_id": { "$ref": "../common.schema.json#/$defs/uuid" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coordinator_agent_id": { "$ref": "../common.schema.json#/$defs/uuid" },
+        "default_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 3600
+        },
+        "memory_policy_id": { "$ref": "../common.schema.json#/$defs/uuid" },
+        "task_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["routing", "qa", "analogy", "execution", "coordination"]
+          },
+          "uniqueItems": true
+        },
+        "runtime_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cma", "openai", "anthropic_messages", "ollama",
+              "bedrock", "vertex", "azure_openai", "mistral",
+              "cohere", "langchain", "crewai", "autogen"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

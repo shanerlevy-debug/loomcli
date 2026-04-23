@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/policy.schema.json",
+  "title": "Policy (v2 primitive)",
+  "description": "A declarative rule or constraint. One of the six v2 root primitives. MemoryPolicy, access grants, rate limits, and runtime-constraint policies all derive from Policy. The statement field carries the policy body in a format appropriate for the policy_type.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Policy" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": { "$ref": "../common.schema.json#/$defs/resource_name" },
+        "ou_path": { "$ref": "../common.schema.json#/$defs/ou_path" },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_type", "applies_to", "statement"],
+      "properties": {
+        "policy_type": {
+          "type": "string",
+          "description": "Kind of policy (e.g., 'memory', 'runtime', 'access', 'rate_limit', 'retention').",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "applies_to": {
+          "type": "array",
+          "description": "Scope refs this policy governs. Non-empty. Use a single org-scope ref for org-wide policies.",
+          "items": { "$ref": "../common.schema.json#/$defs/scope_ref" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "statement": {
+          "description": "Policy body. Shape depends on policy_type; free-form object for domain-specific encoding.",
+          "oneOf": [
+            { "type": "object", "additionalProperties": true },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "enforcement_mode": {
+          "type": "string",
+          "enum": ["advisory", "warn", "enforce"],
+          "default": "enforce",
+          "description": "How strictly the policy is enforced. 'advisory' logs violations; 'warn' returns warnings; 'enforce' rejects."
+        },
+        "exceptions": {
+          "type": "array",
+          "description": "Scope refs where this policy does NOT apply (exception carve-outs).",
+          "items": { "$ref": "../common.schema.json#/$defs/scope_ref" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "scope_ref": { "$ref": "../common.schema.json#/$defs/scope_ref" }
+      }
+    }
+  }
+}

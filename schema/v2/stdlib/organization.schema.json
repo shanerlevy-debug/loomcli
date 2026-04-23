@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/organization.schema.json",
+  "title": "Organization (v2 stdlib derivation)",
+  "description": "Tenant root. Derivation: Scope[scope_type=organization]. Pure Scope derivation with no additional composition — the Organization kind IS a root-tier scope. New in v2.0.0; v1.x had organization implicit in OU path routing.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Scope"],
+    "roles": {
+      "Scope": "tenant_root"
+    }
+  },
+  "x-powerloom-apply-order": 10,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Organization" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true
+        },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "properties": {
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "billing_tier": {
+          "type": "string",
+          "enum": ["free", "team", "business", "enterprise"],
+          "default": "free",
+          "description": "Billing tier. Gates feature availability; set server-side normally."
+        },
+        "retention_default_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 365,
+          "description": "Default memory retention for resources under this organization. Overridable per-scope."
+        }
+      }
+    }
+  }
+}

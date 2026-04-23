@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/powerloom.v2.bundle.json",
+  "title": "Powerloom manifest (bundle v2)",
+  "description": "Discriminated union over all v2 kinds — 6 primitives, 8 stdlib derivations, 1 authoring (Compose). Use for validating mixed multi-doc YAML. For single-kind files, prefer the per-kind schema for better IDE diagnostics.",
+  "oneOf": [
+    { "$ref": "primitives/entity.schema.json" },
+    { "$ref": "primitives/event.schema.json" },
+    { "$ref": "primitives/relation.schema.json" },
+    { "$ref": "primitives/process.schema.json" },
+    { "$ref": "primitives/scope.schema.json" },
+    { "$ref": "primitives/policy.schema.json" },
+    { "$ref": "stdlib/organization.schema.json" },
+    { "$ref": "stdlib/ou.schema.json" },
+    { "$ref": "stdlib/agent.schema.json" },
+    { "$ref": "stdlib/skill.schema.json" },
+    { "$ref": "stdlib/mcp-deployment.schema.json" },
+    { "$ref": "stdlib/workflow.schema.json" },
+    { "$ref": "stdlib/workflow-type.schema.json" },
+    { "$ref": "stdlib/memory-policy.schema.json" },
+    { "$ref": "compose.schema.json" }
+  ]
+}
