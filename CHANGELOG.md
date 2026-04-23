@@ -26,6 +26,43 @@ Consolidates the repo from schema-only (weavecli era) into the authoritative hom
 - Auth — `weave auth login` (OIDC device-code stubbed; dev-mode impersonation works), `weave auth whoami`.
 - PyInstaller single-binary build (`build-binary.sh` + `loomcli.spec`).
 
+## schema-v1.2.0 — 2026-04-23 (draft, unreleased)
+
+**Additive release. No breaking changes.** All v1.1.0 manifests continue to validate. Engine negotiation advertises `supported_schema_versions: ["1.0.0", "1.1.0", "1.2.0"]`; CLI picks highest mutual.
+
+### New kinds
+
+- **`WorkflowType`** — declarative authoring of workflow types. `coordinator_agent_id`, `memory_policy_id`, `task_kinds`, `runtime_targets` fields. Previously only REST-created.
+- **`MemoryPolicy`** — per-org memory governance config: `review_cadence_hours`, `timeout_action` (`approve|forget|escalate`), `review_deadline_hours`, `tentative_weight`, `org_scope_requires_approval`, `max_memories_per_session`, `consolidation_gate`.
+- **`Scope`** — explicit scope declarations (previously implicit via OU). `parent_scope_ref`, `inheritance_mode` (`full|isolated|selective`), optional `selective_inheritance` block, `retention_override`.
+
+### Agent kind — additive fields
+
+- `coordinator_role: bool = false` — marks an LLM-coordinator; auto-attaches grading skills.
+- `task_kinds: [routing|qa|analogy|execution|coordination]` — context-assembler representation hints.
+- `memory_permissions: [scope_ref]` — explicit scope allowlist for memory reads.
+- `reranker_model: string | null` — optional per-agent reranker override.
+
+### Skill kind — additive fields
+
+- `system: bool = false` — marks skill for auto-attach per selector rules.
+- `auto_attach_to: object | null` — selector with `agent_kinds`, `task_kinds`, `runtime_types`, `coordinator_role_required`. Conditions ANDed.
+
+### Powerloom engine pairing
+
+Powerloom engine v052 (target) accepts the new fields + adds Pydantic shapes. Existing engines at v044+ tolerate the new fields (ignored server-side on older schemas).
+
+### Source
+
+Draft derived from the 6-report memory/schema architecture review in `github.com/shanerlevy-debug/Powerloom:docs/memory-evolution/`. See the companion Powerloom PR #61 for the synthesis + phasing plan.
+
+## schema-v1.1.0 — 2026-04-22
+
+Additive sync with Powerloom engine v044 changes:
+- `Skill`: added `skill_type` (`archive|tool_definition`) + `tool_schema` (JSON, required when `skill_type=tool_definition`).
+- `Agent`: added `runtime_type` + `agent_kind` enum expanded to `user|service`.
+- `McpDeployment`: added `isolation_mode` (`shared|dedicated`) + `template_kind` enum expanded to 15 values (echo, files, postgres, slack, powerloom_meta + 10 SaaS templates).
+
 ## schema-v1.0.0 — 2026-04-21
 
 Initial schema extraction. Matches Powerloom monorepo v024 in shape.
