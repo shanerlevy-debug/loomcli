@@ -95,7 +95,11 @@ function Invoke-Weave {
     <#
     .SYNOPSIS
       Wrap weave invocation with dry-run support + error propagation.
-      Emits output indented 4 spaces for readability.
+      Streams weave output directly to the console without indentation —
+      on PowerShell 5.x, capturing native stderr via 2>&1 wraps each line
+      in an ErrorRecord that hides Rich tracebacks behind a generic
+      NativeCommandError. Direct streaming surfaces the full traceback
+      when weave crashes.
     #>
     param(
         [Parameter(Mandatory, Position = 0)][string[]]$WeaveArgs,
@@ -109,9 +113,12 @@ function Invoke-Weave {
         }
         return
     }
-    $output = & weave @WeaveArgs 2>&1
+    # Stream directly — do NOT use 2>&1. PowerShell 5.x wraps native
+    # stderr lines in NativeCommandError records that obscure the real
+    # Python traceback. Losing the 4-space indent is a fair price for
+    # debuggability.
+    & weave @WeaveArgs
     $exitCode = $LASTEXITCODE
-    $output | ForEach-Object { Write-Host "    $_" }
     if ($exitCode -ne 0) {
         Write-Host "    (weave exited with code $exitCode)" -ForegroundColor Red
         exit $exitCode
