@@ -55,8 +55,9 @@ class RuntimeConfig:
 
     api_base_url: str
     """Base URL of the Powerloom control plane. Defaults to
-    localhost:8000 (Docker Compose) but typically overridden via
-    POWERLOOM_API_BASE_URL for shared deployments."""
+    https://api.powerloom.org (the hosted production cluster).
+    Override via POWERLOOM_API_BASE_URL or --api-url for local
+    dev against docker-compose (set to http://localhost:8000)."""
 
     access_token: str | None
     """Bearer token loaded from the credentials file. None if the
@@ -73,7 +74,11 @@ class RuntimeConfig:
 
 
 def load_runtime_config() -> RuntimeConfig:
-    api_url = os.environ.get("POWERLOOM_API_BASE_URL", "http://localhost:8000")
+    # Default to the hosted production cluster. Local dev users point
+    # this at docker-compose via POWERLOOM_API_BASE_URL=http://localhost:8000
+    # or --api-url. Changed in v0.6.0rc2 after pip-installed `weave login`
+    # on production kept trying to hit localhost:8000 out of the box.
+    api_url = os.environ.get("POWERLOOM_API_BASE_URL", "https://api.powerloom.org")
     token = _read_credentials_file()
     # v0.5.3 — approval-gate justification, via env var (or set at runtime
     # by the CLI root callback from the --justification flag).
