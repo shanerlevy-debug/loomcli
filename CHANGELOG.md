@@ -5,6 +5,37 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.5.3 — 2026-04-24 (CLI)
+
+**Approval-gate support + full error visibility.** Closes two gaps surfaced when Shane ran the reference-fleet bootstrap against production.
+
+### New: approval-gate support
+
+Organizations with a `justification_required` approval policy could not use `weave apply` at all — the API returned HTTP 409 with `code: justification_required` before processing the request, and the CLI had no way to send the required `X-Approval-Justification` header.
+
+Now supported two ways:
+
+- **`weave --justification "reason" <any command>`** — global flag. Applies to every request made in that invocation.
+- **`POWERLOOM_APPROVAL_JUSTIFICATION=reason`** env var — same effect, useful in scripts (e.g. the `bootstrap.sh`/`bootstrap.ps1` scripts set it automatically).
+
+The header flows from CLI flag → env var → `RuntimeConfig.approval_justification` → `PowerloomClient` constructor → `X-Approval-Justification` HTTP header on every request.
+
+### Fix: apply-results table no longer truncates errors
+
+`weave apply` was rendering the Rich results table with an Error column clipped to 80 characters, which hid the most important information when things went wrong (the full error body was being discarded before display). The table-row summary still shows the first 80 chars for scannability, but full error bodies are now printed below the table for any row that failed, unclipped + indented for readability.
+
+### Bug fix context
+
+Surfaced when Shane's bootstrap tried to create skills on a prod org with an approval policy:
+```
+HTTP 409 POST /skills: {'code': 'justification_require... 'message': 'this polic...
+```
+— table clipped the error, leaving both the CLI user AND the fix-it developer guessing what the full message was. Both fixed in this release.
+
+### Tests
+
+9 new tests in `tests/test_approval_justification.py` covering: env-var read path, empty-string-is-none, client header injection present/absent, CLI flag flows to config, help output documents the flag. Full suite: 166/166 passing.
+
 ## v0.5.2 — 2026-04-24 (CLI)
 
 **Skill archive upload/activate commands.** Closes the gap `weave apply` leaves open — apply creates/updates the Skill *shell* (manifest metadata), but archive content (the zip with SKILL.md + code + prompts) has to be uploaded separately. Before 0.5.2, that meant curl. Now it's declarative.

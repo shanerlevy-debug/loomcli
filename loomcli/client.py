@@ -43,6 +43,13 @@ class PowerloomClient:
         headers: dict[str, str] = {"Accept": "application/json"}
         if cfg.access_token:
             headers["Authorization"] = f"Bearer {cfg.access_token}"
+        # v0.5.3 — approval-gate support. When the user's org has a
+        # policy that requires a justification, the API returns 409
+        # with code='justification_required' unless this header is
+        # present. --justification (CLI flag) or POWERLOOM_APPROVAL_JUSTIFICATION
+        # (env var) provide the value.
+        if cfg.approval_justification:
+            headers["X-Approval-Justification"] = cfg.approval_justification
         self._http = httpx.Client(
             base_url=cfg.api_base_url,
             headers=headers,
