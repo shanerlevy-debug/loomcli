@@ -28,6 +28,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Compress-Archive's progress bar on PowerShell 5.x has a known
+# IndexOutOfRangeException that fires intermittently inside
+# Microsoft.PowerShell.Archive.psm1. The archive creation itself
+# succeeds, but the progress-rendering exception crashes the script
+# mid-loop since $ErrorActionPreference="Stop" is set. Silence
+# progress entirely — archive creation still works fine.
+$ProgressPreference = "SilentlyContinue"
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
