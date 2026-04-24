@@ -1,0 +1,34 @@
+{
+  "name": "powerloom-home",
+  "version": "0.1.0-dev",
+  "description": "Powerloom Home Edition — run a full Powerloom control plane locally inside Claude Code. Declarative agent/skill/workflow management, weave CLI integration, local MCP-served backend, SQLite state.",
+  "author": {
+    "name": "Shane Levy",
+    "email": "shane.levy@bespoke-technology.com"
+  },
+  "homepage": "https://powerloom.org",
+  "repository": "https://github.com/shanerlevy-debug/loomcli",
+  "license": "Proprietary",
+  "keywords": [
+    "powerloom",
+    "weave",
+    "agents",
+    "claude",
+    "cma",
+    "mcp",
+    "home-edition"
+  ],
+  "mcpServers": {
+    "powerloom-home": {
+      "command": "python",
+      "args": [
+        "-m",
+        "powerloom_home"
+      ],
+      "env": {
+        "POWERLOOM_HOME_DB_PATH": "${CLAUDE_PLUGIN_DATA}/powerloom-home.sqlite",
+        "POWERLOOM_HOME_LOG_LEVEL": "info"
+      }
+    }
+  }
+}

@@ -1,0 +1,1349 @@
+task_id,task_type,condition,run_index,input_tokens,cache_creation_tokens,cached_input_tokens,total_processed_input_tokens,output_tokens,latency_seconds,passed,rubric_scores,grader_cost_usd,error,raw_output
+T1-01,T1,A,0,76,0,19158,19234,331,7.747,True,"1,1,1,1,1",0.002007,,
+T1-01,T1,A,1,76,0,19158,19234,323,7.568,True,"1,1,1,1,1",0.001983,,
+T1-01,T1,A,2,76,0,19158,19234,300,7.224,True,"1,1,1,1,1",0.001914,,
+T1-01,T1,B,0,76,0,14856,14932,328,7.497,True,"1,1,1,1,1",0.001998,,
+T1-01,T1,B,1,76,0,14856,14932,334,9.617,True,"1,1,1,1,1",0.002016,,
+T1-01,T1,B,2,76,0,14856,14932,340,8.453,True,"1,1,1,1,1",0.002034,,
+T1-02,T1,A,0,65,0,19158,19223,308,8.245,True,"1,1,1,1,1",0.001794,,
+T1-02,T1,A,1,65,0,19158,19223,304,7.44,True,"1,1,1,1,1",0.001782,,
+T1-02,T1,A,2,65,0,19158,19223,292,6.965,True,"1,1,1,1,1",0.001746,,
+T1-02,T1,B,0,65,0,14856,14921,465,11.084,True,"1,1,1,1,1",0.002265,,
+T1-02,T1,B,1,65,0,14856,14921,490,15.728,True,"1,1,1,1,1",0.00234,,
+T1-02,T1,B,2,65,0,14856,14921,486,11.36,True,"1,1,1,1,1",0.002328,,
+T1-03,T1,A,0,85,0,19158,19243,367,9.17,True,"1,1,1,1,1",0.002025,,
+T1-03,T1,A,1,85,0,19158,19243,314,8.5,True,"1,1,1,1,1",0.001866,,
+T1-03,T1,A,2,85,0,19158,19243,360,8.951,True,"1,1,1,1,1",0.002004,,
+T1-03,T1,B,0,85,0,14856,14941,532,13.303,True,"1,1,1,1,1",0.00252,,
+T1-03,T1,B,1,85,0,14856,14941,394,9.905,True,"1,1,1,1,1",0.002106,,
+T1-03,T1,B,2,85,0,14856,14941,407,9.797,True,"1,1,1,1,1",0.002145,,
+T1-04,T1,A,0,76,0,19158,19234,396,9.635,True,"1,1,1,1,1",0.002082,,
+T1-04,T1,A,1,76,0,19158,19234,410,9.378,True,"1,1,1,1,1",0.002124,,
+T1-04,T1,A,2,76,0,19158,19234,413,8.925,True,"1,1,1,1,1",0.002133,,
+T1-04,T1,B,0,76,0,14856,14932,403,10.048,True,"1,1,1,1,1",0.002103,,
+T1-04,T1,B,1,76,0,14856,14932,413,11.041,True,"1,1,1,1,1",0.002133,,
+T1-04,T1,B,2,76,0,14856,14932,412,16.279,True,"1,1,1,1,1",0.00213,,
+T1-05,T1,A,0,68,0,19158,19226,321,13.769,True,"1,1,1,1,1",0.00183,,
+T1-05,T1,A,1,68,0,19158,19226,330,8.492,True,"1,1,1,1,1",0.001857,,
+T1-05,T1,A,2,68,0,19158,19226,343,9.615,True,"1,1,1,1,1",0.001896,,
+T1-05,T1,B,0,68,0,14856,14924,341,9.698,True,"1,1,1,1,1",0.00189,,
+T1-05,T1,B,1,68,0,14856,14924,340,9.175,True,"1,1,1,1,1",0.001887,,
+T1-05,T1,B,2,68,0,14856,14924,340,8.018,True,"1,1,1,1,1",0.001887,,
+T1-06,T1,A,0,65,0,19158,19223,350,10.233,True,"1,1,1,1,1",0.001899,,
+T1-06,T1,A,1,65,0,19158,19223,343,12.367,True,"1,1,1,1,1",0.001878,,
+T1-06,T1,A,2,65,0,19158,19223,382,10.483,True,"1,1,1,1,1",0.001995,,
+T1-06,T1,B,0,65,0,14856,14921,397,10.623,False,"0,1,0,1,1",0.00204,,"apiVersion: powerloom.app/v2
+kind: Agent
+metadata:
+  name: fact-checker
+  ou_path: /media-co/editorial
+spec:
+  display_name: Fact Checker
+  description: Reviews editorial drafts before publication and flags claims requiring citations. Prioritizes accuracy for published journalism.
+  model: claude-opus-4-20250514
+  system_prompt: |
+    You are a fact-checking agent for a media organization. Your role is to review editorial content before publication and identify claims that require citations or verification.
+
+    For each draft you review:
+    1. Read the entire piece carefully
+    2. Identify factual claims, statistics, quotes, and assertions
+    3. Flag any claim that would benefit from a citation or source
+    4. Distinguish between opinion/analysis (no citation needed) and factual claims (citation required)
+    5. Note claims that may be controversial or easily disputed
+    6. Provide specific guidance on what type of source would be appropriate
+
+    Output your findings as a structured list with:
+    - The claim text (quote it exactly)
+    - Why it needs a citation
+    - Suggested source type (academic paper, official statistics, expert interview, etc.)
+    - Urgency level (critical/important/nice-to-have)
+
+    Prioritize accuracy and credibility. When in doubt, flag for citation.
+  runtime_type: cma
+  agent_kind: user
+  owner_principal_ref: user:editor@media-co.com
+  skills: []
+  mcp_servers: []
+  coordinator_role: false
+  task_kinds:
+    - qa
+  memory_permissions: []
+  reranker_model: null"
+T1-06,T1,B,1,65,0,14856,14921,372,10.525,False,"1,1,0,1,1",0.001965,,"apiVersion: powerloom.app/v2
+kind: Agent
+metadata:
+  name: fact-checker
+  ou_path: /media-co/editorial
+spec:
+  display_name: Fact Checker
+  description: Reviews editorial drafts and flags claims requiring citations before publication
+  model: claude-opus-4-20250514
+  system_prompt: |
+    You are a fact-checking agent for a media organization. Your role is to review editorial drafts before publication and identify claims that require citations.
+
+    For each draft you review:
+    1. Read the entire piece carefully
+    2. Identify factual claims, statistics, quotes, and assertions
+    3. Flag any claim that would benefit from a citation or source
+    4. Distinguish between:
+       - Common knowledge (no citation needed)
+       - Opinion/analysis (no citation needed)
+       - Factual claims requiring verification
+    5. Provide specific guidance on what type of source would be appropriate
+
+    Output your findings as a structured list with:
+    - The claim text (quote from draft)
+    - Why it needs a citation
+    - Suggested source type (academic, government data, expert interview, etc.)
+
+    Prioritize accuracy and thoroughness over speed. Published journalism requires high standards of verification.
+  runtime_type: cma
+  agent_kind: user
+  owner_principal_ref: user:editor@media-co.com
+  skills: []
+  mcp_servers: []
+  coordinator_role: false
+  task_kinds:
+    - qa
+  memory_permissions: []
+  reranker_model: null"
+T1-06,T1,B,2,65,0,14856,14921,404,13.417,False,"1,1,0,1,1",0.002061,,"apiVersion: powerloom.app/v2
+kind: Agent
+metadata:
+  name: fact-checker
+  ou_path: /media-co/editorial
+spec:
+  display_name: Fact Checker
+  description: Reviews editorial drafts and flags claims requiring citations before publication
+  model: claude-opus-4-20250514
+  system_prompt: |
+    You are a fact-checking agent for a media organization. Your role is to review editorial drafts before publication and identify claims that require citations.
+
+    For each draft you review:
+    1. Read the entire piece carefully
+    2. Identify factual claims, statistics, quotes, and assertions
+    3. Flag any claim that would benefit from a citation or source
+    4. Distinguish between:
+       - Common knowledge (no citation needed)
+       - Opinions clearly attributed to the author (no citation needed)
+       - Factual claims requiring verification (citation needed)
+       - Statistics and data points (citation always needed)
+       - Direct quotes from sources (attribution needed)
+
+    For each flagged claim, provide:
+    - The exact text of the claim
+    - Why it needs a citation
+    - Suggested source types (academic, government data, expert interview, etc.)
+    - Severity: critical (must have before publication) or recommended (strengthens credibility)
+
+    Be thorough but practical. The goal is journalistic integrity without creating unnecessary burden.
+  runtime_type: cma
+  agent_kind: user
+  owner_principal_ref: user:editor@media-co.com
+  skills: []
+  mcp_servers: []
+  coordinator_role: false
+  task_kinds:
+    - qa
+  memory_permissions: []
+  reranker_model: null"
+T1-07,T1,A,0,86,0,19158,19244,313,7.398,True,"1,1,1,1,1",0.001881,,
+T1-07,T1,A,1,86,0,19158,19244,346,8.177,True,"1,1,1,1,1",0.00198,,
+T1-07,T1,A,2,86,0,19158,19244,334,10.377,True,"1,1,1,1,1",0.001944,,
+T1-07,T1,B,0,86,0,14856,14942,475,9.737,True,"1,1,1,1,1",0.002367,,
+T1-07,T1,B,1,86,0,14856,14942,460,10.783,True,"1,1,1,1,1",0.002322,,
+T1-07,T1,B,2,86,0,14856,14942,402,11.187,True,"1,1,1,1,1",0.002148,,
+T1-08,T1,A,0,73,0,19158,19231,326,8.181,True,"1,1,1,1,1",0.001872,,
+T1-08,T1,A,1,73,0,19158,19231,294,7.587,True,"1,1,1,1,1",0.001776,,
+T1-08,T1,A,2,73,0,19158,19231,294,7.224,True,"1,1,1,1,1",0.001776,,
+T1-08,T1,B,0,73,0,14856,14929,392,9.108,True,"1,1,1,1,1",0.00207,,
+T1-08,T1,B,1,73,0,14856,14929,410,9.344,True,"1,1,1,1,1",0.002124,,
+T1-08,T1,B,2,73,0,14856,14929,411,9.436,True,"1,1,1,1,1",0.002127,,
+T1-09,T1,A,0,82,0,19158,19240,333,8.368,True,"1,1,1,1,1",0.00192,,
+T1-09,T1,A,1,82,0,19158,19240,316,8.159,True,"1,1,1,1,1",0.001869,,
+T1-09,T1,A,2,82,0,19158,19240,348,8.658,True,"1,1,1,1,1",0.001965,,
+T1-09,T1,B,0,82,0,14856,14938,376,9.257,True,"1,1,1,1,1",0.002049,,
+T1-09,T1,B,1,82,0,14856,14938,395,9.709,True,"1,1,1,1,1",0.002106,,
+T1-09,T1,B,2,82,0,14856,14938,346,9.123,True,"1,1,1,1,1",0.001959,,
+T1-10,T1,A,0,79,0,19158,19237,377,10.55,True,"1,1,1,1,1",0.002049,,
+T1-10,T1,A,1,79,0,19158,19237,334,8.243,True,"1,1,1,1,1",0.00192,,
+T1-10,T1,A,2,79,0,19158,19237,347,9.959,True,"1,1,1,1,1",0.001959,,
+T1-10,T1,B,0,79,0,14856,14935,400,10.761,True,"1,1,1,1,1",0.002118,,
+T1-10,T1,B,1,79,0,14856,14935,421,10.545,True,"1,1,1,1,1",0.002181,,
+T1-10,T1,B,2,79,0,14856,14935,446,11.387,True,"1,1,1,1,1",0.002256,,
+T2-01,T2,A,0,91,0,19158,19249,124,3.034,True,"1,1,1,1,1",0.001386,,
+T2-01,T2,A,1,91,0,19158,19249,124,2.958,True,"1,1,1,1,1",0.001386,,
+T2-01,T2,A,2,91,0,19158,19249,124,2.971,True,"1,1,1,1,1",0.001386,,
+T2-01,T2,B,0,91,0,14856,14947,124,2.866,True,"1,1,1,1,1",0.001386,,
+T2-01,T2,B,1,91,0,14856,14947,124,2.911,True,"1,1,1,1,1",0.001386,,
+T2-01,T2,B,2,91,0,14856,14947,124,2.886,True,"1,1,1,1,1",0.001386,,
+T2-02,T2,A,0,64,0,19158,19222,110,3.358,True,"1,1,1,1,1",0.001152,,
+T2-02,T2,A,1,64,0,19158,19222,110,3.376,True,"1,1,1,1,1",0.001152,,
+T2-02,T2,A,2,64,0,19158,19222,110,3.216,True,"1,1,1,1,1",0.001152,,
+T2-02,T2,B,0,64,0,14856,14920,109,3.358,True,"1,1,1,1,1",0.001149,,
+T2-02,T2,B,1,64,0,14856,14920,109,4.215,True,"1,1,1,1,1",0.001149,,
+T2-02,T2,B,2,64,0,14856,14920,109,2.988,True,"1,1,1,1,1",0.001149,,
+T2-03,T2,A,0,53,0,19158,19211,112,4.733,True,"1,1,1,1,1",0.001143,,
+T2-03,T2,A,1,53,0,19158,19211,112,3.628,True,"1,1,1,1,1",0.001143,,
+T2-03,T2,A,2,53,0,19158,19211,112,3.844,True,"1,1,1,1,1",0.001143,,
+T2-03,T2,B,0,53,0,14856,14909,112,3.218,True,"1,1,1,1,1",0.001143,,
+T2-03,T2,B,1,53,0,14856,14909,112,3.209,True,"1,1,1,1,1",0.001143,,
+T2-03,T2,B,2,53,0,14856,14909,112,3.175,True,"1,1,1,1,1",0.001143,,
+T2-04,T2,A,0,72,0,19158,19230,124,3.733,True,"1,1,1,1,1",0.001236,,
+T2-04,T2,A,1,72,0,19158,19230,124,3.485,True,"1,1,1,1,1",0.001236,,
+T2-04,T2,A,2,72,0,19158,19230,124,3.557,True,"1,1,1,1,1",0.001236,,
+T2-04,T2,B,0,72,0,14856,14928,115,3.199,True,"1,1,1,1,1",0.001209,,
+T2-04,T2,B,1,72,0,14856,14928,114,3.464,True,"1,1,1,1,1",0.001206,,
+T2-04,T2,B,2,72,0,14856,14928,114,3.552,True,"1,1,1,1,1",0.001206,,
+T2-05,T2,A,0,59,0,19158,19217,232,5.091,False,"0,1,1,1,0",0.001509,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: byline-formatter
+  ou_path: /media-co/editorial
+spec:
+  display_name: Byline Formatter
+  description: Ensures bylines match house style across all editorial content
+  skill_type: tool_definition
+  tool_schema:
+    name: format_byline
+    description: Formats author bylines according to media-co house style guidelines
+    input_schema:
+      type: object
+      required:
+        - author_name
+        - role
+      properties:
+        author_name:
+          type: string
+          description: Full name of the author
+        role:
+          type: string
+          description: Author's role or title
+        location:
+          type: string
+          description: Author's location (optional)
+      additionalProperties: false
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - execution"
+T2-05,T2,A,1,59,0,19158,19217,232,5.014,False,"0,1,1,1,0",0.001509,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: byline-formatter
+  ou_path: /media-co/editorial
+spec:
+  display_name: Byline Formatter
+  description: Ensures bylines match house style across all editorial content
+  skill_type: tool_definition
+  tool_schema:
+    name: format_byline
+    description: Formats author bylines according to media-co house style guidelines
+    input_schema:
+      type: object
+      required:
+        - author_name
+        - role
+      properties:
+        author_name:
+          type: string
+          description: Full name of the author
+        role:
+          type: string
+          description: Author's role or title
+        location:
+          type: string
+          description: Author's location (optional)
+      additionalProperties: false
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - execution"
+T2-05,T2,A,2,59,0,19158,19217,232,5.285,False,"0,1,1,1,0",0.001509,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: byline-formatter
+  ou_path: /media-co/editorial
+spec:
+  display_name: Byline Formatter
+  description: Ensures bylines match house style across all editorial content
+  skill_type: tool_definition
+  tool_schema:
+    name: format_byline
+    description: Formats author bylines according to media-co house style guidelines
+    input_schema:
+      type: object
+      required:
+        - author_name
+        - role
+      properties:
+        author_name:
+          type: string
+          description: Full name of the author
+        role:
+          type: string
+          description: Author's role or title
+        location:
+          type: string
+          description: Author's location (optional)
+      additionalProperties: false
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - execution"
+T2-05,T2,B,0,59,0,14856,14915,106,3.303,True,"1,1,1,1,1",0.001131,,
+T2-05,T2,B,1,59,0,14856,14915,106,4.163,True,"1,1,1,1,1",0.001131,,
+T2-05,T2,B,2,59,0,14856,14915,106,3.06,True,"1,1,1,1,1",0.001131,,
+T2-06,T2,A,0,56,0,19158,19214,294,6.196,False,"0,1,1,1,0",0.001707,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Structured postmortem template providing timeline, contributing factors, and remediation sections for incident analysis
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document with timeline, contributing factors, and remediation plan sections
+    input_schema:
+      type: object
+      properties:
+        incident_id:
+          type: string
+          description: Unique identifier for the incident
+        incident_summary:
+          type: string
+          description: Brief summary of what happened
+        severity:
+          type: string
+          enum: [SEV1, SEV2, SEV3, SEV4]
+          description: Incident severity level
+      required:
+        - incident_id
+        - incident_summary
+        - severity
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user
+    task_kinds: []
+    runtime_types: []
+    coordinator_role_required: false"
+T2-06,T2,A,1,56,0,19158,19214,275,5.855,False,"0,1,1,1,0",0.00165,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Structured postmortem template providing timeline, contributing factors, and remediation sections for incident analysis
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document with timeline, contributing factors, and remediation sections
+    input_schema:
+      type: object
+      properties:
+        incident_title:
+          type: string
+          description: Brief title of the incident
+        severity:
+          type: string
+          enum: [SEV1, SEV2, SEV3, SEV4]
+          description: Incident severity level
+        incident_date:
+          type: string
+          format: date-time
+          description: When the incident occurred
+      required:
+        - incident_title
+        - severity
+        - incident_date
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user"
+T2-06,T2,A,2,56,0,19158,19214,300,6.137,False,"0,1,1,1,0",0.001725,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Structured postmortem template providing timeline, contributing factors, and remediation sections for incident analysis
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document with timeline, contributing factors, and remediation sections
+    input_schema:
+      type: object
+      properties:
+        incident_title:
+          type: string
+          description: Brief title of the incident
+        incident_date:
+          type: string
+          description: Date and time of the incident
+        severity:
+          type: string
+          enum:
+            - sev1
+            - sev2
+            - sev3
+            - sev4
+          description: Incident severity level
+      required:
+        - incident_title
+        - incident_date
+        - severity
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user
+    task_kinds: []
+    runtime_types: []
+    coordinator_role_required: false"
+T2-06,T2,B,0,56,0,14856,14912,275,5.876,False,"0,1,1,1,0",0.00165,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Provides a structured postmortem template with timeline, contributing factors, and remediation sections for incident analysis
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document template for incident analysis
+    input_schema:
+      type: object
+      properties:
+        incident_id:
+          type: string
+          description: Unique identifier for the incident
+        incident_title:
+          type: string
+          description: Brief title describing the incident
+        severity:
+          type: string
+          enum: [SEV1, SEV2, SEV3, SEV4]
+          description: Incident severity level
+      required:
+        - incident_id
+        - incident_title
+        - severity
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user
+    coordinator_role_required: false"
+T2-06,T2,B,1,56,0,14856,14912,302,6.332,False,"0,1,1,1,0",0.001731,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Provides a structured postmortem template with timeline, contributing factors, and remediation sections. Auto-attaches to user-kind agents for incident response workflows.
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document template with sections for incident timeline, contributing factors, and remediation actions
+    input_schema:
+      type: object
+      properties:
+        incident_title:
+          type: string
+          description: Brief title of the incident
+        severity:
+          type: string
+          enum: [SEV1, SEV2, SEV3, SEV4]
+          description: Incident severity level
+        incident_date:
+          type: string
+          format: date-time
+          description: When the incident occurred
+      required:
+        - incident_title
+        - severity
+        - incident_date
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user
+    coordinator_role_required: false"
+T2-06,T2,B,2,56,0,14856,14912,311,6.168,False,"0,1,1,1,0",0.001758,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: postmortem-template
+  ou_path: /ops-co/sre
+spec:
+  display_name: Postmortem Template
+  description: Provides a structured postmortem template with timeline, contributing factors, and remediation sections. Auto-attaches to user agents for incident response workflows.
+  skill_type: tool_definition
+  tool_schema:
+    name: generate_postmortem_template
+    description: Generate a structured postmortem document with timeline, contributing factors, and remediation plan sections
+    input_schema:
+      type: object
+      properties:
+        incident_title:
+          type: string
+          description: Brief title of the incident
+        severity:
+          type: string
+          enum: [SEV1, SEV2, SEV3, SEV4]
+          description: Incident severity level
+        incident_date:
+          type: string
+          format: date-time
+          description: When the incident occurred
+      required:
+        - incident_title
+        - severity
+        - incident_date
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - user
+    task_kinds: []
+    runtime_types: []
+    coordinator_role_required: false"
+T2-07,T2,A,0,59,0,19158,19217,384,7.514,False,"0,1,1,1,0",0.001971,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions with Bloom's taxonomy cognitive level (Remember, Understand, Apply, Analyze, Evaluate, Create). Enables QA agents to assess question depth and learning objectives.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_bloom_level
+    description: Analyzes a question or prompt and returns its Bloom's taxonomy cognitive level
+    input_schema:
+      type: object
+      required:
+        - question_text
+      properties:
+        question_text:
+          type: string
+          description: The question or prompt to analyze
+        context:
+          type: string
+          description: Optional context about the learning domain or subject matter
+      additionalProperties: false
+    output_schema:
+      type: object
+      required:
+        - bloom_level
+        - confidence
+      properties:
+        bloom_level:
+          type: string
+          enum:
+            - Remember
+            - Understand
+            - Apply
+            - Analyze
+            - Evaluate
+            - Create
+          description: The identified Bloom's taxonomy level
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score for the classification
+        reasoning:
+          type: string
+          description: Brief explanation of why this level was assigned
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa"
+T2-07,T2,A,1,59,0,19158,19217,389,8.375,False,"0,1,1,1,0",0.001986,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions with Bloom's taxonomy cognitive level (Remember, Understand, Apply, Analyze, Evaluate, Create). Supports educational content quality assurance workflows.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_bloom_level
+    description: Analyzes a question or prompt and returns its Bloom's taxonomy cognitive level with justification.
+    input_schema:
+      type: object
+      required:
+        - question_text
+      properties:
+        question_text:
+          type: string
+          description: The question or prompt to classify
+        context:
+          type: string
+          description: Optional context about the subject matter or learning objectives
+    output_schema:
+      type: object
+      required:
+        - bloom_level
+        - confidence
+        - justification
+      properties:
+        bloom_level:
+          type: string
+          enum:
+            - remember
+            - understand
+            - apply
+            - analyze
+            - evaluate
+            - create
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        justification:
+          type: string
+        alternative_levels:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: string
+              reasoning:
+                type: string
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa"
+T2-07,T2,A,2,59,0,19158,19217,369,7.596,False,"0,1,1,1,0",0.001926,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions with Bloom's taxonomy cognitive level (Remember, Understand, Apply, Analyze, Evaluate, Create) to support educational assessment and curriculum design.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_bloom_level
+    description: Analyzes a question or task and assigns the appropriate Bloom's taxonomy cognitive level based on the verb and cognitive demand.
+    input_schema:
+      type: object
+      required:
+        - question_text
+      properties:
+        question_text:
+          type: string
+          description: The question or task prompt to classify
+        context:
+          type: string
+          description: Optional context about the subject area or learning objectives
+      additionalProperties: false
+    output_schema:
+      type: object
+      required:
+        - bloom_level
+        - confidence
+      properties:
+        bloom_level:
+          type: string
+          enum:
+            - Remember
+            - Understand
+            - Apply
+            - Analyze
+            - Evaluate
+            - Create
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        rationale:
+          type: string
+          description: Brief explanation of why this level was assigned
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa"
+T2-07,T2,B,0,59,0,14856,14915,326,7.196,False,"0,1,1,1,0",0.001797,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions with Bloom's taxonomy cognitive level (Remember, Understand, Apply, Analyze, Evaluate, Create). Enables educational content analysis and assessment design.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_bloom_level
+    description: Analyzes a question or prompt and returns its Bloom's taxonomy cognitive level
+    input_schema:
+      type: object
+      required:
+        - question_text
+      properties:
+        question_text:
+          type: string
+          description: The question or prompt to analyze
+        context:
+          type: string
+          description: Optional context about the subject matter or learning objectives
+    output_schema:
+      type: object
+      properties:
+        bloom_level:
+          type: string
+          enum:
+            - Remember
+            - Understand
+            - Apply
+            - Analyze
+            - Evaluate
+            - Create
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        reasoning:
+          type: string
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa"
+T2-07,T2,B,1,59,0,14856,14915,328,6.827,False,"0,1,1,1,0",0.001803,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions with Bloom's taxonomy cognitive level (Remember, Understand, Apply, Analyze, Evaluate, Create). Enables pedagogical analysis and question difficulty assessment.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_bloom_taxonomy
+    description: Analyzes a question or prompt and assigns the appropriate Bloom's taxonomy cognitive level
+    input_schema:
+      type: object
+      required:
+        - question_text
+      properties:
+        question_text:
+          type: string
+          description: The question or prompt to analyze
+        context:
+          type: string
+          description: Optional context about the subject matter or learning objectives
+    output_schema:
+      type: object
+      properties:
+        bloom_level:
+          type: string
+          enum:
+            - Remember
+            - Understand
+            - Apply
+            - Analyze
+            - Evaluate
+            - Create
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        reasoning:
+          type: string
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa"
+T2-07,T2,B,2,59,0,14856,14915,263,5.539,False,"0,1,1,1,0",0.001608,,"apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: bloom-taxonomy-labeler
+  ou_path: /edu-co/curriculum
+spec:
+  display_name: Bloom's Taxonomy Labeler
+  description: Labels questions and learning objectives with Bloom's taxonomy cognitive levels (Remember, Understand, Apply, Analyze, Evaluate, Create). Enables educational content analysis and curriculum alignment.
+  skill_type: tool_definition
+  tool_schema:
+    name: label_blooms_level
+    description: Analyzes a question or learning objective and assigns the appropriate Bloom's taxonomy cognitive level
+    input_schema:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: The question or learning objective to analyze
+        context:
+          type: string
+          description: Optional context about the subject matter or educational setting
+      additionalProperties: false
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - qa
+    agent_kinds:
+      - user
+      - service"
+T2-08,T2,A,0,48,0,19158,19206,88,2.783,True,"1,1,1,1,1",0.001044,,
+T2-08,T2,A,1,48,0,19158,19206,88,2.807,True,"1,1,1,1,1",0.001044,,
+T2-08,T2,A,2,48,0,19158,19206,95,3.338,True,"1,1,1,1,1",0.001065,,
+T2-08,T2,B,0,48,0,14856,14904,97,3.0,True,"1,1,1,1,1",0.001071,,
+T2-08,T2,B,1,48,0,14856,14904,98,2.81,True,"1,1,1,1,1",0.001074,,
+T2-08,T2,B,2,48,0,14856,14904,97,3.008,True,"1,1,1,1,1",0.001071,,
+T2-09,T2,A,0,68,0,19158,19226,154,4.611,True,"1,1,1,1,1",0.001311,,
+T2-09,T2,A,1,68,0,19158,19226,154,5.141,True,"1,1,1,1,1",0.001311,,
+T2-09,T2,A,2,68,0,19158,19226,154,4.648,True,"1,1,1,1,1",0.001311,,
+T2-09,T2,B,0,68,0,14856,14924,159,7.773,True,"1,1,1,1,1",0.001326,,
+T2-09,T2,B,1,68,0,14856,14924,159,3.578,True,"1,1,1,1,1",0.001326,,
+T2-09,T2,B,2,68,0,14856,14924,159,3.424,True,"1,1,1,1,1",0.001326,,
+T2-10,T2,A,0,57,0,19158,19215,394,6.932,False,"0,1,1,1,0",0.001992,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: var-calculator
+  ou_path: /finance-co/risk
+spec:
+  display_name: VaR Calculator
+  description: Calculates Value-at-Risk for a portfolio snapshot using historical simulation and parametric methods.
+  skill_type: tool_definition
+  tool_schema:
+    name: calculate_var
+    description: Computes Value-at-Risk (VaR) at specified confidence levels for a given portfolio position set.
+    input_schema:
+      type: object
+      required:
+        - positions
+        - confidence_level
+        - time_horizon_days
+      properties:
+        positions:
+          type: array
+          description: Array of portfolio positions with ticker and quantity.
+          items:
+            type: object
+            required:
+              - ticker
+              - quantity
+            properties:
+              ticker:
+                type: string
+              quantity:
+                type: number
+        confidence_level:
+          type: number
+          description: Confidence level for VaR calculation (e.g., 0.95 for 95%).
+          minimum: 0.5
+          maximum: 0.999
+        time_horizon_days:
+          type: integer
+          description: Time horizon in days for VaR calculation.
+          minimum: 1
+          maximum: 252
+        method:
+          type: string
+          enum:
+            - historical
+            - parametric
+            - monte_carlo
+          default: historical
+  system: true
+  auto_attach_to:
+    agent_kinds:
+      - service
+    task_kinds:
+      - analogy"
+T2-10,T2,A,1,57,0,19158,19215,394,7.009,False,"0,1,1,1,0",0.001992,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: var-calculator
+  ou_path: /finance-co/risk
+spec:
+  display_name: VaR Calculator
+  description: Calculates Value-at-Risk for a portfolio snapshot using historical simulation and parametric methods.
+  skill_type: tool_definition
+  tool_schema:
+    name: calculate_var
+    description: Computes Value-at-Risk (VaR) at specified confidence levels for a given portfolio position set.
+    input_schema:
+      type: object
+      required:
+        - positions
+        - confidence_level
+        - time_horizon_days
+      properties:
+        positions:
+          type: array
+          description: Array of portfolio positions with ticker and quantity.
+          items:
+            type: object
+            required:
+              - ticker
+              - quantity
+            properties:
+              ticker:
+                type: string
+              quantity:
+                type: number
+        confidence_level:
+          type: number
+          description: Confidence level for VaR calculation (e.g., 0.95 for 95%).
+          minimum: 0.5
+          maximum: 0.999
+        time_horizon_days:
+          type: integer
+          description: Time horizon in days for VaR calculation.
+          minimum: 1
+          maximum: 252
+        method:
+          type: string
+          enum:
+            - historical
+            - parametric
+            - monte_carlo
+          default: historical
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - analogy
+    agent_kinds:
+      - service"
+T2-10,T2,A,2,57,0,19158,19215,394,7.399,False,"0,1,1,1,0",0.001992,,"apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: var-calculator
+  ou_path: /finance-co/risk
+spec:
+  display_name: VaR Calculator
+  description: Calculates Value-at-Risk for a portfolio snapshot using historical simulation and parametric methods.
+  skill_type: tool_definition
+  tool_schema:
+    name: calculate_var
+    description: Computes Value-at-Risk (VaR) at specified confidence levels for a given portfolio position set.
+    input_schema:
+      type: object
+      required:
+        - positions
+        - confidence_level
+        - time_horizon_days
+      properties:
+        positions:
+          type: array
+          description: Array of portfolio positions with ticker and quantity.
+          items:
+            type: object
+            required:
+              - ticker
+              - quantity
+            properties:
+              ticker:
+                type: string
+              quantity:
+                type: number
+        confidence_level:
+          type: number
+          description: Confidence level for VaR calculation (e.g., 0.95 for 95%).
+          minimum: 0.5
+          maximum: 0.999
+        time_horizon_days:
+          type: integer
+          description: Time horizon in days for VaR calculation.
+          minimum: 1
+          maximum: 252
+        method:
+          type: string
+          enum:
+            - historical
+            - parametric
+            - monte_carlo
+          default: historical
+  system: true
+  auto_attach_to:
+    task_kinds:
+      - analogy
+    agent_kinds:
+      - service"
+T2-10,T2,B,0,57,0,14856,14913,116,3.509,True,"1,1,1,1,1",0.001158,,
+T2-10,T2,B,1,57,0,14856,14913,116,3.948,True,"1,1,1,1,1",0.001158,,
+T2-10,T2,B,2,57,0,14856,14913,116,3.32,True,"1,1,1,1,1",0.001158,,
+T3-01,T3,A,0,102,0,19158,19260,153,3.154,True,"1,1,1,1,1",0.001479,,
+T3-01,T3,A,1,102,0,19158,19260,153,4.784,True,"1,1,1,1,1",0.001479,,
+T3-01,T3,A,2,102,0,19158,19260,170,4.269,True,"1,1,1,1,1",0.00153,,
+T3-01,T3,B,0,102,0,14856,14958,164,3.57,True,"1,1,1,1,1",0.001512,,
+T3-01,T3,B,1,102,0,14856,14958,163,3.47,True,"1,1,1,1,1",0.001509,,
+T3-01,T3,B,2,102,0,14856,14958,165,3.359,True,"1,1,1,1,1",0.001515,,
+T3-02,T3,A,0,113,0,19158,19271,164,3.364,True,"1,1,1,1,1",0.00165,,
+T3-02,T3,A,1,113,0,19158,19271,164,3.39,True,"1,1,1,1,1",0.00165,,
+T3-02,T3,A,2,113,0,19158,19271,164,4.122,True,"1,1,1,1,1",0.00165,,
+T3-02,T3,B,0,113,0,14856,14969,161,5.491,True,"1,1,1,1,1",0.001641,,
+T3-02,T3,B,1,113,0,14856,14969,161,3.952,True,"1,1,1,1,1",0.001641,,
+T3-02,T3,B,2,113,0,14856,14969,161,3.506,True,"1,1,1,1,1",0.001641,,
+T3-03,T3,A,0,81,0,19158,19239,129,3.299,True,"1,1,1,1,1",0.001344,,
+T3-03,T3,A,1,81,0,19158,19239,129,3.624,True,"1,1,1,1,1",0.001344,,
+T3-03,T3,A,2,81,0,19158,19239,129,3.004,True,"1,1,1,1,1",0.001344,,
+T3-03,T3,B,0,81,0,14856,14937,128,3.713,True,"1,1,1,1,1",0.001341,,
+T3-03,T3,B,1,81,0,14856,14937,125,5.584,True,"1,1,1,1,1",0.001332,,
+T3-03,T3,B,2,81,0,14856,14937,127,4.168,True,"1,1,1,1,1",0.001338,,
+T3-04,T3,A,0,129,0,19158,19287,166,3.641,True,"1,1,1,1,1",0.001629,,
+T3-04,T3,A,1,129,0,19158,19287,179,3.904,True,"1,1,1,1,1",0.001668,,
+T3-04,T3,A,2,129,0,19158,19287,166,3.641,True,"1,1,1,1,1",0.001629,,
+T3-04,T3,B,0,129,0,14856,14985,181,4.118,True,"1,1,1,1,1",0.001674,,
+T3-04,T3,B,1,129,0,14856,14985,187,4.229,True,"1,1,1,1,1",0.001692,,
+T3-04,T3,B,2,129,0,14856,14985,181,4.268,True,"1,1,1,1,1",0.001674,,
+T3-05,T3,A,0,89,0,19158,19247,154,4.141,True,"1,1,1,1,1",0.001407,,
+T3-05,T3,A,1,89,0,19158,19247,154,3.71,True,"1,1,1,1,1",0.001407,,
+T3-05,T3,A,2,89,0,19158,19247,154,3.337,True,"1,1,1,1,1",0.001407,,
+T3-05,T3,B,0,89,0,14856,14945,156,3.383,True,"1,1,1,1,1",0.001413,,
+T3-05,T3,B,1,89,0,14856,14945,156,3.523,True,"1,1,1,1,1",0.001413,,
+T3-05,T3,B,2,89,0,14856,14945,151,3.342,True,"1,1,1,1,1",0.001398,,
+T3-06,T3,A,0,127,0,19158,19285,184,3.883,True,"1,1,1,1,1",0.001638,,
+T3-06,T3,A,1,127,0,19158,19285,195,4.258,True,"1,1,1,1,1",0.001671,,
+T3-06,T3,A,2,127,0,19158,19285,185,3.737,True,"1,1,1,1,1",0.001641,,
+T3-06,T3,B,0,127,0,14856,14983,196,5.148,True,"1,1,1,1,1",0.001674,,
+T3-06,T3,B,1,127,0,14856,14983,197,4.414,True,"1,1,1,1,1",0.001677,,
+T3-06,T3,B,2,127,0,14856,14983,201,4.854,True,"1,1,1,1,1",0.001689,,
+T3-07,T3,A,0,88,0,19158,19246,166,4.153,True,"1,1,1,1,1",0.001434,,
+T3-07,T3,A,1,88,0,19158,19246,165,4.367,True,"1,1,1,1,1",0.001431,,
+T3-07,T3,A,2,88,0,19158,19246,165,4.313,True,"1,1,1,1,1",0.001431,,
+T3-07,T3,B,0,88,0,14856,14944,170,3.942,True,"1,1,1,1,1",0.001446,,
+T3-07,T3,B,1,88,0,14856,14944,176,6.11,True,"1,1,1,1,1",0.001464,,
+T3-07,T3,B,2,88,0,14856,14944,172,4.138,True,"1,1,1,1,1",0.001452,,
+T3-08,T3,A,0,107,0,19158,19265,208,5.668,True,"1,1,1,1,1",0.00171,,
+T3-08,T3,A,1,107,0,19158,19265,193,4.318,True,"1,1,1,1,1",0.001665,,
+T3-08,T3,A,2,107,0,19158,19265,206,4.328,True,"1,1,1,1,1",0.001704,,
+T3-08,T3,B,0,107,0,14856,14963,181,4.396,True,"1,1,1,1,1",0.001629,,
+T3-08,T3,B,1,107,0,14856,14963,163,3.936,True,"1,1,1,1,1",0.001575,,
+T3-08,T3,B,2,107,0,14856,14963,164,3.563,True,"1,1,1,1,1",0.001578,,
+T3-09,T3,A,0,84,0,19158,19242,135,4.141,True,"1,1,1,1,1",0.001329,,
+T3-09,T3,A,1,84,0,19158,19242,140,4.223,True,"1,1,1,1,1",0.001344,,
+T3-09,T3,A,2,84,0,19158,19242,135,3.847,True,"1,1,1,1,1",0.001329,,
+T3-09,T3,B,0,84,0,14856,14940,148,4.026,True,"1,1,1,1,1",0.001368,,
+T3-09,T3,B,1,84,0,14856,14940,190,5.595,True,"1,1,1,1,1",0.001494,,
+T3-09,T3,B,2,84,0,14856,14940,193,7.112,True,"1,1,1,1,1",0.001503,,
+T3-10,T3,A,0,134,0,19158,19292,191,4.157,True,"1,1,1,1,1",0.001743,,
+T3-10,T3,A,1,134,0,19158,19292,191,4.343,True,"1,1,1,1,1",0.001743,,
+T3-10,T3,A,2,134,0,19158,19292,186,4.36,True,"1,1,1,1,1",0.001728,,
+T3-10,T3,B,0,134,0,14856,14990,180,4.127,True,"1,1,1,1,1",0.00171,,
+T3-10,T3,B,1,134,0,14856,14990,180,8.826,True,"1,1,1,1,1",0.00171,,
+T3-10,T3,B,2,134,0,14856,14990,174,3.997,True,"1,1,1,1,1",0.001692,,
+T4-01,T4,A,0,107,0,19158,19265,199,4.423,True,"1,1,1,1,1",0.001644,,
+T4-01,T4,A,1,107,0,19158,19265,313,6.748,True,"1,1,1,1,1",0.001986,,
+T4-01,T4,A,2,107,0,19158,19265,317,7.234,True,"1,1,1,1,1",0.001998,,
+T4-01,T4,B,0,107,0,14856,14963,296,7.268,True,"1,1,1,1,1",0.001935,,
+T4-01,T4,B,1,107,0,14856,14963,363,7.833,True,"1,1,1,1,1",0.002136,,
+T4-01,T4,B,2,107,0,14856,14963,350,7.529,True,"1,1,1,1,1",0.002097,,
+T4-02,T4,A,0,111,0,19158,19269,314,6.0,True,"1,1,1,1,1",0.001962,,
+T4-02,T4,A,1,111,0,19158,19269,314,6.28,True,"1,1,1,1,1",0.001962,,
+T4-02,T4,A,2,111,0,19158,19269,319,7.122,True,"1,1,1,1,1",0.001977,,
+T4-02,T4,B,0,111,0,14856,14967,301,7.042,True,"1,1,1,1,1",0.001923,,
+T4-02,T4,B,1,111,0,14856,14967,296,5.775,True,"1,1,1,1,1",0.001908,,
+T4-02,T4,B,2,111,0,14856,14967,300,6.283,True,"1,1,1,1,1",0.00192,,
+T4-03,T4,A,0,73,0,19158,19231,151,3.561,True,"1,1,1,1,1",0.00138,,
+T4-03,T4,A,1,73,0,19158,19231,151,3.742,True,"1,1,1,1,1",0.00138,,
+T4-03,T4,A,2,73,0,19158,19231,151,3.33,True,"1,1,1,1,1",0.00138,,
+T4-03,T4,B,0,73,0,14856,14929,154,3.277,True,"1,1,1,1,1",0.001389,,
+T4-03,T4,B,1,73,0,14856,14929,154,3.387,True,"1,1,1,1,1",0.001389,,
+T4-03,T4,B,2,73,0,14856,14929,154,3.468,True,"1,1,1,1,1",0.001389,,
+T4-04,T4,A,0,122,0,19158,19280,343,6.793,True,"1,1,1,1,1",0.002061,,
+T4-04,T4,A,1,122,0,19158,19280,346,7.013,True,"1,1,1,1,1",0.00207,,
+T4-04,T4,A,2,122,0,19158,19280,344,7.311,True,"1,1,1,1,1",0.002064,,
+T4-04,T4,B,0,122,0,14856,14978,464,8.993,True,"1,1,1,1,1",0.002424,,
+T4-04,T4,B,1,122,0,14856,14978,420,10.895,True,"1,1,1,1,1",0.002292,,
+T4-04,T4,B,2,122,0,14856,14978,425,11.719,True,"1,1,1,1,1",0.002307,,
+T4-05,T4,A,0,67,0,19158,19225,1,2.011,False,"0,0,0,0,0",0.0,,
+T4-05,T4,A,1,67,0,19158,19225,1,1.904,False,"0,0,0,0,0",0.0,,
+T4-05,T4,A,2,67,0,19158,19225,1,1.85,False,"0,0,0,0,0",0.0,,
+T4-05,T4,B,0,67,0,14856,14923,1,2.671,False,"0,0,0,0,0",0.0,,
+T4-05,T4,B,1,67,0,14856,14923,1,1.89,False,"0,0,0,0,0",0.0,,
+T4-05,T4,B,2,67,0,14856,14923,1,2.164,False,"0,0,0,0,0",0.0,,
+T4-06,T4,A,0,119,0,19158,19277,602,12.769,True,"1,1,1,1,1",0.002856,,
+T4-06,T4,A,1,119,0,19158,19277,576,11.972,True,"1,1,1,1,1",0.002778,,
+T4-06,T4,A,2,119,0,19158,19277,564,11.771,True,"1,1,1,1,1",0.002742,,
+T4-06,T4,B,0,119,0,14856,14975,544,11.469,True,"1,1,1,1,1",0.002682,,
+T4-06,T4,B,1,119,0,14856,14975,489,10.65,True,"1,1,1,1,1",0.002517,,
+T4-06,T4,B,2,119,0,14856,14975,618,12.839,True,"1,1,1,1,1",0.002904,,
+T4-07,T4,A,0,92,0,19158,19250,378,8.366,True,"1,1,1,1,1",0.002058,,
+T4-07,T4,A,1,92,0,19158,19250,354,7.995,True,"1,1,1,1,1",0.001986,,
+T4-07,T4,A,2,92,0,19158,19250,390,8.97,True,"1,1,1,1,1",0.002094,,
+T4-07,T4,B,0,92,0,14856,14948,393,8.897,True,"1,1,1,1,1",0.002103,,
+T4-07,T4,B,1,92,0,14856,14948,402,9.123,True,"1,1,1,1,1",0.00213,,
+T4-07,T4,B,2,92,0,14856,14948,359,9.79,True,"1,1,1,1,1",0.002001,,
+T4-08,T4,A,0,103,0,19158,19261,282,6.203,True,"1,1,1,1,1",0.001836,,
+T4-08,T4,A,1,103,0,19158,19261,323,6.703,True,"1,1,1,1,1",0.001959,,
+T4-08,T4,A,2,103,0,19158,19261,381,9.691,True,"1,1,1,1,1",0.002133,,
+T4-08,T4,B,0,103,0,14856,14959,429,8.801,True,"1,1,1,1,1",0.002277,,
+T4-08,T4,B,1,103,0,14856,14959,337,7.204,True,"1,1,1,1,1",0.002001,,
+T4-08,T4,B,2,103,0,14856,14959,323,7.179,True,"1,1,1,1,1",0.001959,,
+T4-09,T4,A,0,79,0,19158,19237,383,9.737,True,"1,1,1,1,1",0.002028,,
+T4-09,T4,A,1,79,0,19158,19237,423,11.108,True,"1,1,1,1,1",0.002148,,
+T4-09,T4,A,2,79,0,19158,19237,455,11.054,True,"1,1,1,1,1",0.002244,,
+T4-09,T4,B,0,79,0,14856,14935,387,9.464,True,"1,1,1,1,1",0.00204,,
+T4-09,T4,B,1,79,0,14856,14935,437,10.353,True,"1,1,1,1,1",0.00219,,
+T4-09,T4,B,2,79,0,14856,14935,513,13.304,True,"1,1,1,1,1",0.002418,,
+T4-10,T4,A,0,124,0,19158,19282,331,6.434,True,"1,1,1,1,1",0.002019,,
+T4-10,T4,A,1,124,0,19158,19282,304,6.594,True,"1,1,1,1,1",0.001938,,
+T4-10,T4,A,2,124,0,19158,19282,320,5.975,True,"1,1,1,1,1",0.001986,,
+T4-10,T4,B,0,124,0,14856,14980,433,8.974,True,"1,1,1,1,1",0.002325,,
+T4-10,T4,B,1,124,0,14856,14980,425,8.195,True,"1,1,1,1,1",0.002301,,
+T4-10,T4,B,2,124,0,14856,14980,416,8.685,True,"1,1,1,1,1",0.002274,,
+T5-01,T5,B,0,94,0,14856,14950,179,5.098,True,"1,1,1,1,1",0.001476,,
+T5-01,T5,B,1,94,0,14856,14950,162,4.351,True,"1,1,1,1,1",0.001425,,
+T5-01,T5,B,2,94,0,14856,14950,162,4.094,True,"1,1,1,1,1",0.001425,,
+T5-02,T5,B,0,102,0,14856,14958,260,6.695,True,"1,1,1,1,1",0.001749,,
+T5-02,T5,B,1,102,0,14856,14958,258,6.875,True,"1,1,1,1,1",0.001743,,
+T5-02,T5,B,2,102,0,14856,14958,260,6.549,True,"1,1,1,1,1",0.001749,,
+T5-03,T5,B,0,65,0,14856,14921,383,9.718,True,"1,1,1,1,1",0.001977,,
+T5-03,T5,B,1,65,0,14856,14921,455,8.408,True,"1,1,1,1,1",0.002193,,
+T5-03,T5,B,2,65,0,14856,14921,391,8.778,False,"0,1,1,1,1",0.002001,,"apiVersion: powerloom.app/v2
+kind: Compose
+metadata:
+  name: IncidentRunbook
+  namespace: ops.acme
+  display_name: Incident Runbook
+  description: A composed kind for incident response runbooks that extends Process and adds runtime policy constraints
+spec:
+  compose:
+    - extends: Process
+      role: runbook_template
+      fields:
+        process_kind: incident_runbook
+        inputs_schema:
+          type: object
+          properties:
+            incident_id:
+              type: string
+            severity:
+              type: string
+              enum: [critical, high, medium, low]
+            description:
+              type: string
+          required: [incident_id, severity]
+        outputs_schema:
+          type: object
+          properties:
+            resolution_status:
+              type: string
+              enum: [resolved, escalated, pending]
+            actions_taken:
+              type: array
+              items:
+                type: string
+          required: [resolution_status]
+    - primitive: Policy
+      role: runtime
+      fields:
+        policy_type: runtime
+        applies_to:
+          - ops.acme
+        statement:
+          runtime_type:
+            - cma
+            - anthropic_messages
+        enforcement_mode: enforce
+  interface:
+    process_kind:
+      type: string
+      const: incident_runbook
+    inputs_schema:
+      type: object
+    outputs_schema:
+      type: object
+    runtime_constraints:
+      type: object
+      properties:
+        allowed_runtimes:
+          type: array
+          items:
+            type: string"
+T5-04,T5,B,0,76,0,14856,14932,498,9.374,True,"1,1,1,1,1",0.002382,,
+T5-04,T5,B,1,76,0,14856,14932,537,10.387,True,"1,1,1,1,1",0.002499,,
+T5-04,T5,B,2,76,0,14856,14932,610,11.816,True,"1,1,1,1,1",0.002718,,
+T5-05,T5,B,0,66,0,14856,14922,401,9.066,False,"0,1,0,1,1",0.00207,,"apiVersion: powerloom.app/v2
+kind: Compose
+metadata:
+  name: SupportEscalation
+  namespace: support.acme
+  display_name: Support Escalation
+  description: Composed kind for support escalation workflows with tier-based scoping and escalation rule policies
+spec:
+  compose:
+    - extends: WorkflowType
+      role: workflow_template
+      fields:
+        task_kinds:
+          - routing
+          - coordination
+        runtime_targets:
+          - cma
+    - primitive: Scope
+      role: escalation_tier
+      fields:
+        scope_type: custom
+        inheritance_mode: selective
+        selective_inheritance:
+          memory_kinds:
+            - procedural
+            - concepts
+    - primitive: Policy
+      role: escalation_rules
+      fields:
+        policy_type: escalation_rules
+        enforcement_mode: enforce
+        statement:
+          max_tier: 3
+          auto_escalate_after_hours: 24
+          require_approval_above_tier: 2
+  interface:
+    tier_level:
+      type: integer
+      minimum: 1
+      maximum: 3
+    escalation_criteria:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        customer_tier:
+          type: string
+          enum: [free, paid, enterprise]
+    coordinator_agent_id:
+      type: string
+      format: uuid
+  constraints:
+    - exactly-one-Policy-slot-with-role-escalation_rules
+    - Scope-slot-must-have-custom-scope_type"
+T5-05,T5,B,1,66,0,14856,14922,408,9.492,False,"1,1,0,1,1",0.002091,,"apiVersion: powerloom.app/v2
+kind: Compose
+metadata:
+  name: SupportEscalation
+  namespace: support.acme
+  display_name: Support Escalation
+  description: Composed kind for support escalation workflows with tier-based scoping and escalation rule policies
+spec:
+  compose:
+    - extends: WorkflowType
+      role: workflow_template
+      fields:
+        task_kinds:
+          - routing
+          - escalation
+        runtime_targets:
+          - cma
+    - primitive: Scope
+      role: escalation_tier
+      fields:
+        scope_type: custom
+        inheritance_mode: selective
+        selective_inheritance:
+          memory_kinds:
+            - procedural
+            - concepts
+    - primitive: Policy
+      role: escalation_rules
+      fields:
+        policy_type: escalation
+        enforcement_mode: enforce
+        statement:
+          max_tier: 3
+          auto_escalate_after_hours: 24
+          require_approval_at_tier: 2
+  interface:
+    tier_level:
+      type: integer
+      minimum: 1
+      maximum: 3
+    escalation_criteria:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        response_time_sla_hours:
+          type: integer
+    coordinator_agent_id:
+      type: string
+      format: uuid
+  constraints:
+    - exactly-one-scope-slot-with-role-escalation_tier
+    - exactly-one-policy-slot-with-role-escalation_rules
+    - workflow-template-must-have-coordinator"
+T5-05,T5,B,2,66,0,14856,14922,414,8.759,False,"1,1,0,1,1",0.002109,,"apiVersion: powerloom.app/v2
+kind: Compose
+metadata:
+  name: SupportEscalation
+  namespace: support.acme
+  display_name: Support Escalation
+  description: Composed kind for support ticket escalation workflows with tier-based scoping and escalation rule policies
+spec:
+  compose:
+    - extends: WorkflowType
+      role: workflow_template
+      fields:
+        task_kinds:
+          - routing
+          - escalation
+        runtime_targets:
+          - cma
+    - primitive: Scope
+      role: escalation_tier
+      fields:
+        scope_type: custom
+        inheritance_mode: selective
+        selective_inheritance:
+          from_types:
+            - support_ticket
+            - customer_context
+          memory_kinds:
+            - procedural
+            - concepts
+    - primitive: Policy
+      role: escalation_rules
+      fields:
+        policy_type: escalation
+        enforcement_mode: enforce
+        statement:
+          max_tier: 3
+          auto_escalate_after_hours: 24
+          require_manager_approval: true
+          escalation_criteria:
+            - severity: critical
+              tier: 3
+            - severity: high
+              tier: 2
+            - severity: medium
+              tier: 1
+  interface:
+    tier_level:
+      type: integer
+      minimum: 1
+      maximum: 3
+    escalation_path:
+      type: array
+      items:
+        type: string
+    approval_required:
+      type: boolean
+  constraints:
+    - exactly-one-scope-with-role-escalation_tier
+    - policy-escalation_rules-must-define-statement.escalation_criteria"
+T5-06,T5,B,0,77,0,14856,14933,337,7.228,True,"1,1,1,1,1",0.001917,,
+T5-06,T5,B,1,77,0,14856,14933,256,5.424,True,"1,1,1,1,1",0.001674,,
+T5-06,T5,B,2,77,0,14856,14933,256,5.83,True,"1,1,1,1,1",0.001674,,
+T5-07,T5,B,0,67,0,14856,14923,188,5.36,True,"1,1,1,1,1",0.001413,,
+T5-07,T5,B,1,67,0,14856,14923,188,8.091,True,"1,1,1,1,1",0.001413,,
+T5-07,T5,B,2,67,0,14856,14923,188,5.344,True,"1,1,1,1,1",0.001413,,
+T5-08,T5,B,0,75,0,14856,14931,319,6.293,True,"1,1,1,1,1",0.001848,,
+T5-08,T5,B,1,75,0,14856,14931,320,6.73,True,"1,1,1,1,1",0.001851,,
+T5-08,T5,B,2,75,0,14856,14931,396,7.906,True,"1,1,1,1,1",0.002079,,
+T5-09,T5,B,0,75,0,14856,14931,405,9.599,True,"1,1,1,1,1",0.0021,,
+T5-09,T5,B,1,75,0,14856,14931,402,9.059,True,"1,1,1,1,1",0.002091,,
+T5-09,T5,B,2,75,0,14856,14931,447,10.489,True,"1,1,1,1,1",0.002226,,
+T5-10,T5,B,0,91,0,14856,14947,442,9.234,True,"1,1,1,1,1",0.002265,,
+T5-10,T5,B,1,91,0,14856,14947,362,6.822,True,"1,1,1,1,1",0.002025,,
+T5-10,T5,B,2,91,0,14856,14947,362,7.273,True,"1,1,1,1,1",0.002025,,

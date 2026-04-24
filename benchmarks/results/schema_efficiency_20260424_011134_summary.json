@@ -1,0 +1,143 @@
+{
+  "condition_A_v1_2_0": {
+    "n": 120,
+    "mean_input_tokens": 19243.825,
+    "mean_billable_input_tokens": 85.825,
+    "mean_output_tokens": 254.04166666666666,
+    "mean_latency_s": 6.177961829169362,
+    "pass_rate": 0.875
+  },
+  "condition_B_v2_0_0_shared": {
+    "n": 120,
+    "mean_input_tokens": 14941.825,
+    "mean_billable_input_tokens": 85.825,
+    "mean_output_tokens": 266.55833333333334,
+    "mean_latency_s": 6.7233347658344425,
+    "pass_rate": 0.9
+  },
+  "condition_B_v2_0_0_all": {
+    "n": 150,
+    "mean_input_tokens": 14940.42,
+    "mean_billable_input_tokens": 84.42,
+    "mean_output_tokens": 281.55333333333334,
+    "mean_latency_s": 6.9129445006667325,
+    "pass_rate": 0.8933333333333333
+  },
+  "gates": {
+    "input_tokens_ratio": {
+      "value": 0.7764477696092124,
+      "threshold": 1.5,
+      "passed": true
+    },
+    "output_tokens_ratio": {
+      "value": 1.0492701328522225,
+      "threshold": 1.2,
+      "passed": true
+    },
+    "latency_ratio": {
+      "value": 1.0882771619096272,
+      "threshold": 1.15,
+      "passed": true
+    },
+    "correctness_delta": {
+      "value": 0.025000000000000022,
+      "threshold": -0.05,
+      "passed": true
+    }
+  },
+  "verdict": "pass",
+  "by_task_type": {
+    "T1": {
+      "A": {
+        "n": 30,
+        "mean_input_tokens": 19233.5,
+        "mean_billable_input_tokens": 75.5,
+        "mean_output_tokens": 338.3,
+        "mean_latency_s": 8.919669476668544,
+        "pass_rate": 1.0
+      },
+      "B": {
+        "n": 30,
+        "mean_input_tokens": 14931.5,
+        "mean_billable_input_tokens": 75.5,
+        "mean_output_tokens": 404.4,
+        "mean_latency_s": 10.531447800002448,
+        "pass_rate": 0.9
+      }
+    },
+    "T2": {
+      "A": {
+        "n": 30,
+        "mean_input_tokens": 19220.7,
+        "mean_billable_input_tokens": 62.7,
+        "mean_output_tokens": 201.06666666666666,
+        "mean_latency_s": 4.787459290002395,
+        "pass_rate": 0.6
+      },
+      "B": {
+        "n": 30,
+        "mean_input_tokens": 14918.7,
+        "mean_billable_input_tokens": 62.7,
+        "mean_output_tokens": 153.93333333333334,
+        "mean_latency_s": 4.062501506666497,
+        "pass_rate": 0.8
+      }
+    },
+    "T3": {
+      "A": {
+        "n": 30,
+        "mean_input_tokens": 19263.4,
+        "mean_billable_input_tokens": 105.4,
+        "mean_output_tokens": 165.76666666666668,
+        "mean_latency_s": 3.9826295899993664,
+        "pass_rate": 1.0
+      },
+      "B": {
+        "n": 30,
+        "mean_input_tokens": 14961.4,
+        "mean_billable_input_tokens": 105.4,
+        "mean_output_tokens": 168.4,
+        "mean_latency_s": 4.46205742333356,
+        "pass_rate": 1.0
+      }
+    },
+    "T4": {
+      "A": {
+        "n": 30,
+        "mean_input_tokens": 19257.7,
+        "mean_billable_input_tokens": 99.7,
+        "mean_output_tokens": 311.03333333333336,
+        "mean_latency_s": 7.022088960007143,
+        "pass_rate": 0.9
+      },
+      "B": {
+        "n": 30,
+        "mean_input_tokens": 14955.7,
+        "mean_billable_input_tokens": 99.7,
+        "mean_output_tokens": 339.5,
+        "mean_latency_s": 7.837332333335265,
+        "pass_rate": 0.9
+      }
+    },
+    "T5": {
+      "A": {
+        "n": 0,
+        "mean_input_tokens": 0,
+        "mean_billable_input_tokens": 0,
+        "mean_output_tokens": 0,
+        "mean_latency_s": 0,
+        "pass_rate": 0
+      },
+      "B": {
+        "n": 30,
+        "mean_input_tokens": 14934.8,
+        "mean_billable_input_tokens": 78.8,
+        "mean_output_tokens": 341.53333333333336,
+        "mean_latency_s": 7.671383439995892,
+        "pass_rate": 0.8666666666666667
+      }
+    }
+  },
+  "total_anthropic_cost_usd": 2.9837,
+  "timestamp": "2026-04-24T05:48:08.327598+00:00"
+}
