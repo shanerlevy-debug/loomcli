@@ -38,10 +38,10 @@ Generic roles that apply to most small-to-medium businesses:
 | `project-manager` | Status reports + dependency tracking |
 | `ux-researcher` | Interview synthesis + usability |
 
-### Skills (22)
+### Skills (23)
 Each skill has a real `SKILL.md` with frontmatter + role-specific system prompt. They're grouped:
 
-**Studio skills (7)** — used by Shane's 5 agents (some shared):
+**Studio skills (8)** — used by Shane's 5 agents (some shared):
 - `bespoke-brand-style` — the BRAND.md-wrapper skill
 - `copy-reviewer` — universal copywriting review
 - `code-reviewer` — diff review for correctness + security
@@ -49,15 +49,21 @@ Each skill has a real `SKILL.md` with frontmatter + role-specific system prompt.
 - `architecture-analyzer` — design review (coupling / reversibility / operability / cost)
 - `article-drafter` — essay / field note / dispatch structural discipline
 - `convention-curator` — intent vs. observation convention maintenance
+- `weave-interpreter` — authoritative weave CLI reference (commands, auth flows, apply/plan semantics, skill archive pipeline, approval gates, error shapes, version history)
 
 **Fleet-demo skills (15)** — one per generic role above.
 
 ## Deploy
 
 Requires:
-- `pip install loomcli>=0.5.2` (must include `weave skill upload` commands)
+- `pip install loomcli>=0.5.3` (needs `weave skill upload` + `--justification` support)
 - A Powerloom control plane you have credentials for (prod or local docker-compose)
 - An existing root OU (default: `/bespoke-technology` — override with `OU_ROOT` env var)
+
+**Approval-gated orgs:** the bootstrap sets `POWERLOOM_APPROVAL_JUSTIFICATION="Deploying Powerloom reference fleet via bootstrap.<sh|ps1>"` automatically. Override by setting your own value before running (e.g. to include a ticket ID):
+```powershell
+$env:POWERLOOM_APPROVAL_JUSTIFICATION = "TICKET-123: reference fleet deploy for new org"
+```
 
 Two bootstrap scripts are provided, pick the one matching your shell:
 

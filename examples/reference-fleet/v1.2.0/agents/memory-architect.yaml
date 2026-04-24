@@ -19,6 +19,7 @@ spec:
   owner_principal_ref: user:shane.levy@bespoke-technology.com
   skills:
   - convention-curator
+  - weave-interpreter
   description: Custodian of the memory/schema system — relates concepts using brand language + convention
     governance.
   task_kinds:

@@ -78,9 +78,10 @@ V2_MANIFESTS = sorted((FLEET_ROOT / "v2.0.0").rglob("*.yaml"))
 def test_fleet_discovered():
     assert V1_MANIFESTS, "no v1.2.0 fleet manifests found"
     assert V2_MANIFESTS, "no v2.0.0 fleet manifests found"
-    # Expect OUs × 2 + 22 skills + 20 agents per version
-    assert len(V1_MANIFESTS) == 2 + 22 + 20, len(V1_MANIFESTS)
-    assert len(V2_MANIFESTS) == 2 + 22 + 20, len(V2_MANIFESTS)
+    # Expect 2 OUs + 23 skills + 20 agents per version.
+    # (22 original + 1 weave-interpreter added 2026-04-24)
+    assert len(V1_MANIFESTS) == 2 + 23 + 20, len(V1_MANIFESTS)
+    assert len(V2_MANIFESTS) == 2 + 23 + 20, len(V2_MANIFESTS)
 
 
 @pytest.mark.parametrize("manifest", V1_MANIFESTS, ids=lambda p: str(p.relative_to(FLEET_ROOT)))

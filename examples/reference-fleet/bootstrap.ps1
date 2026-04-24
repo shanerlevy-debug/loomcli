@@ -62,6 +62,14 @@ if (-not (Test-Path $archivesDir)) {
     exit 1
 }
 
+# v0.5.3 — approval-gate support. Orgs with a justification_required
+# policy reject mutating requests without an X-Approval-Justification
+# header. Set the env var so every weave call carries one. Users can
+# override by setting POWERLOOM_APPROVAL_JUSTIFICATION before running.
+if (-not $env:POWERLOOM_APPROVAL_JUSTIFICATION) {
+    $env:POWERLOOM_APPROVAL_JUSTIFICATION = "Deploying Powerloom reference fleet via bootstrap.ps1"
+}
+
 Write-Host "==> Reference-fleet bootstrap"
 Write-Host "    OU root:          $ouRoot"
 Write-Host "    Schema version:   $SchemaVersion"

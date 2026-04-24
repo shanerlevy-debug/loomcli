@@ -84,6 +84,14 @@ SKILLS: list[dict[str, Any]] = [
         "description": "Custodian of a team's conventions — intent rules vs. learned observations.",
         "ou_path": STUDIO_OU_PATH,
     },
+    {
+        "name": "weave-interpreter",
+        "display_name": "Weave CLI Interpreter",
+        "description": "Authoritative weave CLI reference — command structure, auth flows, apply/plan semantics, skill archive pipeline, OU addressing, approval gates, schema versions, error shapes. Use when driving weave operations or diagnosing CLI errors.",
+        "ou_path": STUDIO_OU_PATH,
+        "system": True,
+        "auto_attach_to": {"task_kinds": ["execution", "qa"]},
+    },
     # Fleet-demo skills (used by the 15 generic agents)
     {
         "name": "e2e-test-runner",
@@ -263,7 +271,7 @@ AGENTS: list[dict[str, Any]] = [
             "knowledge current. You default to approving when risk is low and questioning "
             "when irreversible. You treat one-way doors differently from two-way doors."
         ),
-        skills=["code-reviewer", "architecture-analyzer", "convention-curator"],
+        skills=["code-reviewer", "architecture-analyzer", "convention-curator", "weave-interpreter"],
         task_kinds=["coordination", "qa"],
         coordinator_role=True,
     ),
@@ -304,7 +312,7 @@ AGENTS: list[dict[str, Any]] = [
             "You are not a stand-alone engineer; you coordinate with the Head Developer on "
             "architectural decisions."
         ),
-        skills=["convention-curator"],
+        skills=["convention-curator", "weave-interpreter"],
         task_kinds=["coordination", "analogy"],
         memory_permissions=["bespoke-technology.studio", "bespoke-technology"],
     ),

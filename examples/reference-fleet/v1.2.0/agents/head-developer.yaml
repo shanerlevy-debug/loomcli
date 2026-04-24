@@ -18,6 +18,7 @@ spec:
   - code-reviewer
   - architecture-analyzer
   - convention-curator
+  - weave-interpreter
   description: Technical lead — architecture decisions + PR review authority + shipping gate.
   task_kinds:
   - coordination

@@ -49,6 +49,14 @@ require_cmd() {
 require_cmd weave
 require_cmd zip
 
+# v0.5.3 — approval-gate support. Orgs with a justification_required
+# policy reject mutating requests without an X-Approval-Justification
+# header. Export the env var so every weave call carries one. Users
+# can override by setting POWERLOOM_APPROVAL_JUSTIFICATION before running.
+if [[ -z "${POWERLOOM_APPROVAL_JUSTIFICATION:-}" ]]; then
+    export POWERLOOM_APPROVAL_JUSTIFICATION="Deploying Powerloom reference fleet via bootstrap.sh"
+fi
+
 echo "==> Reference-fleet bootstrap"
 echo "    OU root:          ${OU_ROOT}"
 echo "    Schema version:   ${SCHEMA_VERSION}"
