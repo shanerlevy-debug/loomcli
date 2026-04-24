@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schema.powerloom.app/v2/compose.schema.json",
   "title": "Compose (v2 authoring kind)",
-  "description": "The `compose` operator — authoring surface for user-defined derivations. Lets operators declare new kinds as compositions of the 6 primitives (or extensions of stdlib kinds). See docs/compose-from-primitives.md for the authoring guide.",
+  "description": "The `compose` operator — authoring surface for user-defined derivations. Lets operators declare new kinds as compositions of the 6 primitives (or extensions of stdlib kinds). See docs/compose-from-primitives.md for the authoring guide.\n\nPolicy slot authoring: `policy_type` is a FREE-FORM STRING — you pick a value that names the policy's domain (e.g. 'legal_constraint', 'escalation_rules', 'treatment_rules', 'regulatory_screening'). It is not an enum. Put the policy's concrete rules under `statement`, `applies_to` lists the scope_refs the policy governs, and `exceptions` lists scopes where it doesn't apply. Example: { primitive: 'Policy', role: 'escalation', fields: { policy_type: 'escalation_rules', statement: {...}, applies_to: ['support.tier1'] } }.\n\nEntity slots hold attributes keyed by your domain names. Event slots carry `event_type` (free-form, e.g. 'result_recorded'). Relation slots carry `relation_type` ('cites', 'belongs_to', 'measures') + `source_entity_id` + `target_entity_id`.",
   "type": "object",
   "x-powerloom-authoring": true,
   "required": ["apiVersion", "kind", "metadata", "spec"],
