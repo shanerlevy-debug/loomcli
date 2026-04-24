@@ -19,7 +19,10 @@
 
 [CmdletBinding()]
 param(
-    [string]$SchemaVersion = "v2.0.0",
+    # v1.2.0 is the default until loomcli 0.6.0 (which bundles v2 schemas)
+    # AND Powerloom engine v056 (which accepts v2 apiVersion) are both
+    # shipped. Switch to "v2.0.0" after v056 ships.
+    [string]$SchemaVersion = "v1.2.0",
     [switch]$DryRun
 )
 

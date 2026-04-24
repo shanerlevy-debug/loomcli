@@ -70,9 +70,11 @@ weave login
 
 # Optional flags
 OU_ROOT=/my-org ./bootstrap.sh          # different root OU
-SCHEMA_VERSION=v1.2.0 ./bootstrap.sh    # force older schema
+SCHEMA_VERSION=v2.0.0 ./bootstrap.sh    # opt into v2 (requires loomcli 0.6.0 + engine v056)
 DRY_RUN=1 ./bootstrap.sh                # preview without applying
 ```
+
+**Default schema version:** `v1.2.0`. This is what today's CLI + engine speak. `v2.0.0` becomes the default after v056 ships on both sides.
 
 Bash version requires `zip` and `bash` on PATH.
 
@@ -85,7 +87,7 @@ weave login
 
 # Optional flags
 $env:OU_ROOT = "/my-org"; .\bootstrap.ps1    # different root OU
-.\bootstrap.ps1 -SchemaVersion v1.2.0        # force older schema
+.\bootstrap.ps1 -SchemaVersion v2.0.0        # opt into v2 (requires loomcli 0.6.0 + engine v056)
 .\bootstrap.ps1 -DryRun                      # preview without applying
 ```
 

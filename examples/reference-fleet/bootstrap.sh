@@ -26,7 +26,10 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 OU_ROOT="${OU_ROOT:-/bespoke-technology}"
-SCHEMA_VERSION="${SCHEMA_VERSION:-v2.0.0}"
+# Default is v1.2.0 until loomcli 0.6.0 + Powerloom engine v056 ship.
+# After v056, switch to v2.0.0 (resources will no-op reapply since
+# the shape is identical across versions).
+SCHEMA_VERSION="${SCHEMA_VERSION:-v1.2.0}"
 DRY_RUN="${DRY_RUN:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
