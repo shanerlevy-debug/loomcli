@@ -5,6 +5,37 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.5.4 — 2026-04-24 (CLI)
+
+**Close the Pydantic ↔ schema drift for v1.2.0.** Before this release, the CLI bundled the v1.2.0 JSON Schema but the parallel Pydantic models in `loomcli/manifest/schema.py` only covered v1.1.0 shapes. Manifests using any v1.2.0 addition (`system` / `auto_attach_to` on Skill; `coordinator_role` / `task_kinds` / `memory_permissions` / `reranker_model` on Agent; the new kinds `WorkflowType` / `MemoryPolicy` / `Scope`) passed schema validation then crashed with `"Extra inputs are not permitted"` on Pydantic parse.
+
+### Fix scope
+
+- **`SkillSpec`** extended with `system: bool` + `auto_attach_to: AutoAttachSelector | None`. New `AutoAttachSelector` class enforces the selector's exact shape + enum values.
+- **`AgentSpec`** extended with `coordinator_role: bool`, `task_kinds: list[TaskKind]`, `memory_permissions: list[str]`, `reranker_model: str | None`.
+- **New kinds registered:** `WorkflowType`, `MemoryPolicy`, `Scope`. Each has its own Spec model with field-level validation (enums, numeric ranges). All three use a shared new `OUIdScopedMetadata` class (since v1.2.0 new kinds use `metadata.ou_id: uuid` rather than `metadata.ou_path`).
+
+### Tests
+
+28 new tests in `tests/test_schema_1_2_0_drift.py` covering: every new Skill/Agent field, every new kind's default + custom values, enum rejection, kind-registry wiring, `OUIdScopedMetadata` shape. Full suite: 194/194.
+
+### Bug-fix context
+
+Surfaced running the reference-fleet bootstrap against Shane's prod org:
+
+```
+/bespoke-technology/studio/bespoke-brand-style: doc 1 (Skill):
+pydantic spec drift (bug — schema passed but model rejected):
+system: Extra inputs are not permitted;
+auto_attach_to: Extra inputs are not permitted
+```
+
+The manifest was correct — the CLI just didn't know about the v1.2.0 extension fields it had advertised via its schema bundle.
+
+### Looking forward
+
+This class of drift is what v056's Milestone 5 closes permanently — the `loomcli.schema` Python package will be generated from the JSON Schema via `datamodel-code-generator`, so future schema additions can't desync from Pydantic. Until then, schema-v1.2.0 + Pydantic-v1.2.0 are now aligned and 28 regression tests guard the alignment.
+
 ## v0.5.3 — 2026-04-24 (CLI)
 
 **Approval-gate support + full error visibility.** Closes two gaps surfaced when Shane ran the reference-fleet bootstrap against production.
