@@ -1,0 +1,12 @@
+# Skill manifest — Interview Synthesizer. Pair with skill-archives/interview-synthesizer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: interview-synthesizer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Interview Synthesizer
+  description: Synthesizes user-research interview transcripts into structured insights with signal-strength
+    grading.
+  skill_type: archive
+  current_version_id: null

@@ -1,0 +1,11 @@
+# Skill manifest — Contract Analyzer. Pair with skill-archives/contract-analyzer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: contract-analyzer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Contract Analyzer
+  description: Reviews contracts for risk + flags clauses for human legal review. Not legal advice.
+  skill_type: archive
+  current_version_id: null

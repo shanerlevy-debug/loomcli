@@ -1,0 +1,12 @@
+# Skill manifest — Resume Reviewer. Pair with skill-archives/resume-reviewer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: resume-reviewer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Resume Reviewer
+  description: Reviews resumes against role must-haves; produces structured fit assessment with red/yellow
+    flags.
+  skill_type: archive
+  current_version_id: null

@@ -1,0 +1,11 @@
+# Skill manifest — Article Drafter. Pair with skill-archives/article-drafter/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: article-drafter
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Article Drafter
+  description: Drafts essays, field notes, and dispatches for brand media channels.
+  skill_type: archive
+  current_version_id: null

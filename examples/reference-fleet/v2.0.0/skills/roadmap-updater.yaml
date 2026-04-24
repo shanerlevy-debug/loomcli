@@ -1,0 +1,11 @@
+# Skill manifest — Roadmap Updater. Pair with skill-archives/roadmap-updater/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: roadmap-updater
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Roadmap Updater
+  description: Maintains product roadmap documents + produces weekly stakeholder updates.
+  skill_type: archive
+  current_version_id: null

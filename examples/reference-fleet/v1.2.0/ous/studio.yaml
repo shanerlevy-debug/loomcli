@@ -1,0 +1,9 @@
+# Studio OU — holds the Bespoke-specific agents + their skills.
+# Child of the existing /bespoke-technology root OU.
+apiVersion: powerloom.app/v1
+kind: OU
+metadata:
+  name: studio
+  parent_ou_path: /bespoke-technology
+spec:
+  display_name: Studio

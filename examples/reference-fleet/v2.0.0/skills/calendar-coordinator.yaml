@@ -1,0 +1,11 @@
+# Skill manifest — Calendar Coordinator. Pair with skill-archives/calendar-coordinator/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: calendar-coordinator
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Calendar Coordinator
+  description: Coordinates meetings — free/busy, timezone math, invite copy, conflict resolution.
+  skill_type: archive
+  current_version_id: null

@@ -1,0 +1,12 @@
+# Skill manifest — Authorization Reviewer. Pair with skill-archives/authz-reviewer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: authz-reviewer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Authorization Reviewer
+  description: Reviews code for authorization correctness — missing gates, cross-tenant leaks, privilege-escalation
+    paths.
+  skill_type: archive
+  current_version_id: null

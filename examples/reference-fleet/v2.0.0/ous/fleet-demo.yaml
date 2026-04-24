@@ -1,0 +1,9 @@
+# Fleet-demo OU — holds the 15 generic reference agents + their skills.
+# Child of the existing /bespoke-technology root OU.
+apiVersion: powerloom.app/v2
+kind: OU
+metadata:
+  name: fleet-demo
+  parent_ou_path: /bespoke-technology
+spec:
+  display_name: Fleet Demo

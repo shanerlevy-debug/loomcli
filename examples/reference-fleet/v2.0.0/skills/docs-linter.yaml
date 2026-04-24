@@ -1,0 +1,11 @@
+# Skill manifest — Docs Linter. Pair with skill-archives/docs-linter/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: docs-linter
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Docs Linter
+  description: Detects drift between code and docs, stale versions, broken links, missing documentation.
+  skill_type: archive
+  current_version_id: null

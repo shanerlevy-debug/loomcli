@@ -1,0 +1,11 @@
+# Skill manifest — Convention Curator. Pair with skill-archives/convention-curator/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: convention-curator
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Convention Curator
+  description: Custodian of a team's conventions — intent rules vs. learned observations.
+  skill_type: archive
+  current_version_id: null
