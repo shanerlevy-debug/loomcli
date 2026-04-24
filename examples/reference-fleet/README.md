@@ -58,30 +58,54 @@ Requires:
 - `pip install loomcli>=0.5.2` (must include `weave skill upload` commands)
 - A Powerloom control plane you have credentials for (prod or local docker-compose)
 - An existing root OU (default: `/bespoke-technology` — override with `OU_ROOT` env var)
-- `zip` and `bash` on your local machine
+
+Two bootstrap scripts are provided, pick the one matching your shell:
+
+### macOS / Linux (bash)
 
 ```bash
-# Sign in to your control plane
-weave login
-weave auth whoami  # verify
-
-# Deploy
 cd examples/reference-fleet
+weave login
 ./bootstrap.sh
 
-# (optional flags)
+# Optional flags
 OU_ROOT=/my-org ./bootstrap.sh          # different root OU
 SCHEMA_VERSION=v1.2.0 ./bootstrap.sh    # force older schema
 DRY_RUN=1 ./bootstrap.sh                # preview without applying
 ```
 
-The script:
-1. Validates `weave` auth
-2. Applies the 2 OU manifests (idempotent — skips existing)
-3. Applies the 22 skill shells (`current_version_id: null` initially)
-4. Builds zip archives from `skill-archives/<name>/` + `weave skill upload-and-activate`s each
-5. Applies the 20 agent manifests
-6. Prints summary + verification commands
+Bash version requires `zip` and `bash` on PATH.
+
+### Windows (PowerShell)
+
+```powershell
+cd D:\PowerLoom\loomcli\examples\reference-fleet
+weave login
+.\bootstrap.ps1
+
+# Optional flags
+$env:OU_ROOT = "/my-org"; .\bootstrap.ps1    # different root OU
+.\bootstrap.ps1 -SchemaVersion v1.2.0        # force older schema
+.\bootstrap.ps1 -DryRun                      # preview without applying
+```
+
+PowerShell version uses native `Compress-Archive` — no `zip` dependency. Requires PowerShell 5+ (ships with Windows 10+).
+
+**Execution policy:** if PowerShell refuses to run the script ("script execution is disabled on this system"), either:
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser  # one-time, persistent
+# OR
+powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1  # one-off
+```
+
+### What both scripts do
+
+1. Validate `weave` auth (`weave auth whoami` must succeed)
+2. Apply the 2 OU manifests (idempotent — skips existing)
+3. Apply the 22 skill shells (`current_version_id: null` initially)
+4. Build zip archives from `skill-archives/<name>/` + `weave skill upload-and-activate`s each
+5. Apply the 20 agent manifests
+6. Print summary + verification commands
 
 Expected runtime: ~30-60 seconds against a responsive API.
 
@@ -104,7 +128,8 @@ You should see:
 ```
 reference-fleet/
 ├── README.md                    # this file
-├── bootstrap.sh                 # orchestrator
+├── bootstrap.sh                 # orchestrator (macOS / Linux)
+├── bootstrap.ps1                # orchestrator (Windows PowerShell)
 ├── skill-archives/              # 22 directories, each with SKILL.md
 │   ├── bespoke-brand-style/
 │   │   └── SKILL.md
@@ -163,6 +188,7 @@ Every agent manifest has `owner_principal_ref: user:shane.levy@bespoke-technolog
 
 Before shipping to production, smoke-test against docker-compose:
 
+**macOS / Linux:**
 ```bash
 cd /path/to/powerloom
 docker compose up -d
@@ -170,6 +196,17 @@ weave login --dev-as test@dev.local --api-url http://localhost:8000
 cd /path/to/loomcli/examples/reference-fleet
 ./bootstrap.sh
 weave get agent --api-url http://localhost:8000
+```
+
+**Windows:**
+```powershell
+cd D:\path\to\powerloom
+docker compose up -d
+$env:POWERLOOM_API_BASE_URL = "http://localhost:8000"
+weave login --dev-as test@dev.local
+cd D:\path\to\loomcli\examples\reference-fleet
+.\bootstrap.ps1
+weave get agent
 ```
 
 If the local deploy works, prod will too.
