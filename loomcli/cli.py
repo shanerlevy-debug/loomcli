@@ -26,6 +26,8 @@ from loomcli.commands import plan as plan_cmd
 from loomcli.commands import workflow_cmd
 from loomcli.commands import antigravity_worker_cmd
 from loomcli.commands import skill_cmd
+from loomcli.commands import audit_cmd
+from loomcli.commands import approval_cmd
 
 
 app = typer.Typer(
@@ -110,6 +112,8 @@ app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordi
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
 app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
 app.add_typer(skill_cmd.app, name="skill", help="Manage Skill archives (upload + activate versions).")
+app.add_typer(audit_cmd.app, name="audit", help="Query the Powerloom audit log.", invoke_without_command=True)
+app.add_typer(approval_cmd.app, name="approval", help="Inspect + decide on approval requests (list/get/approve/reject/cancel/bulk-cancel).")
 app.command("apply", help="Apply a manifest (create/update resources).")(apply_cmd.apply_command)
 app.command("plan", help="Show what apply would do, without making changes.")(plan_cmd.plan_command)
 app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.destroy_command)
