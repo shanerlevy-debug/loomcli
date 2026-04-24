@@ -43,10 +43,23 @@ class OUMetadata(_BaseMeta):
 
 
 class OUPathScopedMetadata(_BaseMeta):
-    """Shared metadata for resources owned by an OU."""
+    """Shared metadata for resources owned by an OU (by path)."""
 
     name: str
     ou_path: str
+
+
+class OUIdScopedMetadata(_BaseMeta):
+    """Metadata for v1.2.0+ kinds (WorkflowType, MemoryPolicy, Scope)
+    that identify their OU by UUID rather than path. Shape per the
+    schema/v1/kinds/{workflow-type,memory-policy,scope}.schema.json
+    definitions: metadata.ou_id is a UUID string."""
+
+    name: str
+    ou_id: str
+    display_name: str | None = None
+    description: str | None = None
+    labels: dict[str, str] | None = None
 
 
 class GroupMembershipMetadata(_BaseMeta):
@@ -115,6 +128,20 @@ class RoleBindingSpec(_BaseSpec):
     """All RoleBinding fields live in metadata for addressing purposes."""
 
 
+class AutoAttachSelector(BaseModel):
+    """v1.2.0 — predicate describing which agents a system skill
+    auto-attaches to. All specified conditions are ANDed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_kinds: list[Literal["user", "service"]] | None = None
+    task_kinds: list[
+        Literal["routing", "qa", "analogy", "execution", "coordination"]
+    ] | None = None
+    runtime_types: list[str] | None = None
+    coordinator_role_required: bool = False
+
+
 class SkillSpec(_BaseSpec):
     display_name: str
     description: str | None = None
@@ -123,6 +150,9 @@ class SkillSpec(_BaseSpec):
     # Manifests reference skill versions by id — local archive uploads
     # happen via REST; put the resulting uuid here.
     current_version_id: str | None = None
+    # v1.2.0 — system skills that auto-attach to matching agents.
+    system: bool = False
+    auto_attach_to: AutoAttachSelector | None = None
 
 
 class McpServerRegistrationSpec(_BaseSpec):
@@ -162,6 +192,17 @@ class AgentSpec(_BaseSpec):
     """Skill names (resolved within the agent's OU)."""
     mcp_servers: list[str] = Field(default_factory=list)
     """MCP registration names (resolved within the agent's OU)."""
+    # v1.2.0 extension fields — memory / coordinator / task-kind routing.
+    coordinator_role: bool = False
+    """Marks an LLM-coordinator; auto-attaches grading skills at reconcile."""
+    task_kinds: list[
+        Literal["routing", "qa", "analogy", "execution", "coordination"]
+    ] = Field(default_factory=list)
+    """Which task kinds this agent handles. Empty = accepts all."""
+    memory_permissions: list[str] = Field(default_factory=list)
+    """Dotted scope refs the agent has memory read access to (v1.2.0)."""
+    reranker_model: str | None = None
+    """Optional override for the LLM-judge reranker model."""
 
 
 class AgentSkillSpec(_BaseSpec):
@@ -175,6 +216,66 @@ class AgentMcpSpec(_BaseSpec):
 class CredentialSpec(_BaseSpec):
     """No spec — bearer is minted server-side, stored in Secrets Manager.
     Manifest apply creates the credential if missing; no update path."""
+
+
+# ---------------------------------------------------------------------------
+# v1.2.0 new kinds: WorkflowType, MemoryPolicy, Scope
+# ---------------------------------------------------------------------------
+
+
+class WorkflowTypeSpec(_BaseSpec):
+    """v1.2.0 — reusable workflow-type template."""
+
+    coordinator_agent_id: str | None = None
+    default_timeout_seconds: int = 3600
+    memory_policy_id: str | None = None
+    task_kinds: list[
+        Literal["routing", "qa", "analogy", "execution", "coordination"]
+    ] = Field(default_factory=list)
+    runtime_targets: list[
+        Literal[
+            "cma", "openai", "anthropic_messages", "ollama",
+            "bedrock", "vertex", "azure_openai", "mistral",
+            "cohere", "langchain", "crewai", "autogen",
+        ]
+    ] = Field(default_factory=list)
+
+
+class MemoryPolicySpec(_BaseSpec):
+    """v1.2.0 — per-OU memory governance configuration."""
+
+    review_cadence_hours: int = 24
+    timeout_action: Literal["approve", "forget", "escalate"] = "forget"
+    review_deadline_hours: int = 72
+    tentative_weight: float = 0.25
+    org_scope_requires_approval: bool = True
+    max_memories_per_session: int = 50
+    consolidation_gate: Literal["kairos", "none"] = "kairos"
+
+
+class SelectiveInheritance(BaseModel):
+    """v1.2.0 — scope's selective_inheritance block."""
+
+    model_config = ConfigDict(extra="forbid")
+    from_types: list[str] | None = None
+    memory_kinds: list[
+        Literal["grammar", "lexicon", "procedural", "concepts"]
+    ] | None = None
+
+
+class RetentionOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decay_days: int | None = None
+    forget_after_days: int | None = None
+
+
+class ScopeSpec(_BaseSpec):
+    """v1.2.0 — explicit scope declaration with inheritance config."""
+
+    parent_scope_ref: str | None = None
+    inheritance_mode: Literal["full", "isolated", "selective"] = "full"
+    selective_inheritance: SelectiveInheritance | None = None
+    retention_override: RetentionOverride | None = None
 
 
 class SkillGrantSpec(_BaseSpec):
@@ -226,6 +327,16 @@ KINDS: dict[str, KindSpec] = {
     ),
     "SkillAccessGrant": KindSpec(
         "SkillAccessGrant", SkillGrantMetadata, SkillGrantSpec, "rbac"
+    ),
+    # v1.2.0 new kinds — metadata uses ou_id (UUID) rather than ou_path.
+    "WorkflowType": KindSpec(
+        "WorkflowType", OUIdScopedMetadata, WorkflowTypeSpec, "content"
+    ),
+    "MemoryPolicy": KindSpec(
+        "MemoryPolicy", OUIdScopedMetadata, MemoryPolicySpec, "governance"
+    ),
+    "Scope": KindSpec(
+        "Scope", OUIdScopedMetadata, ScopeSpec, "identity"
     ),
 }
 
