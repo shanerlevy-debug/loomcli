@@ -111,9 +111,11 @@ function Apply-Manifest {
     param([string]$Path, [string]$Label)
     Write-Host "  $Label"
     if ($DryRun) {
-        Invoke-Weave -WeaveArgs @("plan", "-f", $Path)
+        # plan is positional, no --auto-approve flag
+        Invoke-Weave -WeaveArgs @("plan", $Path)
     } else {
-        Invoke-Weave -WeaveArgs @("apply", "-f", $Path)
+        # apply is positional; -y skips the interactive confirmation
+        Invoke-Weave -WeaveArgs @("apply", "-y", $Path)
     }
 }
 

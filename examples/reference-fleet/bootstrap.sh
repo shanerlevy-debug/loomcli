@@ -74,14 +74,15 @@ run() {
 
 weave_apply_if_missing() {
     # Apply a manifest file. Idempotent — weave apply is a no-op if the
-    # resource already matches.
+    # resource already matches. `weave apply` takes PATHS as positional
+    # args (not -f <path>); -y skips the interactive confirmation.
     local manifest="$1"
     local label="$2"
     echo "  ${label}"
     if [[ "${DRY_RUN}" == "1" ]]; then
-        weave plan -f "${manifest}" 2>&1 | sed 's/^/    /' || true
+        weave plan "${manifest}" 2>&1 | sed 's/^/    /' || true
     else
-        weave apply -f "${manifest}" 2>&1 | sed 's/^/    /'
+        weave apply -y "${manifest}" 2>&1 | sed 's/^/    /'
     fi
 }
 
