@@ -5,6 +5,16 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.0-rc2 — 2026-04-24 (CLI)
+
+**First actual pre-release of the 0.6.0 series.** The 0.6.0rc1 pyproject bump merged on the long branch but never got tagged (PEP 440 string `0.6.0rc1` didn't match the publish workflow's `v*.*.*-*` tag pattern). 0.6.0-rc2 ships with everything rc1 was supposed to — plus one live-test bug fix.
+
+### Fix
+- **`weave login` default API URL** (PR #10) — `POWERLOOM_API_BASE_URL` default flipped from `http://localhost:8000` → `https://api.powerloom.org`. A fresh `pip install loomcli` + `weave login` now talks to the hosted cluster out of the box. Docker-compose dev workflows already pass `POWERLOOM_API_BASE_URL` or `--api-url` so they're unaffected.
+
+### Carried forward from 0.6.0rc1 (which never shipped)
+See the 0.6.0rc1 entry below — all five milestones (stdlib polish, compose operator, migrate tool, loomcli.schema package, v2 schema bundle) are in this release.
+
 ## v0.6.0rc1 — 2026-04-24 (CLI)
 
 **v056 schema v2.0.0 surface — first pre-release.** Ships the Chomskian 6 authoring stack: six primitives (Entity/Event/Relation/Process/Scope/Policy), eight stdlib derivations (Organization/OU/Agent/Skill/WorkflowType/Workflow/MemoryPolicy/MCPDeployment), and the `compose` operator. Also ships the migration tooling to bring v1.2.0 manifests forward.
