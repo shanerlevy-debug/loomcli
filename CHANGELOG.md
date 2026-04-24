@@ -5,6 +5,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.5.2 — 2026-04-24 (CLI)
+
+**Skill archive upload/activate commands.** Closes the gap `weave apply` leaves open — apply creates/updates the Skill *shell* (manifest metadata), but archive content (the zip with SKILL.md + code + prompts) has to be uploaded separately. Before 0.5.2, that meant curl. Now it's declarative.
+
+### New commands
+
+- **`weave skill upload <address> <archive.zip>`** — POSTs the archive to `/skills/{id}/versions` as multipart/form-data. Prints the returned version UUID, frontmatter name/description, sha256, and size. Does NOT activate — the skill's `current_version_id` stays unchanged until you activate explicitly.
+- **`weave skill activate <address> <version-uuid>`** — PATCHes the skill's `current_version_id`. Promotes the uploaded version to runnable.
+- **`weave skill upload-and-activate <address> <archive.zip>`** — The common case. Upload + activate in one operation. If activation fails after upload, surfaces both facts so the user can retry activation without re-uploading.
+- **`weave skill versions <address>`** — Lists all uploaded versions for a skill (UUID, frontmatter name, sha256, size, upload timestamp).
+
+### Address syntax
+
+All commands take a `<address>` argument of the form `/ou-path/skill-name`, e.g. `/bespoke-technology/studio/bespoke-brand-style`. The skill name is the trailing segment; everything before it is the OU path. Address resolution uses the same `AddressResolver` as `weave apply` — consistent with the rest of the CLI.
+
+### Archive support
+
+- `.zip` → `application/zip`
+- `.tar.gz` / `.tgz` → `application/gzip`
+- Anything else → `application/octet-stream`
+
+The API validates the archive server-side (SKILL.md frontmatter schema, path-traversal protection, size caps).
+
 ## v0.5.1 — 2026-04-24 (CLI)
 
 **Auth UX overhaul — real production login now works, plus PAT management.** First release where `weave` is actually usable against `api.powerloom.org` without manually editing the credentials file.

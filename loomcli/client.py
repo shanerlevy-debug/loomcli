@@ -72,6 +72,49 @@ class PowerloomClient:
     def delete(self, path: str) -> Any:
         return self._request("DELETE", path)
 
+    def post_multipart(
+        self,
+        path: str,
+        *,
+        file_name: str,
+        file_bytes: bytes,
+        file_field: str = "file",
+        content_type: str = "application/octet-stream",
+    ) -> Any:
+        """POST a multipart/form-data upload. Used by `weave skill upload`
+        for archive uploads to `/skills/{id}/versions`.
+
+        Returns the parsed JSON response on success.
+        """
+        try:
+            res = self._http.post(
+                path,
+                files={file_field: (file_name, file_bytes, content_type)},
+            )
+        except httpx.HTTPError as e:
+            raise PowerloomApiError(
+                0, f"network error: {e}", method="POST", path=path
+            ) from e
+        if res.status_code == 204:
+            return None
+        if res.status_code >= 400:
+            try:
+                parsed = res.json()
+            except Exception:
+                parsed = {"raw": res.text}
+            detail = _extract_detail(parsed) or res.text[:200]
+            raise PowerloomApiError(
+                res.status_code,
+                f"HTTP {res.status_code} POST {path}: {detail}",
+                body=parsed,
+                method="POST",
+                path=path,
+            )
+        try:
+            return res.json()
+        except Exception:
+            return res.text
+
     # -------- login helper (unauthenticated) --------
     def dev_login(self, email: str) -> str:
         """Dev-mode impersonation. Returns the access_token. Only
