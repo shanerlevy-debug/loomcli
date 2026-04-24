@@ -39,7 +39,9 @@ app = typer.Typer(
 
 
 def _apply_global_options(
-    api_url: Optional[str], config_dir: Optional[str]
+    api_url: Optional[str],
+    config_dir: Optional[str],
+    justification: Optional[str],
 ) -> None:
     """Mutate process env before subcommand runs. Typer doesn't have
     first-class "run before subcommand" hooks; setting env here is
@@ -48,6 +50,8 @@ def _apply_global_options(
         os.environ["POWERLOOM_API_BASE_URL"] = api_url
     if config_dir:
         os.environ["POWERLOOM_HOME"] = config_dir
+    if justification:
+        os.environ["POWERLOOM_APPROVAL_JUSTIFICATION"] = justification
 
 
 @app.callback(invoke_without_command=True)
@@ -69,6 +73,20 @@ def _root(
             help="Override the CLI config directory (token + settings).",
         ),
     ] = None,
+    justification: Annotated[
+        Optional[str],
+        typer.Option(
+            "--justification",
+            envvar="POWERLOOM_APPROVAL_JUSTIFICATION",
+            help=(
+                "Justification for approval-gated operations. Sent as "
+                "X-Approval-Justification header on every request. "
+                "Required when your org has a policy that demands it "
+                "(otherwise create/update calls return HTTP 409 with "
+                "code=justification_required)."
+            ),
+        ),
+    ] = None,
     version: Annotated[
         bool,
         typer.Option("--version", help="Print version and exit."),
@@ -77,7 +95,7 @@ def _root(
     if version:
         typer.echo(__version__)
         raise typer.Exit()
-    _apply_global_options(api_url, config_dir)
+    _apply_global_options(api_url, config_dir, justification)
     if ctx.invoked_subcommand is None:
         # No subcommand given and no --version: show help + exit non-zero.
         # Matches `no_args_is_help=True` behavior we want for everything

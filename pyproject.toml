@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "loomcli"
-version = "0.5.2"
+version = "0.5.3"
 description = "Weave — the Powerloom CLI. Declarative manifests (apply/plan/destroy) + resource inspection, validated against the authoritative JSON Schema published in this repo."
 readme = "README.md"
 license = { text = "Proprietary" }

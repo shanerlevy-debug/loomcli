@@ -62,13 +62,27 @@ class RuntimeConfig:
     """Bearer token loaded from the credentials file. None if the
     admin hasn't `weave login`ed yet."""
 
+    approval_justification: str | None = None
+    """Optional justification string for approval-gated operations.
+    When set, the client sends X-Approval-Justification on every
+    request. Can be set via `--justification "..."` on the weave
+    command line or POWERLOOM_APPROVAL_JUSTIFICATION env var.
+    Added v0.5.3."""
+
     request_timeout_seconds: float = 30.0
 
 
 def load_runtime_config() -> RuntimeConfig:
     api_url = os.environ.get("POWERLOOM_API_BASE_URL", "http://localhost:8000")
     token = _read_credentials_file()
-    return RuntimeConfig(api_base_url=api_url.rstrip("/"), access_token=token)
+    # v0.5.3 — approval-gate justification, via env var (or set at runtime
+    # by the CLI root callback from the --justification flag).
+    justification = os.environ.get("POWERLOOM_APPROVAL_JUSTIFICATION") or None
+    return RuntimeConfig(
+        api_base_url=api_url.rstrip("/"),
+        access_token=token,
+        approval_justification=justification,
+    )
 
 
 def _read_credentials_file() -> str | None:

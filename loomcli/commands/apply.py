@@ -93,12 +93,19 @@ def apply_command(
 
 
 def _render_outcomes(outcomes) -> None:
+    """Render outcome table.
+
+    Table columns stay narrow for scanning; full error bodies are printed
+    below the table for any failed row. The table had been truncating
+    errors at 80 chars, which hid the most important information when
+    something went wrong (v0.5.3 fix).
+    """
     table = Table(title="Apply results", show_header=True, header_style="bold")
     table.add_column("Kind")
     table.add_column("Address")
     table.add_column("Action")
     table.add_column("Status")
-    table.add_column("Error")
+    table.add_column("Error (summary)")
     for o in outcomes:
         color = {
             "ok": "green",
@@ -110,7 +117,23 @@ def _render_outcomes(outcomes) -> None:
             o.action.resource.address,
             o.action.verb,
             f"[{color}]{o.status}[/{color}]",
+            # First 80 chars — enough to scan "what kind of error" per row
+            # without the Rich column auto-shrink clipping it to nothing.
             (o.error or "")[:80],
         )
     _console.print()
     _console.print(table)
+
+    # Full error bodies for failed rows — printed below the table so they
+    # aren't subject to column-width clipping.
+    failed = [o for o in outcomes if o.status == "failed" and o.error]
+    if failed:
+        _console.print()
+        _console.print("[bold red]Full error details:[/bold red]")
+        for o in failed:
+            _console.print()
+            _console.print(f"[red]✗[/red] {o.action.resource.kind} {o.action.resource.address}")
+            _console.print(f"  [dim]({o.action.verb})[/dim]")
+            # Indent each line of the error for readability
+            for line in str(o.error).splitlines() or [str(o.error)]:
+                _console.print(f"  {line}")
