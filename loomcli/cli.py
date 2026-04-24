@@ -86,7 +86,7 @@ def _root(
 
 
 # Register subcommands.
-app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami.")
+app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami / PAT management.")
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
 app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
@@ -96,6 +96,20 @@ app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.d
 app.command("get", help="List or show a resource kind.")(get_cmd.get_command)
 app.command("describe", help="Show a single resource with full detail.")(describe_cmd.describe_command)
 app.command("import", help="Adopt an existing resource into a manifest.")(import_cmd.import_command)
+
+
+# Top-level aliases — `weave login`, `weave logout`, `weave whoami` —
+# call through to the same functions registered under `weave auth`.
+# Matches gh / aws / gcloud CLI muscle memory where login is top-level.
+app.command("login", help="Sign in to Powerloom (alias for `weave auth login`).")(
+    auth_cmd.login
+)
+app.command("logout", help="Clear credentials (alias for `weave auth logout`).")(
+    auth_cmd.logout
+)
+app.command("whoami", help="Show signed-in user (alias for `weave auth whoami`).")(
+    auth_cmd.whoami
+)
 
 
 if __name__ == "__main__":
