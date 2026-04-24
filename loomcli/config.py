@@ -2,12 +2,19 @@
 
 Cross-platform config dir via platformdirs:
   - Linux/macOS:  ~/.config/powerloom/
-  - Windows:      %APPDATA%/Powerloom/
+  - Windows:      %APPDATA%/powerloom/powerloom/
 
 Single `config.toml` and a single `credentials` file — keeping the
 surface minimal. POWERLOOM_HOME env var overrides the whole thing,
 useful for tests and for admins running multiple environments (dev /
 staging / prod) side by side.
+
+All paths are computed **lazily on each access** via the `config_dir()`,
+`credentials_file()`, and `config_file()` functions. Prior to v0.5.1
+these were module-level constants evaluated at import time — which
+meant setting POWERLOOM_HOME after importing loomcli.config had no
+effect. That's fixed: every read of the credentials file re-checks
+the env var.
 """
 from __future__ import annotations
 
@@ -25,9 +32,19 @@ def _base_dir() -> Path:
     return Path(PlatformDirs("powerloom", "powerloom").user_config_dir)
 
 
-CONFIG_DIR: Path = _base_dir()
-CREDENTIALS_FILE: Path = CONFIG_DIR / "credentials"
-CONFIG_FILE: Path = CONFIG_DIR / "config.toml"
+def config_dir() -> Path:
+    """Return the active config directory (re-read each call)."""
+    return _base_dir()
+
+
+def credentials_file() -> Path:
+    """Return the path to the credentials file (re-read each call)."""
+    return _base_dir() / "credentials"
+
+
+def config_file() -> Path:
+    """Return the path to the optional config.toml (re-read each call)."""
+    return _base_dir() / "config.toml"
 
 
 @dataclass
@@ -43,7 +60,7 @@ class RuntimeConfig:
 
     access_token: str | None
     """Bearer token loaded from the credentials file. None if the
-    admin hasn't `weave auth login`ed yet."""
+    admin hasn't `weave login`ed yet."""
 
     request_timeout_seconds: float = 30.0
 
@@ -55,27 +72,30 @@ def load_runtime_config() -> RuntimeConfig:
 
 
 def _read_credentials_file() -> str | None:
-    if not CREDENTIALS_FILE.exists():
+    path = credentials_file()
+    if not path.exists():
         return None
     try:
-        return CREDENTIALS_FILE.read_text(encoding="utf-8").strip() or None
+        return path.read_text(encoding="utf-8").strip() or None
     except OSError:
         return None
 
 
 def write_credentials(token: str) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CREDENTIALS_FILE.write_text(token, encoding="utf-8")
+    directory = config_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = credentials_file()
+    path.write_text(token, encoding="utf-8")
     # Best-effort restrict permissions on POSIX. On Windows this is
     # a no-op; ACL-based lockdown is a Phase 6 concern.
     try:
-        os.chmod(CREDENTIALS_FILE, 0o600)
+        os.chmod(path, 0o600)
     except OSError:
         pass
 
 
 def clear_credentials() -> None:
     try:
-        CREDENTIALS_FILE.unlink(missing_ok=True)
+        credentials_file().unlink(missing_ok=True)
     except OSError:
         pass

@@ -5,6 +5,34 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.5.1 — 2026-04-24 (CLI)
+
+**Auth UX overhaul — real production login now works, plus PAT management.** First release where `weave` is actually usable against `api.powerloom.org` without manually editing the credentials file.
+
+### New commands
+
+- **`weave login`** — top-level alias for `weave auth login`. Default behavior is a browser-paste flow: opens `https://powerloom.org/settings/access-tokens` in your browser, prompts you to paste the PAT you just minted, verifies it against `/me`, and writes credentials on success. Similar register to `gh auth login` / `aws sso login`.
+- **`weave logout`** / **`weave whoami`** — top-level aliases for the parallel `weave auth` commands.
+- **`weave login --pat <token>`** — non-interactive mode for scripts and CI. Verifies the token against `/me` before persisting.
+- **`weave login --no-browser`** — headless/remote-system mode. Prints the URL and prompts for paste without launching a browser.
+- **`weave auth pat create --name <label> [--expires-at <iso>]`** — mint a new PAT. Raw token is shown once.
+- **`weave auth pat list`** — list PAT metadata for the signed-in user.
+- **`weave auth pat revoke <id>`** — revoke a PAT by UUID.
+
+### Preserved
+
+- `weave login --dev-as <email>` — unchanged dev-mode impersonation. Still requires `POWERLOOM_AUTH_MODE=dev` on the API (localhost/docker-compose only).
+
+### Deferred
+
+- Fully-automated OIDC device-code flow (the `--oidc` stub) — lands in loomcli 0.6.0 alongside schema 2.0.0. Requires API-side device-code endpoints + a Web UI approval page; not in 0.5.1 scope.
+
+### Notes
+
+- Web UI URL is configurable via `POWERLOOM_WEB_URL` for local/staging development. Default: `https://powerloom.org`.
+- Credentials directory is unchanged — `%APPDATA%\powerloom\powerloom\credentials` on Windows, `~/.config/powerloom/credentials` on Linux/macOS. The directory is created on first successful login.
+- `__version__` also bumped from a stale `0.3.0` to match the pyproject version.
+
 ## v0.5.0 — 2026-04-23 (CLI)
 
 **Ships schema-v1.2.0 to PyPI.** First CLI release since the renumber-to-PEP-440 fix (prior `pyproject.toml` carried an invalid `v0.4.0` string that the publish preflight would have rejected — no wheel ever reached PyPI at that version). Bumping straight to `0.5.0` to keep CLI-stream numbering monotonic and to pair cleanly with the schema-v1.2.0 payload.
