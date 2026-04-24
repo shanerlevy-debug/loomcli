@@ -66,7 +66,7 @@ def _root(
         typer.Option(
             "--api-url",
             envvar="POWERLOOM_API_BASE_URL",
-            help="Base URL of the control plane. Default: http://localhost:8000.",
+            help="Base URL of the control plane. Default: https://api.powerloom.org (use http://localhost:8000 for local docker-compose dev).",
         ),
     ] = None,
     config_dir: Annotated[
