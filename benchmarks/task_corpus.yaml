@@ -1,0 +1,797 @@
+# Efficiency-benchmark task corpus (v056 Milestone 1).
+#
+# 50 tasks × 5 task types × 10 each. Per Shane's addendum, tasks are
+# authored to produce manifests that could extend the reference fleet
+# (legal-research-assistant, code-coverage-analyzer, etc.) — so the
+# benchmark output is itself usable as additional reference material,
+# not just throwaway metrics.
+#
+# Task types:
+#   T1 — simple agent (no v1.2.0 extensions) × 10
+#   T2 — skill with system=true + auto_attach_to selector × 10
+#   T3 — workflow type + memory policy (cross-kind refs) × 10
+#   T4 — multi-resource with OU hierarchy (2-3 manifests in one YAML doc) × 10
+#   T5 — custom kind via compose operator (v2.0.0-only) × 10
+#
+# Rubric: 5 yes/no criteria per task. Pass = all 5 yes.
+# reference_outputs: 1-3 hand-authored correct outputs for comparison
+# (not injected into prompts; purely for future human review).
+
+tasks:
+  # =======================================================================
+  # T1 — Simple agent manifest (v1.1.0 compatible; no 1.2.0 extensions)
+  # =======================================================================
+
+  - id: T1-01
+    task_type: T1
+    description: |
+      Create an Agent manifest at OU path /acme/engineering named "pr-reviewer".
+      The agent uses claude-sonnet-4-5, owned by user:alice@acme.com, with
+      a system prompt describing its job as reviewing pull requests for
+      correctness, security, and test coverage before approving merges.
+    rubric:
+      - "Output contains exactly one YAML document (not multiple)."
+      - "apiVersion is powerloom.app/v1 (or powerloom.app/v2 if schema is v2)."
+      - "kind is Agent and metadata.name is pr-reviewer."
+      - "spec.owner_principal_ref is user:alice@acme.com and spec.model is claude-sonnet-4-5."
+      - "metadata.ou_path is /acme/engineering and spec.system_prompt is non-empty."
+
+  - id: T1-02
+    task_type: T1
+    description: |
+      Create an Agent manifest: /acme/finance/expense-categorizer.
+      Owner user:carla@acme.com. Model claude-haiku-3-5. The agent
+      classifies receipt images / expense rows into IRS expense
+      categories for the Accounting team.
+    rubric:
+      - "kind is Agent and metadata.name is expense-categorizer."
+      - "metadata.ou_path is /acme/finance."
+      - "spec.model is claude-haiku-3-5."
+      - "spec.owner_principal_ref is user:carla@acme.com."
+      - "spec.system_prompt mentions expenses or categorization."
+
+  - id: T1-03
+    task_type: T1
+    description: |
+      Agent manifest: /globex/legal/contract-redliner. Uses claude-opus-4
+      (expensive model ok for legal). Owner user:michael@globex.com.
+      System prompt: the agent reads uploaded contract PDFs and produces
+      a structured redline report (risk-flagged clauses + suggested
+      rewrites, preserving the original clause text as attribution).
+    rubric:
+      - "kind is Agent and metadata.name is contract-redliner."
+      - "spec.model is claude-opus-4."
+      - "metadata.ou_path is /globex/legal."
+      - "spec.owner_principal_ref is user:michael@globex.com."
+      - "spec.system_prompt mentions contracts / redlining."
+
+  - id: T1-04
+    task_type: T1
+    description: |
+      Agent manifest: /demo-co/sales/lead-qualifier. The agent reads
+      inbound lead metadata (company size, stated use case, signup
+      source) and outputs a qualification score 1-10 plus suggested
+      next actions. Uses claude-sonnet-4-5. Owner user:ana@demo-co.com.
+    rubric:
+      - "kind is Agent and metadata.name is lead-qualifier."
+      - "metadata.ou_path is /demo-co/sales."
+      - "spec.model is claude-sonnet-4-5."
+      - "spec.owner_principal_ref contains ana@demo-co.com."
+      - "spec.system_prompt mentions leads or qualification."
+
+  - id: T1-05
+    task_type: T1
+    description: |
+      Agent manifest: /labs/research/paper-summarizer.
+      Reads arxiv papers and produces 5-bullet summaries with key
+      contribution + methodology + limitations + suggested follow-up
+      questions. Model claude-sonnet-4-5. Owner user:sai@labs.ai.
+    rubric:
+      - "metadata.name is paper-summarizer."
+      - "metadata.ou_path is /labs/research."
+      - "spec.model is claude-sonnet-4-5."
+      - "spec.owner_principal_ref is user:sai@labs.ai."
+      - "spec.system_prompt mentions papers / summaries / research."
+
+  - id: T1-06
+    task_type: T1
+    description: |
+      Agent manifest: /media-co/editorial/fact-checker.
+      The agent reads drafts before publication and flags claims that
+      need a citation. Uses claude-opus-4 (quality matters more than
+      cost for published journalism). Owner user:editor@media-co.com.
+    rubric:
+      - "metadata.name is fact-checker."
+      - "metadata.ou_path is /media-co/editorial."
+      - "spec.model is claude-opus-4."
+      - "spec.owner_principal_ref is user:editor@media-co.com."
+      - "spec.system_prompt describes claim checking / citation."
+
+  - id: T1-07
+    task_type: T1
+    description: |
+      Agent manifest: /ops-co/infra/incident-triage.
+      Reads PagerDuty incident payloads and runbook entries. Outputs
+      a structured triage: likely root cause, blast radius, first
+      mitigation step, escalation recommendation. Model claude-sonnet-4-5.
+      Owner user:sre@ops-co.com.
+    rubric:
+      - "metadata.name is incident-triage."
+      - "metadata.ou_path is /ops-co/infra."
+      - "spec.model is claude-sonnet-4-5."
+      - "spec.owner_principal_ref is user:sre@ops-co.com."
+      - "spec.system_prompt mentions incidents, triage, or runbooks."
+
+  - id: T1-08
+    task_type: T1
+    description: |
+      Agent manifest: /edu-co/curriculum/quiz-generator. Reads lesson
+      notes and generates 10-question quizzes (5 MCQ, 3 short-answer,
+      2 essay). Model claude-haiku-3-5. Owner user:bea@edu-co.com.
+    rubric:
+      - "metadata.name is quiz-generator."
+      - "metadata.ou_path is /edu-co/curriculum."
+      - "spec.model is claude-haiku-3-5."
+      - "spec.owner_principal_ref is user:bea@edu-co.com."
+      - "spec.system_prompt mentions quizzes / questions / lessons."
+
+  - id: T1-09
+    task_type: T1
+    description: |
+      Agent manifest: /retail-co/inventory/reorder-advisor. Reads sales
+      velocity + current stock + lead-time + supplier catalog entries.
+      Outputs suggested reorder quantities + timing. claude-sonnet-4-5.
+      Owner user:manager@retail-co.com. Description mentions that its
+      recommendations inform but do not execute purchase orders.
+    rubric:
+      - "metadata.name is reorder-advisor."
+      - "metadata.ou_path is /retail-co/inventory."
+      - "spec.description mentions reorder / inventory / purchase-order advisory."
+      - "spec.owner_principal_ref is user:manager@retail-co.com."
+      - "spec.model is claude-sonnet-4-5."
+
+  - id: T1-10
+    task_type: T1
+    description: |
+      Agent manifest: /healthcare-co/clinical-ops/soap-note-drafter.
+      Reads raw clinician dictation and produces structured SOAP notes
+      (Subjective / Objective / Assessment / Plan). Uses claude-opus-4
+      (health-adjacent, quality matters). Owner user:drmuir@healthcare-co.com.
+    rubric:
+      - "metadata.name is soap-note-drafter."
+      - "metadata.ou_path is /healthcare-co/clinical-ops."
+      - "spec.model is claude-opus-4."
+      - "spec.owner_principal_ref is user:drmuir@healthcare-co.com."
+      - "spec.system_prompt mentions SOAP notes or clinical documentation."
+
+  # =======================================================================
+  # T2 — Skill with system=true + auto_attach_to (v1.2.0 feature)
+  # =======================================================================
+
+  - id: T2-01
+    task_type: T2
+    description: |
+      Create a Skill manifest: /acme/engineering/code-coverage-analyzer.
+      This is a system skill (system: true) that auto-attaches to any
+      agent with task_kinds including 'qa' and agent_kind 'user'. Skill
+      description: analyzes test coverage reports, surfaces untested
+      branches. skill_type: archive. current_version_id: null.
+    rubric:
+      - "kind is Skill and metadata.name is code-coverage-analyzer."
+      - "spec.system is true."
+      - "spec.auto_attach_to is present and has task_kinds including 'qa'."
+      - "spec.auto_attach_to.agent_kinds includes 'user' (or auto_attach_to is an empty object)."
+      - "spec.skill_type is 'archive' and spec.current_version_id is null."
+
+  - id: T2-02
+    task_type: T2
+    description: |
+      Skill manifest: /globex/legal/citation-validator. System skill
+      that auto-attaches to coordinator agents (coordinator_role_required: true).
+      Description: validates legal citations against Bluebook + state
+      variants. Archive type. current_version_id null.
+    rubric:
+      - "metadata.name is citation-validator."
+      - "spec.system is true."
+      - "spec.auto_attach_to.coordinator_role_required is true."
+      - "spec.skill_type is 'archive'."
+      - "metadata.ou_path is /globex/legal."
+
+  - id: T2-03
+    task_type: T2
+    description: |
+      Skill: /demo-co/marketing/utm-builder. Not a system skill
+      (system: false). Generates UTM-tagged URLs from campaign +
+      medium + source inputs. Archive type. No auto-attach.
+    rubric:
+      - "metadata.name is utm-builder."
+      - "spec.system is false (or omitted, since false is default)."
+      - "spec.auto_attach_to is null or absent."
+      - "spec.skill_type is 'archive'."
+      - "metadata.ou_path is /demo-co/marketing."
+
+  - id: T2-04
+    task_type: T2
+    description: |
+      Skill: /labs/research/latex-equation-reviewer. System skill.
+      Auto-attaches to agents whose task_kinds include 'qa' AND who
+      have coordinator_role_required=false (non-coordinator QA agents).
+      Description: reviews LaTeX equation blocks for syntax + unit
+      consistency.
+    rubric:
+      - "metadata.name is latex-equation-reviewer."
+      - "spec.system is true."
+      - "spec.auto_attach_to.task_kinds includes 'qa'."
+      - "spec.auto_attach_to.coordinator_role_required is false."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-05
+    task_type: T2
+    description: |
+      Skill: /media-co/editorial/byline-formatter. System skill.
+      Auto-attaches to agents with task_kinds including 'execution'
+      in the /media-co OU subtree. Ensures bylines match house style.
+    rubric:
+      - "metadata.name is byline-formatter."
+      - "spec.system is true."
+      - "spec.auto_attach_to.task_kinds includes 'execution'."
+      - "metadata.ou_path is /media-co/editorial."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-06
+    task_type: T2
+    description: |
+      Skill: /ops-co/sre/postmortem-template. System skill. Auto-attach
+      to user-kind agents (not service). Provides a structured
+      postmortem template (timeline + contributing factors + remediation).
+    rubric:
+      - "metadata.name is postmortem-template."
+      - "spec.system is true."
+      - "spec.auto_attach_to.agent_kinds is ['user'] (or includes only user)."
+      - "metadata.ou_path is /ops-co/sre."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-07
+    task_type: T2
+    description: |
+      Skill: /edu-co/curriculum/bloom-taxonomy-labeler. System skill.
+      Auto-attach to agents with task_kinds including 'qa'. Labels
+      questions with Bloom's taxonomy level (Remember, Understand, Apply, etc.).
+    rubric:
+      - "metadata.name is bloom-taxonomy-labeler."
+      - "spec.system is true."
+      - "spec.auto_attach_to.task_kinds includes 'qa'."
+      - "metadata.ou_path is /edu-co/curriculum."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-08
+    task_type: T2
+    description: |
+      Skill: /retail-co/merchandising/sku-normalizer. NOT system
+      (system: false). Normalizes product SKUs to canonical form.
+      No auto_attach_to.
+    rubric:
+      - "metadata.name is sku-normalizer."
+      - "spec.system is false or absent."
+      - "spec.auto_attach_to is null or absent."
+      - "metadata.ou_path is /retail-co/merchandising."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-09
+    task_type: T2
+    description: |
+      Skill: /healthcare-co/clinical-ops/hipaa-scrubber. System skill.
+      Auto-attaches to ANY agent in /healthcare-co — set auto_attach_to
+      with empty selector criteria (matches all). Removes PHI from
+      agent outputs before external logging.
+    rubric:
+      - "metadata.name is hipaa-scrubber."
+      - "spec.system is true."
+      - "spec.auto_attach_to is present (even if empty object)."
+      - "metadata.ou_path is /healthcare-co/clinical-ops."
+      - "spec.skill_type is 'archive'."
+
+  - id: T2-10
+    task_type: T2
+    description: |
+      Skill: /finance-co/risk/var-calculator. System skill. Auto-attach
+      to agents with task_kinds=['analogy'] and agent_kinds=['service'].
+      Calculates Value-at-Risk for a portfolio snapshot.
+    rubric:
+      - "metadata.name is var-calculator."
+      - "spec.system is true."
+      - "spec.auto_attach_to.task_kinds is ['analogy']."
+      - "spec.auto_attach_to.agent_kinds is ['service']."
+      - "spec.skill_type is 'archive'."
+
+  # =======================================================================
+  # T3 — WorkflowType + MemoryPolicy (v1.2.0 kinds, cross-kind refs)
+  # =======================================================================
+
+  - id: T3-01
+    task_type: T3
+    description: |
+      Create a WorkflowType manifest named "incident-response" with
+      metadata.ou_id 11111111-1111-1111-1111-111111111111. Specify
+      task_kinds [routing, execution, coordination], runtime_targets
+      [cma, anthropic_messages]. default_timeout_seconds 7200
+      (2 hours — incidents take time). Human-readable display_name
+      and description appropriate for the workflow.
+    rubric:
+      - "kind is WorkflowType and metadata.name is incident-response."
+      - "metadata.ou_id is 11111111-1111-1111-1111-111111111111."
+      - "spec.task_kinds contains routing, execution, and coordination."
+      - "spec.runtime_targets contains both cma and anthropic_messages."
+      - "spec.default_timeout_seconds is 7200."
+
+  - id: T3-02
+    task_type: T3
+    description: |
+      MemoryPolicy manifest named "strict-retention" for ou_id
+      22222222-2222-2222-2222-222222222222. review_cadence_hours 12
+      (aggressive), review_deadline_hours 48, timeout_action 'forget'
+      (default), tentative_weight 0.1 (very conservative),
+      org_scope_requires_approval true, max_memories_per_session 25,
+      consolidation_gate 'kairos'.
+    rubric:
+      - "kind is MemoryPolicy and metadata.name is strict-retention."
+      - "metadata.ou_id is 22222222-2222-2222-2222-222222222222."
+      - "spec.review_cadence_hours is 12 and spec.review_deadline_hours is 48."
+      - "spec.tentative_weight is 0.1 and spec.max_memories_per_session is 25."
+      - "spec.consolidation_gate is 'kairos' and spec.org_scope_requires_approval is true."
+
+  - id: T3-03
+    task_type: T3
+    description: |
+      WorkflowType "quarterly-review" for ou_id
+      33333333-3333-3333-3333-333333333333. task_kinds [qa,
+      coordination]. No runtime_targets restriction. timeout
+      86400 (one day — humans can be slow). Description mentions
+      this workflow drives a quarterly review cycle across multiple
+      agents.
+    rubric:
+      - "kind is WorkflowType and metadata.name is quarterly-review."
+      - "metadata.ou_id is 33333333-3333-3333-3333-333333333333."
+      - "spec.task_kinds is [qa, coordination] (or similar, both present)."
+      - "spec.default_timeout_seconds is 86400."
+      - "spec.runtime_targets is empty or absent."
+
+  - id: T3-04
+    task_type: T3
+    description: |
+      MemoryPolicy "permissive-research" for ou_id
+      44444444-4444-4444-4444-444444444444. Liberal retention:
+      review_cadence_hours 168 (weekly), review_deadline_hours 720
+      (30 days), timeout_action 'approve' (auto-approve stale ones),
+      tentative_weight 0.75 (trust agents by default),
+      max_memories_per_session 200, consolidation_gate 'kairos'.
+      org_scope_requires_approval false.
+    rubric:
+      - "kind is MemoryPolicy and metadata.name is permissive-research."
+      - "metadata.ou_id is 44444444-4444-4444-4444-444444444444."
+      - "spec.timeout_action is 'approve' and spec.tentative_weight is 0.75."
+      - "spec.org_scope_requires_approval is false."
+      - "spec.max_memories_per_session is 200."
+
+  - id: T3-05
+    task_type: T3
+    description: |
+      WorkflowType "code-review-cycle" for ou_id
+      55555555-5555-5555-5555-555555555555. task_kinds [qa, routing].
+      runtime_targets [cma, anthropic_messages, openai]. Default
+      timeout 14400 (4 hours). Description notes it coordinates
+      multiple reviewer agents across a PR before merge.
+    rubric:
+      - "kind is WorkflowType and metadata.name is code-review-cycle."
+      - "spec.task_kinds contains qa and routing."
+      - "spec.runtime_targets contains cma, anthropic_messages, and openai."
+      - "spec.default_timeout_seconds is 14400."
+      - "spec.description or display_name mentions code review."
+
+  - id: T3-06
+    task_type: T3
+    description: |
+      MemoryPolicy "compliance-strict" for ou_id
+      66666666-6666-6666-6666-666666666666. review_cadence_hours 6
+      (4x/day), review_deadline_hours 24 (same-day or escalate),
+      timeout_action 'escalate' (never auto-resolve), tentative_weight
+      0.0 (tentative = invisible), org_scope_requires_approval true,
+      max_memories_per_session 10, consolidation_gate 'kairos'.
+    rubric:
+      - "metadata.name is compliance-strict and metadata.ou_id is 66666666-...-666666666666."
+      - "spec.timeout_action is 'escalate'."
+      - "spec.tentative_weight is 0.0 (zero)."
+      - "spec.review_cadence_hours is 6."
+      - "spec.max_memories_per_session is 10."
+
+  - id: T3-07
+    task_type: T3
+    description: |
+      WorkflowType "support-triage" for ou_id
+      77777777-7777-7777-7777-777777777777. task_kinds [routing, qa,
+      execution]. runtime_targets [cma]. timeout 3600 (1 hour max per
+      triage). This is a high-throughput workflow; emphasize that in
+      the description.
+    rubric:
+      - "kind is WorkflowType and metadata.name is support-triage."
+      - "spec.task_kinds contains routing, qa, and execution."
+      - "spec.runtime_targets is exactly [cma]."
+      - "spec.default_timeout_seconds is 3600."
+      - "spec.description or display_name mentions triage / throughput."
+
+  - id: T3-08
+    task_type: T3
+    description: |
+      MemoryPolicy "learning-org-balanced" for ou_id
+      88888888-8888-8888-8888-888888888888. Middle ground:
+      review_cadence_hours 24, review_deadline_hours 96,
+      timeout_action 'forget', tentative_weight 0.4,
+      max_memories_per_session 75, consolidation_gate 'kairos',
+      org_scope_requires_approval true.
+    rubric:
+      - "metadata.name is learning-org-balanced."
+      - "metadata.ou_id is 88888888-8888-8888-8888-888888888888."
+      - "spec.tentative_weight is 0.4 and spec.max_memories_per_session is 75."
+      - "spec.review_cadence_hours is 24 and spec.review_deadline_hours is 96."
+      - "spec.consolidation_gate is 'kairos'."
+
+  - id: T3-09
+    task_type: T3
+    description: |
+      WorkflowType "research-expedition" for ou_id
+      99999999-9999-9999-9999-999999999999. task_kinds [analogy, qa].
+      No runtime_targets restriction. Very long timeout: 604800
+      (7 days — research is slow). Description emphasizes open-ended
+      exploration with optional early termination.
+    rubric:
+      - "metadata.name is research-expedition."
+      - "metadata.ou_id is 99999999-9999-9999-9999-999999999999."
+      - "spec.task_kinds contains analogy and qa."
+      - "spec.default_timeout_seconds is 604800."
+      - "spec.runtime_targets is empty or absent."
+
+  - id: T3-10
+    task_type: T3
+    description: |
+      MemoryPolicy "no-memory" for ou_id
+      aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.
+      Aggressive no-retention: review_cadence_hours 1 (hourly sweep),
+      review_deadline_hours 1 (expire same-hour), timeout_action 'forget',
+      tentative_weight 0.0, max_memories_per_session 1, consolidation_gate 'none'.
+      org_scope_requires_approval true.
+      (Used for regulated flows where retention is forbidden.)
+    rubric:
+      - "metadata.name is no-memory."
+      - "metadata.ou_id is aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa."
+      - "spec.review_cadence_hours is 1 and spec.review_deadline_hours is 1."
+      - "spec.tentative_weight is 0.0 and spec.max_memories_per_session is 1."
+      - "spec.consolidation_gate is 'none'."
+
+  # =======================================================================
+  # T4 — Multi-resource (OU + Agent + optional Skill in one YAML doc)
+  # =======================================================================
+  # YAML supports multiple docs separated by ---. Agents reference their
+  # containing OU by name. Tests the agent's ability to author related
+  # resources that reference each other consistently.
+
+  - id: T4-01
+    task_type: T4
+    description: |
+      Create a multi-document YAML with TWO resources:
+      1. An OU manifest: parent /acme, name 'newproject', display_name "New Project".
+      2. An Agent manifest in /acme/newproject named "planning-assistant",
+         owner user:alice@acme.com, model claude-sonnet-4-5, system_prompt
+         describing a project-planning assistant.
+      Separate the two docs with a --- line.
+    rubric:
+      - "Output contains exactly two YAML documents separated by ---."
+      - "First doc is kind: OU with metadata.name newproject and parent_ou_path /acme."
+      - "Second doc is kind: Agent with metadata.ou_path /acme/newproject."
+      - "Second doc's metadata.name is planning-assistant."
+      - "Second doc's spec.owner_principal_ref is user:alice@acme.com."
+
+  - id: T4-02
+    task_type: T4
+    description: |
+      Three-doc YAML:
+      1. OU /globex/newlegal, display "New Legal Practice".
+      2. Agent /globex/newlegal/paralegal, opus-4, owner user:pat@globex.com.
+      3. Agent /globex/newlegal/partner-reviewer, opus-4, owner user:rob@globex.com,
+         coordinator_role true, task_kinds [coordination, qa].
+      Three docs separated by ---.
+    rubric:
+      - "Output contains exactly three YAML documents."
+      - "First doc is kind: OU with parent_ou_path /globex."
+      - "Two subsequent docs are Agents in /globex/newlegal."
+      - "paralegal agent is in the list; partner-reviewer agent has coordinator_role: true."
+      - "partner-reviewer's task_kinds includes coordination and qa."
+
+  - id: T4-03
+    task_type: T4
+    description: |
+      Two-doc YAML:
+      1. OU /demo-co/devrel, display "Developer Relations".
+      2. Skill /demo-co/devrel/codeblock-linter, system: true,
+         auto_attach_to task_kinds [qa, execution]. skill_type archive.
+    rubric:
+      - "Output contains exactly two YAML documents."
+      - "First doc is kind: OU named devrel with parent /demo-co."
+      - "Second doc is kind: Skill named codeblock-linter in /demo-co/devrel."
+      - "The Skill has spec.system: true."
+      - "The Skill's spec.auto_attach_to.task_kinds includes qa and execution."
+
+  - id: T4-04
+    task_type: T4
+    description: |
+      Three-doc YAML for onboarding a new OU:
+      1. OU /acme/data-platform.
+      2. Agent /acme/data-platform/schema-change-reviewer, opus-4,
+         owner user:data-lead@acme.com.
+      3. Agent /acme/data-platform/query-optimizer, sonnet-4-5,
+         owner user:data-lead@acme.com.
+      Both agents have task_kinds [qa]. Second agent is NOT a coordinator.
+    rubric:
+      - "Output contains exactly three YAML documents."
+      - "First doc is OU named data-platform under /acme."
+      - "Both Agents are in /acme/data-platform."
+      - "schema-change-reviewer uses model claude-opus-4."
+      - "Neither agent has coordinator_role true; both have task_kinds [qa]."
+
+  - id: T4-05
+    task_type: T4
+    description: |
+      Two-doc YAML: OU /labs/bio + Agent /labs/bio/sequence-annotator.
+      The agent annotates genetic sequences against Uniprot. opus-4.
+      Owner user:researcher@labs.ai. Description mentions
+      bioinformatics + sequence annotation.
+    rubric:
+      - "Output contains exactly two YAML documents."
+      - "First doc is OU bio under /labs."
+      - "Second doc is Agent sequence-annotator under /labs/bio."
+      - "Second doc's spec.model is claude-opus-4."
+      - "Second doc's spec.description or system_prompt mentions bioinformatics / sequence."
+
+  - id: T4-06
+    task_type: T4
+    description: |
+      Three-doc YAML:
+      1. OU /media-co/social-video.
+      2. Agent /media-co/social-video/hook-writer, sonnet-4-5,
+         owner user:creator@media-co.com, coordinator_role false.
+      3. Agent /media-co/social-video/caption-writer, haiku-3-5,
+         owner user:creator@media-co.com, coordinator_role false.
+      Description text for each agent explains their role.
+    rubric:
+      - "Output contains exactly three YAML documents."
+      - "First doc is OU social-video under /media-co."
+      - "hook-writer agent is sonnet-4-5 and caption-writer is haiku-3-5."
+      - "Both agents have coordinator_role: false (or omitted)."
+      - "Both agents have spec.description that mentions hooks or captions respectively."
+
+  - id: T4-07
+    task_type: T4
+    description: |
+      Two-doc YAML: OU /retail-co/store-ops + Agent
+      /retail-co/store-ops/shrink-investigator. Agent analyzes POS
+      + inventory-count discrepancies to surface likely shrink causes.
+      sonnet-4-5. Owner user:loss-prevention@retail-co.com.
+      Agent has task_kinds [analogy, qa].
+    rubric:
+      - "Output contains exactly two YAML documents."
+      - "First doc is OU store-ops."
+      - "Second doc is Agent shrink-investigator."
+      - "Second doc's spec.task_kinds contains analogy and qa."
+      - "Second doc's owner is user:loss-prevention@retail-co.com."
+
+  - id: T4-08
+    task_type: T4
+    description: |
+      Three-doc YAML for a finance compliance setup:
+      1. OU /finance-co/compliance.
+      2. Agent /finance-co/compliance/watchlist-checker, opus-4,
+         owner user:compliance-lead@finance-co.com.
+      3. Skill /finance-co/compliance/ofac-sdn-lookup, system: true,
+         auto_attach_to task_kinds [qa], archive type.
+    rubric:
+      - "Output contains exactly three YAML documents."
+      - "First doc is OU compliance; second is Agent; third is Skill."
+      - "watchlist-checker is opus-4."
+      - "ofac-sdn-lookup has spec.system: true."
+      - "ofac-sdn-lookup has spec.auto_attach_to with task_kinds including qa."
+
+  - id: T4-09
+    task_type: T4
+    description: |
+      Two-doc YAML: OU /healthcare-co/research + Agent
+      /healthcare-co/research/patient-cohort-summarizer. opus-4. Owner
+      user:lead-researcher@healthcare-co.com. Description mentions
+      summarizing patient cohorts from anonymized EHR data, never
+      producing PHI in output.
+    rubric:
+      - "Output contains exactly two YAML documents."
+      - "First doc is OU research under /healthcare-co."
+      - "Second doc is Agent patient-cohort-summarizer."
+      - "Second doc is opus-4."
+      - "Second doc's description or system_prompt mentions PHI-safety or cohorts."
+
+  - id: T4-10
+    task_type: T4
+    description: |
+      Three-doc YAML:
+      1. OU /edu-co/course-ops.
+      2. Agent /edu-co/course-ops/grade-aggregator, haiku-3-5,
+         owner user:registrar@edu-co.com, coordinator_role false.
+      3. Agent /edu-co/course-ops/feedback-synthesizer, sonnet-4-5,
+         owner user:registrar@edu-co.com, coordinator_role true,
+         task_kinds [coordination, analogy].
+    rubric:
+      - "Output contains exactly three YAML documents."
+      - "First doc is OU course-ops."
+      - "grade-aggregator is haiku-3-5 with coordinator_role false."
+      - "feedback-synthesizer has coordinator_role: true."
+      - "feedback-synthesizer's task_kinds includes coordination and analogy."
+
+  # =======================================================================
+  # T5 — Custom kind via compose operator (v2.0.0 only)
+  # =======================================================================
+  # T5 has NO condition-A counterpart; compose doesn't exist in v1.
+  # Measurement on these tasks is informational (pass rate + output
+  # quality) — they don't factor into the A-vs-B gate comparison.
+
+  - id: T5-01
+    task_type: T5
+    v2_only: true
+    description: |
+      Create a Compose manifest that defines a new kind called
+      'ContractClause' in namespace 'legal.acme'. The compose
+      expression should use two primitive slots:
+      - Entity (with attributes for clause_text and jurisdiction)
+      - Policy (policy_type 'legal_constraint', applies_to
+        a scope_ref named 'jurisdiction')
+      apiVersion powerloom.app/v2.
+    rubric:
+      - "kind is Compose and metadata.name is ContractClause."
+      - "metadata.namespace is legal.acme."
+      - "spec.compose contains exactly 2 slots."
+      - "The compose expression includes an Entity slot with clause_text attribute."
+      - "The compose expression includes a Policy slot with policy_type legal_constraint."
+
+  - id: T5-02
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose manifest for kind 'CodeReviewSession', namespace
+      'dev.acme'. Composition:
+      - Process (process_kind = 'review_session')
+      - list[Event] (implicit via derivation_mode extending the
+        built-in Workflow stdlib) — actually, just extend the
+        stdlib Workflow kind via `extends: Workflow`, then add a
+        Scope slot (scope_type: 'session').
+    rubric:
+      - "kind is Compose and metadata.name is CodeReviewSession."
+      - "metadata.namespace is dev.acme."
+      - "spec.compose has at least one slot with extends: Workflow."
+      - "There is a Scope slot with scope_type session or similar."
+      - "apiVersion is powerloom.app/v2."
+
+  - id: T5-03
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose manifest 'IncidentRunbook' in namespace 'ops.acme'.
+      Extend the stdlib Process kind (extends: Process) and add a
+      Policy slot that requires runtime_type in the applies_to
+      to be [cma, anthropic_messages].
+    rubric:
+      - "kind is Compose and metadata.name is IncidentRunbook."
+      - "metadata.namespace is ops.acme."
+      - "spec.compose has a slot with extends: Process."
+      - "There is a Policy slot."
+      - "apiVersion is powerloom.app/v2."
+
+  - id: T5-04
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose kind 'ClinicalProtocol' in namespace 'health.acme'.
+      Uses three primitive slots:
+      - Process (process_kind: 'clinical_protocol')
+      - Policy (policy_type: 'treatment_rules')
+      - Scope (scope_type: 'patient_cohort')
+    rubric:
+      - "kind is Compose and metadata.name is ClinicalProtocol."
+      - "metadata.namespace is health.acme."
+      - "spec.compose has exactly 3 slots."
+      - "The three slots are Process, Policy, and Scope primitives."
+      - "The Policy slot has policy_type treatment_rules or similar."
+
+  - id: T5-05
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose kind 'SupportEscalation' in namespace 'support.acme'.
+      Extends stdlib WorkflowType. Add Scope slot (scope_type:
+      'escalation_tier') and Policy slot (policy_type: 'escalation_rules').
+    rubric:
+      - "metadata.name is SupportEscalation and namespace is support.acme."
+      - "spec.compose has a slot with extends: WorkflowType."
+      - "There is a Scope slot with scope_type escalation_tier."
+      - "There is a Policy slot."
+      - "apiVersion is powerloom.app/v2."
+
+  - id: T5-06
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose 'LegalOpinion' in namespace 'legal.acme'. Entity slot
+      (attributes: opinion_text, jurisdiction, signatory_id).
+      Relation slot (relation_type: 'cites', cardinality: 'many-to-many',
+      source and target both Entity uuids).
+    rubric:
+      - "kind is Compose and metadata.name is LegalOpinion."
+      - "metadata.namespace is legal.acme."
+      - "spec.compose contains Entity and Relation slots."
+      - "The Entity slot has attributes including opinion_text."
+      - "The Relation slot has relation_type 'cites' and cardinality many-to-many."
+
+  - id: T5-07
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose 'CustomerOnboardingMilestone' in namespace 'sales.acme'.
+      Extend Event (stdlib primitive) — extends: Event.
+      Add Relation slot linking the onboarding milestone to a
+      CustomerAccount entity (relation_type: 'belongs_to').
+    rubric:
+      - "metadata.name is CustomerOnboardingMilestone."
+      - "metadata.namespace is sales.acme."
+      - "spec.compose has a slot with extends: Event."
+      - "There is a Relation slot with relation_type belongs_to."
+      - "apiVersion is powerloom.app/v2."
+
+  - id: T5-08
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose kind 'ExperimentResult' in namespace 'research.acme'.
+      Entity slot (attributes: experiment_id, metric_name,
+      metric_value, unit_of_measure). Event slot (event_type:
+      'result_recorded'). Scope slot (scope_type: 'study').
+    rubric:
+      - "metadata.name is ExperimentResult and namespace is research.acme."
+      - "spec.compose has Entity, Event, and Scope slots."
+      - "The Entity slot has attributes including experiment_id and metric_value."
+      - "The Event slot has event_type result_recorded."
+      - "The Scope slot has scope_type study."
+
+  - id: T5-09
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose 'TradeCompliance' in namespace 'finance.acme'.
+      Extend stdlib Agent (extends: Agent). Add Policy slot with
+      policy_type: 'regulatory_screening' and applies_to: list of
+      scope_refs. Interface block declaring 'can_review_trade'
+      returns bool.
+    rubric:
+      - "metadata.name is TradeCompliance and namespace is finance.acme."
+      - "spec.compose has a slot with extends: Agent."
+      - "There is a Policy slot with policy_type regulatory_screening."
+      - "spec.interface declares can_review_trade."
+      - "apiVersion is powerloom.app/v2."
+
+  - id: T5-10
+    task_type: T5
+    v2_only: true
+    description: |
+      Compose 'EducationalAssessment' in namespace 'edu.acme'.
+      Entity slot (attributes: assessment_id, learner_id,
+      competency_ids, score). Event slot (event_type: 'assessed').
+      Relation slot (relation_type: 'measures_competency',
+      source: Entity assessment_id, target: Entity competency_id).
+    rubric:
+      - "metadata.name is EducationalAssessment and namespace is edu.acme."
+      - "spec.compose has Entity, Event, and Relation slots."
+      - "Entity attributes include assessment_id, learner_id, and score."
+      - "Event has event_type assessed."
+      - "Relation has relation_type measures_competency."
