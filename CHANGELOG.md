@@ -5,6 +5,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.0rc1 — 2026-04-24 (CLI)
+
+**v056 schema v2.0.0 surface — first pre-release.** Ships the Chomskian 6 authoring stack: six primitives (Entity/Event/Relation/Process/Scope/Policy), eight stdlib derivations (Organization/OU/Agent/Skill/WorkflowType/Workflow/MemoryPolicy/MCPDeployment), and the `compose` operator. Also ships the migration tooling to bring v1.2.0 manifests forward.
+
+### New
+
+- **`loomcli.schema` Pydantic package** — generated from `schema/v2/*.schema.json` via `scripts/generate_schema_package.py` (datamodel-code-generator). Importable as `from loomcli.schema.v2 import stdlib, primitives, compose, common`. Regeneration lives in the same script; CI compares the generated output to the committed files.
+- **`weave compose` operator** (3 subcommands): `scaffold` prints a starter Compose manifest; `lint` runs three-pass validation (meta-schema + slot-shape + shallow scope_ref pattern) with cross-file `$ref` resolution; `show` fetches effective kind schemas from the v056 `/kind-registry` endpoint.
+- **`weave migrate v1-to-v2`** — bumps apiVersion with full parity for the 8 stdlib kinds, emits re-express-as guidance for the 9 retired-in-v2 kinds (Group, GroupMembership, RoleBinding, SkillAccessGrant, AgentSkill, AgentMCPServer, MCPServerRegistration, standalone Scope, Credential). Supports `--in-place`, `--out`, `--check`, directory recursion.
+- **v2 schema bundle** — `schema/v2/` now shipped inside the wheel under `_bundled_schema/v2/` so pip-installed `weave` can validate v2 manifests offline.
+- **T5 compose-doc polish** — `compose.schema.json` description expanded with explicit Policy slot authoring guidance (`policy_type` is free-form text; worked example; Entity/Event/Relation hints). Closes the T5-05 benchmark failure cluster where models left `policy_type` off Policy slots.
+
+### Deferred to 0.6.0 final (v056 M6/M7)
+
+- Engine `/kind-registry` route + compose reconciler (the `show` command wires against them but they aren't deployed yet).
+- Migration guide doc (`docs/migration-v1-to-v2.md`).
+- CHANGELOG reconciliation with Powerloom ReadMe.md once v056 ships.
+
+### Compat
+
+- `powerloom.app/v1` manifests continue to work against current engine deployments; v056 adds v2 support additively.
+- Legacy alias `powerloom/v1` still accepted at migration time (warn-level note).
+
 ## v0.5.4 — 2026-04-24 (CLI)
 
 **Close the Pydantic ↔ schema drift for v1.2.0.** Before this release, the CLI bundled the v1.2.0 JSON Schema but the parallel Pydantic models in `loomcli/manifest/schema.py` only covered v1.1.0 shapes. Manifests using any v1.2.0 addition (`system` / `auto_attach_to` on Skill; `coordinator_role` / `task_kinds` / `memory_permissions` / `reranker_model` on Agent; the new kinds `WorkflowType` / `MemoryPolicy` / `Scope`) passed schema validation then crashed with `"Extra inputs are not permitted"` on Pydantic parse.

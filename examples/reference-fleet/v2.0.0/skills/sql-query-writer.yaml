@@ -1,0 +1,11 @@
+# Skill manifest — SQL Query Writer. Pair with skill-archives/sql-query-writer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: sql-query-writer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: SQL Query Writer
+  description: Translates business questions into correct, performant SQL against a given schema.
+  skill_type: archive
+  current_version_id: null

@@ -1,0 +1,5 @@
+# Benchmark results — regenerated per run. Committed-for-history
+# results live in docs/memory-evolution/efficiency-benchmark-results.md
+# (summary only). Raw per-run CSVs are generated locally and only
+# committed when they back a specific analysis report.
+results/

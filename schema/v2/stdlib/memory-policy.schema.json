@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/memory-policy.schema.json",
+  "title": "MemoryPolicy (v2 stdlib derivation)",
+  "description": "Per-org memory governance. Derivation: Policy[policy_type='memory', statement=<policy body>, applies_to=<scopes>]. Pure Policy-derivation (no other primitive slots). Shape parity with v1.2.0.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Policy"],
+    "roles": {
+      "Policy": "memory_governance"
+    }
+  },
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "MemoryPolicy" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "ou_id"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "ou_id": { "$ref": "../common.schema.json#/$defs/uuid" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "review_cadence_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760,
+          "default": 24
+        },
+        "timeout_action": {
+          "type": "string",
+          "enum": ["approve", "forget", "escalate"],
+          "default": "forget"
+        },
+        "review_deadline_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4320,
+          "default": 72
+        },
+        "tentative_weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.25
+        },
+        "org_scope_requires_approval": {
+          "type": "boolean",
+          "default": true
+        },
+        "max_memories_per_session": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50
+        },
+        "consolidation_gate": {
+          "type": "string",
+          "enum": ["kairos", "none"],
+          "default": "kairos"
+        }
+      }
+    }
+  }
+}

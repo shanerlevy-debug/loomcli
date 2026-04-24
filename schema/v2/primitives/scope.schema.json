@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/scope.schema.json",
+  "title": "Scope (v2 primitive)",
+  "description": "A boundary that policies apply within — spatial or logical. One of the six v2 root primitives. Scope was additive in v1.2.0; v2.0.0 promotes it to primitive status with identical shape. Organizations and OUs are both Scope instances with specific scope_type values.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Scope" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 128,
+          "description": "Stable scope identifier. Dots allowed for hierarchical naming."
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "description": "Containing OU (path form — preferred in v2)."
+        },
+        "ou_id": {
+          "$ref": "../common.schema.json#/$defs/uuid",
+          "description": "Containing OU (UUID form — preserved for v1.2.0 shape parity)."
+        },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" },
+        "description": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scope_type": {
+          "type": "string",
+          "enum": ["organization", "ou", "project", "session", "workflow_run", "custom"],
+          "default": "custom",
+          "description": "Tier of the scope hierarchy. Defaults to 'custom'. Organization + OU stdlib derivations pin this via their kind dispatch; Scope primitives authored directly need only set it when distinguishing from custom."
+        },
+        "parent_scope_ref": {
+          "type": ["string", "null"],
+          "description": "Dotted-path reference to parent scope. Null = root of a tier."
+        },
+        "inheritance_mode": {
+          "type": "string",
+          "enum": ["full", "isolated", "selective"],
+          "default": "full",
+          "description": "How memory from parent flows in."
+        },
+        "selective_inheritance": {
+          "type": ["object", "null"],
+          "description": "Only consulted when inheritance_mode=selective.",
+          "additionalProperties": false,
+          "properties": {
+            "from_types": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "memory_kinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["grammar", "lexicon", "procedural", "concepts"]
+              }
+            }
+          }
+        },
+        "retention_override": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "decay_days": { "type": "integer", "minimum": 1, "maximum": 3650 },
+            "forget_after_days": { "type": "integer", "minimum": 1, "maximum": 3650 }
+          }
+        }
+      }
+    }
+  }
+}

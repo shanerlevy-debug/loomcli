@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/event.schema.json",
+  "title": "Event (v2 primitive)",
+  "description": "Something that happened at a moment — has a timestamp, an originator, and a payload. One of the six v2 root primitives. Events are append-only by convention; you declare them, never mutate them.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Event" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": { "$ref": "../common.schema.json#/$defs/resource_name" },
+        "ou_path": { "$ref": "../common.schema.json#/$defs/ou_path" },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_type", "occurred_at", "originator_id"],
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "description": "Domain-specific event type label (e.g., 'workflow.started', 'skill.invoked', 'contract.signed').",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the event happened. UTC preferred."
+        },
+        "originator_id": {
+          "$ref": "../common.schema.json#/$defs/uuid",
+          "description": "UUID of the entity (agent, process, user) that originated the event."
+        },
+        "payload": {
+          "type": "object",
+          "description": "Event-specific data. Shape depends on event_type.",
+          "additionalProperties": true
+        },
+        "causes": {
+          "type": "array",
+          "description": "UUIDs of antecedent events that causally led to this one. Populates the causality graph.",
+          "items": { "$ref": "../common.schema.json#/$defs/uuid" },
+          "uniqueItems": true
+        },
+        "scope_ref": {
+          "$ref": "../common.schema.json#/$defs/scope_ref",
+          "description": "Scope this event belongs to."
+        }
+      }
+    }
+  }
+}

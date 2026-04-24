@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/relation.schema.json",
+  "title": "Relation (v2 primitive)",
+  "description": "A typed edge between two entities (directional). One of the six v2 root primitives. Relations are first-class so cross-entity queries, Hebbian learning, and graph operations have a canonical substrate.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Relation" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": { "$ref": "../common.schema.json#/$defs/resource_name" },
+        "ou_path": { "$ref": "../common.schema.json#/$defs/ou_path" },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_entity_id", "target_entity_id", "relation_type"],
+      "properties": {
+        "source_entity_id": {
+          "$ref": "../common.schema.json#/$defs/uuid",
+          "description": "UUID of the source Entity (tail of the edge)."
+        },
+        "target_entity_id": {
+          "$ref": "../common.schema.json#/$defs/uuid",
+          "description": "UUID of the target Entity (head of the edge)."
+        },
+        "relation_type": {
+          "type": "string",
+          "description": "Domain-specific relation label (e.g., 'owns', 'depends_on', 'supersedes', 'delegates_to').",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "cardinality": {
+          "type": "string",
+          "enum": ["one-to-one", "one-to-many", "many-to-one", "many-to-many"],
+          "default": "many-to-many",
+          "description": "Cardinality hint for query planning. Engines may enforce."
+        },
+        "attributes": {
+          "type": "object",
+          "description": "Edge-local attribute bag (e.g., weight, confidence, grant-level).",
+          "additionalProperties": true
+        },
+        "valid_from": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When the relation became effective. Null = from entity-creation forward."
+        },
+        "valid_to": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When the relation ceased to be effective. Null = still active."
+        },
+        "scope_ref": { "$ref": "../common.schema.json#/$defs/scope_ref" }
+      }
+    }
+  }
+}

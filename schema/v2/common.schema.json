@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/common.schema.json",
+  "title": "Powerloom v2 common definitions",
+  "description": "Shared $defs referenced by every v2 primitive + stdlib derivation. v2.0.0 adds scope_ref, primitive_ref, and compose-expression typing primitives.",
+  "$defs": {
+    "api_version": {
+      "type": "string",
+      "enum": ["powerloom.app/v2"],
+      "description": "v2.0.0 fixes the apiVersion to a single canonical form. No monorepo backward-compat alias."
+    },
+    "resource_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "minLength": 1,
+      "maxLength": 63,
+      "description": "DNS-compatible slug. Lowercase letters, digits, hyphens; must start with alnum; 1–63 chars."
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "ou_path": {
+      "type": "string",
+      "pattern": "^/([a-z0-9][a-z0-9-]{0,62})(/[a-z0-9][a-z0-9-]{0,62})*$",
+      "description": "Absolute OU path, e.g. /acme/engineering/platform."
+    },
+    "agent_path": {
+      "type": "string",
+      "pattern": "^/([a-z0-9][a-z0-9-]{0,62})(/[a-z0-9][a-z0-9-]{0,62})+$",
+      "description": "Absolute path to a resource: /{org}/{ou...}/{name}."
+    },
+    "principal_ref": {
+      "type": "string",
+      "pattern": "^(user:[^\\s]+@[^\\s]+|group:/.+|agent:/.+)$",
+      "description": "One of 'user:<email>', 'group:<group_path>', or 'agent:<agent_path>'."
+    },
+    "scope_ref": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 128,
+      "description": "Dotted-path reference to a Scope (e.g., 'home.research.infra'). Resolves within the containing OU."
+    },
+    "primitive_ref": {
+      "type": "string",
+      "enum": ["Entity", "Event", "Relation", "Process", "Scope", "Policy"],
+      "description": "Name of one of the six v2 root primitives. Used in compose-expression slot tags."
+    },
+    "kind_ref": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)*$",
+      "description": "Qualified kind name: either a stdlib kind (e.g. 'Agent', 'Workflow') or a user-composed kind in a namespace (e.g. 'legal.ContractClause')."
+    },
+    "compose_slot": {
+      "type": "object",
+      "description": "A single slot in a compose-expression. References one primitive (or extends a stdlib kind), optionally tagged with a role and populated with field values.",
+      "properties": {
+        "primitive": { "$ref": "#/$defs/primitive_ref" },
+        "extends": { "$ref": "#/$defs/kind_ref" },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Optional role tag disambiguates multiple slots of the same primitive type (e.g., two Policy slots with roles 'runtime' and 'access')."
+        },
+        "fields": {
+          "type": "object",
+          "description": "Field values for this slot. Validated against the referenced primitive or kind schema.",
+          "additionalProperties": true
+        }
+      },
+      "oneOf": [
+        { "required": ["primitive"] },
+        { "required": ["extends"] }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

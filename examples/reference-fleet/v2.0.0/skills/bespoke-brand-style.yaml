@@ -1,0 +1,16 @@
+# Skill manifest — Bespoke Brand Style Manager. Pair with skill-archives/bespoke-brand-style/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: bespoke-brand-style
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Bespoke Brand Style Manager
+  description: Reviews copy for adherence to the BRAND.md style guide.
+  skill_type: archive
+  current_version_id: null
+  system: true
+  auto_attach_to:
+    task_kinds:
+    - qa
+    - execution

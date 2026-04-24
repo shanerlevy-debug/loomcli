@@ -1,0 +1,11 @@
+# Skill manifest — Research Summarizer. Pair with skill-archives/research-summarizer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: research-summarizer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Research Summarizer
+  description: Gathers, synthesizes, and cites research on a topic with structured output.
+  skill_type: archive
+  current_version_id: null

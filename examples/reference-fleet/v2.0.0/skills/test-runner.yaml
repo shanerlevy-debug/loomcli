@@ -1,0 +1,11 @@
+# Skill manifest — Test Runner. Pair with skill-archives/test-runner/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: test-runner
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Test Runner
+  description: Runs test suites, interprets failures, distinguishes regressions from flakes.
+  skill_type: archive
+  current_version_id: null

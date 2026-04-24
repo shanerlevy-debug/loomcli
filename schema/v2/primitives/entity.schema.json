@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/entity.schema.json",
+  "title": "Entity (v2 primitive)",
+  "description": "A thing that persists — has identity, has state over time. One of the six v2 root primitives. Minimal fields only; richer types come from composition via the `compose` operator.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Entity" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": { "$ref": "../common.schema.json#/$defs/resource_name" },
+        "ou_path": { "$ref": "../common.schema.json#/$defs/ou_path" },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind_ref"],
+      "properties": {
+        "kind_ref": {
+          "$ref": "../common.schema.json#/$defs/kind_ref",
+          "description": "The kind this entity is an instance of (e.g., 'Agent', 'legal.ContractClause')."
+        },
+        "attributes": {
+          "type": "object",
+          "description": "Typed attribute bag. Schema depends on kind_ref.",
+          "additionalProperties": true
+        },
+        "relations": {
+          "type": "array",
+          "description": "References to Relations this entity participates in. Populated by the engine; not authored directly.",
+          "items": { "$ref": "../common.schema.json#/$defs/uuid" },
+          "x-powerloom-server-field": true
+        },
+        "scope_ref": {
+          "$ref": "../common.schema.json#/$defs/scope_ref",
+          "description": "Scope this entity belongs to. Determines memory visibility + retention."
+        }
+      }
+    }
+  }
+}

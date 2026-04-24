@@ -1,0 +1,11 @@
+# Skill manifest — Architecture Analyzer. Pair with skill-archives/architecture-analyzer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: architecture-analyzer
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Architecture Analyzer
+  description: Reviews proposed system designs — coupling, reversibility, operability, cost.
+  skill_type: archive
+  current_version_id: null

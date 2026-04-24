@@ -1,0 +1,18 @@
+# Skill manifest — Weave CLI Interpreter. Pair with skill-archives/weave-interpreter/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: weave-interpreter
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Weave CLI Interpreter
+  description: Authoritative weave CLI reference — command structure, auth flows, apply/plan semantics,
+    skill archive pipeline, OU addressing, approval gates, schema versions, error shapes. Use when driving
+    weave operations or diagnosing CLI errors.
+  skill_type: archive
+  current_version_id: null
+  system: true
+  auto_attach_to:
+    task_kinds:
+    - execution
+    - qa

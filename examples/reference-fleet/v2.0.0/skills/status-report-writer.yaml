@@ -1,0 +1,11 @@
+# Skill manifest — Status Report Writer. Pair with skill-archives/status-report-writer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: status-report-writer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Status Report Writer
+  description: Writes project status reports sized for the audience (exec / peer / team).
+  skill_type: archive
+  current_version_id: null

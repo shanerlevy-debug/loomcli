@@ -1,0 +1,11 @@
+# Skill manifest — Variance Analyzer. Pair with skill-archives/variance-analyzer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: variance-analyzer
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Variance Analyzer
+  description: Compares actuals vs. baseline (budget / forecast / prior period) with root-cause hypotheses.
+  skill_type: archive
+  current_version_id: null

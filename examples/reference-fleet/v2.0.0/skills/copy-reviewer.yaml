@@ -1,0 +1,11 @@
+# Skill manifest — Copy Reviewer. Pair with skill-archives/copy-reviewer/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: copy-reviewer
+  ou_path: /bespoke-technology/studio
+spec:
+  display_name: Copy Reviewer
+  description: 'Universal copywriting review: clarity, register, weasel phrases, structural issues.'
+  skill_type: archive
+  current_version_id: null

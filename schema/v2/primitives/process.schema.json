@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/primitives/process.schema.json",
+  "title": "Process (v2 primitive)",
+  "description": "A producer of events — a unit of computation or action with declared inputs, outputs, and effects. One of the six v2 root primitives. Agents, Workflows, Skills, and MCPDeployments all compose a Process slot.",
+  "type": "object",
+  "x-powerloom-primitive": true,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Process" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": { "$ref": "../common.schema.json#/$defs/resource_name" },
+        "ou_path": { "$ref": "../common.schema.json#/$defs/ou_path" },
+        "display_name": { "$ref": "../common.schema.json#/$defs/display_name" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_kind"],
+      "properties": {
+        "process_kind": {
+          "type": "string",
+          "description": "What kind of process this is (e.g., 'agent_runtime', 'workflow_template', 'skill_invocation', 'mcp_server').",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "inputs_schema": {
+          "type": ["object", "null"],
+          "description": "JSON Schema describing the shape of inputs this process accepts. Null = no typed input contract.",
+          "additionalProperties": true
+        },
+        "outputs_schema": {
+          "type": ["object", "null"],
+          "description": "JSON Schema describing the shape of outputs this process produces. Null = no typed output contract.",
+          "additionalProperties": true
+        },
+        "effects": {
+          "type": "array",
+          "description": "Scopes this process may write into / produce events within.",
+          "items": { "$ref": "../common.schema.json#/$defs/scope_ref" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "implementation_ref": {
+          "type": ["string", "null"],
+          "description": "Opaque reference to the process implementation (e.g., a skill archive URI, an agent runtime ID, a workflow graph ID)."
+        },
+        "scope_ref": { "$ref": "../common.schema.json#/$defs/scope_ref" }
+      }
+    }
+  }
+}

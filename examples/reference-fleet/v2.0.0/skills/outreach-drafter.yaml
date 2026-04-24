@@ -1,0 +1,11 @@
+# Skill manifest — Outreach Drafter. Pair with skill-archives/outreach-drafter/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: outreach-drafter
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Outreach Drafter
+  description: Drafts cold outreach emails + LinkedIn DMs tailored to the specific recipient.
+  skill_type: archive
+  current_version_id: null

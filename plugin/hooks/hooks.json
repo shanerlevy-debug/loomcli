@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "A Claude Code session is starting with the powerloom-home plugin loaded. Greet the user by invoking the `powerloom_whoami` MCP tool to confirm the local home backend is live. Report the db_path + version. If `weave` is on PATH and `weave auth whoami` succeeds, also mention the hosted Powerloom identity in one line. Keep the greeting to 2-4 lines total — don't drown the session-start in status."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'f=\"$CLAUDE_TOOL_PATH\"; if [ -z \"$f\" ] || [ ! -f \"$f\" ]; then exit 0; fi; case \"$f\" in *.yaml|*.yml) if head -2 \"$f\" | grep -q \"^apiVersion:.*powerloom\\.app\"; then echo \"[powerloom-home hook] Detected Powerloom manifest: $f\"; if command -v weave >/dev/null 2>&1; then weave plan \"$f\" 2>&1 | head -40; else echo \"(weave not on PATH — skipping plan preview)\"; fi; fi;; esac'"
+          }
+        ]
+      }
+    ]
+  }
+}

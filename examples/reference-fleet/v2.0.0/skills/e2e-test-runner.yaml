@@ -1,0 +1,12 @@
+# Skill manifest — End-to-End Test Runner. Pair with skill-archives/e2e-test-runner/SKILL.md for the archive content.
+apiVersion: powerloom.app/v2
+kind: Skill
+metadata:
+  name: e2e-test-runner
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: End-to-End Test Runner
+  description: Runs browser + API E2E tests against a deployed environment; produces reproducible bug
+    reports.
+  skill_type: archive
+  current_version_id: null

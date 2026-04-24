@@ -1,0 +1,12 @@
+# Skill manifest — Support Ticket Classifier. Pair with skill-archives/ticket-classifier/SKILL.md for the archive content.
+apiVersion: powerloom.app/v1
+kind: Skill
+metadata:
+  name: ticket-classifier
+  ou_path: /bespoke-technology/fleet-demo
+spec:
+  display_name: Support Ticket Classifier
+  description: 'Triages incoming support tickets: product area, severity, expertise, routing, first-response
+    draft.'
+  skill_type: archive
+  current_version_id: null
