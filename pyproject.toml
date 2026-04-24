@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "loomcli"
-version = "0.5.4"
+version = "0.6.0rc1"
 description = "Weave — the Powerloom CLI. Declarative manifests (apply/plan/destroy) + resource inspection, validated against the authoritative JSON Schema published in this repo."
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -82,6 +82,7 @@ packages = ["loomcli"]
 # fallback after PyInstaller bundles + in-repo path.
 [tool.hatch.build.targets.wheel.force-include]
 "schema/v1" = "loomcli/_bundled_schema/v1"
+"schema/v2" = "loomcli/_bundled_schema/v2"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
