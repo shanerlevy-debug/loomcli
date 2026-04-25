@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/failure-recovery-frame.schema.json",
+  "title": "FailureRecoveryFrame (v2 stdlib derivation)",
+  "description": "A stereotyped failure-recovery template per Fillmore's Frame Semantics. Each manifest binds the four canonical frame elements (Action_Attempted / Error_Type / Corrective_Action / Final_Outcome) to a specific recovery pattern an agent should follow when matching failures occur. Derivation: compose(Process[recovery_procedure], Policy[trigger_conditions], Scope[applicable_scope]). Frames are the procedural-memory unit Powerloom agents reach for when a tool call, validation, or external request fails — authored by operators at v057, distilled from episodic runs at v058+ via consolidation.",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Process", "Policy", "Scope"],
+    "roles": {
+      "Process": "recovery_procedure",
+      "Policy": "trigger_conditions",
+      "Scope": "applicable_scope"
+    }
+  },
+  "x-powerloom-apply-order": 60,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "$defs": {
+    "error_category": {
+      "type": "string",
+      "enum": [
+        "rate_limit",
+        "timeout",
+        "tool_call_failure",
+        "context_overflow",
+        "approval_denied",
+        "validation_error",
+        "external_dependency_failure",
+        "permission_denied",
+        "other"
+      ],
+      "description": "Coarse categorical label for the failure. Frames matching 'other' must populate error_type.signature for disambiguation."
+    },
+    "expected_outcome": {
+      "type": "string",
+      "enum": [
+        "recovered",
+        "partially_recovered",
+        "escalated",
+        "aborted"
+      ],
+      "description": "The Final_Outcome slot of the frame: what terminal state this template aims to reach when its corrective action runs successfully. Instances (Events) at v058+ report the *actual* outcome separately."
+    }
+  },
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "FailureRecoveryFrame" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "rate-limit-429-retry"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display_name",
+        "applicable_scope_ref",
+        "action_attempted",
+        "error_type",
+        "corrective_action",
+        "final_outcome"
+      ],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Rate-Limit 429 Exponential-Backoff Retry"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "applicable_scope_ref": {
+          "$ref": "../common.schema.json#/$defs/scope_ref",
+          "description": "Scope inside which this frame can be invoked. Frames are scope-attached so the same error category can have different recovery patterns at org root vs. a specific OU."
+        },
+        "applies_to_processes": {
+          "type": "array",
+          "description": "Optional process refs (Agent / Skill / Workflow / MCPDeployment names) this frame is registered on. Empty = applies to any process within applicable_scope_ref.",
+          "items": { "$ref": "../common.schema.json#/$defs/resource_name" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "action_attempted": {
+          "type": "object",
+          "description": "Frame element 1: the kind of action this frame matches. summary is required free text; process_kind narrows by Process primitive's process_kind field if set; matcher_pattern is an optional regex applied to the action's structured payload.",
+          "additionalProperties": false,
+          "required": ["summary"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "process_kind": {
+              "type": ["string", "null"],
+              "description": "Optional narrowing: only match actions whose enclosing Process has this process_kind (e.g., 'agent_runtime', 'skill_invocation', 'mcp_server').",
+              "maxLength": 128,
+              "default": null
+            },
+            "matcher_pattern": {
+              "type": ["string", "null"],
+              "description": "Optional regex applied to the action's serialized payload at match time. Engine compiles + caches.",
+              "maxLength": 1024,
+              "default": null
+            }
+          }
+        },
+        "error_type": {
+          "type": "object",
+          "description": "Frame element 2: the failure category this frame matches. category is required; code and signature narrow further.",
+          "additionalProperties": false,
+          "required": ["category"],
+          "properties": {
+            "category": { "$ref": "#/$defs/error_category" },
+            "code": {
+              "type": ["string", "null"],
+              "description": "Vendor-specific or transport-level code (e.g., '429', 'InvalidRequest', 'context_length_exceeded').",
+              "maxLength": 128,
+              "default": null
+            },
+            "signature": {
+              "type": ["string", "null"],
+              "description": "Optional regex matched against the error message. Required when category='other'.",
+              "maxLength": 1024,
+              "default": null
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "category": { "const": "other" } },
+                "required": ["category"]
+              },
+              "then": {
+                "required": ["signature"],
+                "properties": {
+                  "signature": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          ]
+        },
+        "corrective_action": {
+          "type": "object",
+          "description": "Frame element 3: the procedure to run when a matching failure occurs. summary is required free text; steps is an optional ordered list; policy_ref optionally points to a Policy that constrains execution (e.g., max_retries, backoff schedule).",
+          "additionalProperties": false,
+          "required": ["summary"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "default": []
+            },
+            "policy_ref": {
+              "oneOf": [
+                { "$ref": "../common.schema.json#/$defs/resource_name" },
+                { "type": "null" }
+              ],
+              "description": "Optional Policy resource constraining the corrective action (e.g., max_retries, backoff_seconds, circuit_breaker_after).",
+              "default": null
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 3,
+              "description": "Hard cap on how many times this frame's corrective action runs for a single triggering failure before escalation."
+            }
+          }
+        },
+        "final_outcome": {
+          "$ref": "#/$defs/expected_outcome"
+        },
+        "escalation_ref": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/resource_name" },
+            { "type": "null" }
+          ],
+          "description": "Optional FailureRecoveryFrame name to invoke when this frame's max_attempts is exhausted without reaching final_outcome. Cycles are detected at apply time.",
+          "default": null
+        },
+        "provenance": {
+          "type": "string",
+          "enum": [
+            "operator_authored",
+            "distilled_from_episodic",
+            "imported_template"
+          ],
+          "default": "operator_authored",
+          "description": "Where this frame came from. v057 ships only operator_authored; distilled_from_episodic lights up at v058+ when consolidation can promote observation conventions into frames."
+        },
+        "evidence_run_ids": {
+          "type": "array",
+          "description": "Optional list of session/workflow_run UUIDs the frame was distilled from. Empty for operator_authored frames at v057.",
+          "items": { "$ref": "../common.schema.json#/$defs/uuid" },
+          "uniqueItems": true,
+          "default": []
+        }
+      }
+    }
+  }
+}

@@ -51,8 +51,9 @@ def _make_validator(schema_path: Path) -> Draft202012Validator:
 
 def test_v2_schemas_discovered() -> None:
     assert V2_SCHEMAS, "no v2 schemas found under schema/v2/"
-    # Sanity: expect 6 primitives + 8 stdlib + compose + bundle + common = 17
-    assert len(V2_SCHEMAS) >= 16, f"expected at least 16 v2 schemas, got {len(V2_SCHEMAS)}"
+    # Sanity: 6 primitives + 9 stdlib + compose + bundle + common = 18
+    # (9th stdlib is FailureRecoveryFrame, added in v057.)
+    assert len(V2_SCHEMAS) >= 17, f"expected at least 17 v2 schemas, got {len(V2_SCHEMAS)}"
 
 
 @pytest.mark.parametrize("schema_path", V2_SCHEMAS, ids=lambda p: p.name)

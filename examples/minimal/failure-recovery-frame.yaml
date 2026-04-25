@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schema/v2/stdlib/failure-recovery-frame.schema.json
+apiVersion: powerloom.app/v2
+kind: FailureRecoveryFrame
+metadata:
+  name: rate-limit-429-retry
+  ou_path: /acme/eng
+spec:
+  display_name: Rate-Limit 429 Exponential-Backoff Retry
+  description: |
+    When an LLM tool call returns a 429 (rate-limited), wait + retry with
+    exponential backoff up to 3 attempts before escalating to a circuit-break
+    frame. Mirrors the canonical Action_Attempted / Error_Type /
+    Corrective_Action / Final_Outcome frame elements from Frame Semantics.
+  applicable_scope_ref: home.runtime.llm
+  applies_to_processes: []
+  action_attempted:
+    summary: LLM provider tool call (any model, any agent in scope)
+    process_kind: agent_runtime
+  error_type:
+    category: rate_limit
+    code: "429"
+  corrective_action:
+    summary: Sleep + retry with exponential backoff
+    steps:
+      - Read Retry-After header if present, else use base = 1s
+      - Sleep base * 2^(attempt - 1) seconds
+      - Re-issue the original tool call unchanged
+    max_attempts: 3
+  final_outcome: recovered
+  escalation_ref: rate-limit-circuit-break
+  provenance: operator_authored

@@ -101,12 +101,13 @@ def main() -> None:
     )
     (OUT / "__init__.py").write_text(root_body, encoding="utf-8")
 
-    # loomcli.schema __init__.py — version marker.
+    # loomcli.schema __init__.py — version marker, sourced from schema/v2/VERSION.
     parent = OUT.parent
+    schema_version = (SCHEMA_V2 / "VERSION").read_text(encoding="utf-8").strip()
     (parent / "__init__.py").write_text(
         '"""Versioned Pydantic schema models for Powerloom manifests."""\n'
         '\n'
-        'SCHEMA_VERSION = "2.0.0-draft.1"\n'
+        f'SCHEMA_VERSION = "{schema_version}"\n'
         '\n'
         'from . import v2  # noqa: F401\n',
         encoding="utf-8",
