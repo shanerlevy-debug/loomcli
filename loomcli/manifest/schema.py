@@ -152,7 +152,11 @@ class AgentSpec(_BaseSpec):
     description: str | None = None
     model: str
     system_prompt: str
-    runtime_type: Literal["cma"] = "cma"
+    runtime: Literal[
+        "cma", "openai", "azure_openai", "mistral", "cohere",
+        "ollama", "bedrock", "vertex", "langchain", "crewai", "autogen",
+        "antigravity", "llamaindex", "pydantic_ai", "smolagents"
+    ] = "cma"
     agent_kind: Literal["user", "service"] = "user"
     owner_principal_ref: str  # "user:email" or "user:email" for service kind
     # Convenience: inline attachments. Equivalent to declaring a
