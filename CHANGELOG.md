@@ -5,6 +5,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.1-rc1 — 2026-04-25 (CLI, side-branch draft)
+
+**v057 stdlib expansion: `FailureRecoveryFrame`.** First Frame-Semantics derivation lands as a v2.0.1 stdlib kind. Operators can now author scope-attached recovery templates that bind the canonical four frame elements (`Action_Attempted` / `Error_Type` / `Corrective_Action` / `Final_Outcome`) to specific failure patterns agents should follow. v058+ will let consolidation distill these from episodic runs (`provenance: distilled_from_episodic`); v057 ships only the operator-authored path.
+
+> Side-branch release. Cut on `session/memory-schema-arc-20260425`; canonical `vNNN` and PyPI tag assigned at reconcile-to-main.
+
+### New
+
+- **`schema/v2/stdlib/failure-recovery-frame.schema.json`** — additive. Derivation: `compose(Process[recovery_procedure], Policy[trigger_conditions], Scope[applicable_scope])`. Required spec fields: `display_name`, `applicable_scope_ref`, `action_attempted`, `error_type`, `corrective_action`, `final_outcome`. `error_type.category='other'` requires `error_type.signature` (enforced via JSON Schema `if`/`then`). Schema version bumps `2.0.0-draft.1 → 2.0.1-draft.1`.
+- **`examples/minimal/failure-recovery-frame.yaml`** — minimal manifest covering the canonical rate-limit-429 retry pattern.
+- **`tests/schema/test_failure_recovery_frame.py`** — 23 tests: minimal validates, every required-field omission rejected, every error category accepted, `category='other'` requires signature, every final-outcome enum accepted, `max_attempts` bounds, provenance default + enum, derivation metadata sanity.
+- **`schema/v2/powerloom.v2.bundle.json`** — `oneOf` extended to include the new kind. Description bumped 8→9 stdlib derivations.
+- **`scripts/generate_schema_package.py`** — `SCHEMA_VERSION` now sourced from `schema/v2/VERSION` instead of hardcoded. Avoids future drift between the literal in the script and the actual schema version.
+
+### Engine pin (downstream)
+
+Powerloom engine should bump `loomcli>=0.6.1rc1,<0.7.0` in `api/pyproject.toml` to consume the new kind. Engine-side validators + `kind_registry` discovery handled in the matching engine PR on the same session branch.
+
+### Compat
+
+- Existing `0.6.0-rc2` manifests continue to validate unchanged — the v057 work is purely additive on the v2.0.0 surface.
+- `_V2_STDLIB_KINDS` in `migrate_cmd.py` stays at the original 8 — `FailureRecoveryFrame` is new in v2 with no v1 equivalent, so it has no v1→v2 migration path to surface.
+
 ## v0.6.0-rc2 — 2026-04-24 (CLI)
 
 **First actual pre-release of the 0.6.0 series.** The 0.6.0rc1 pyproject bump merged on the long branch but never got tagged (PEP 440 string `0.6.0rc1` didn't match the publish workflow's `v*.*.*-*` tag pattern). 0.6.0-rc2 ships with everything rc1 was supposed to — plus one live-test bug fix.
