@@ -66,6 +66,20 @@ weave session tail <session-id>
 
 Use them to answer what an agent is currently doing, whether it has active sessions, and what durable events have been recorded.
 
+### Thread plucking
+
+If the user asks to "pluck this thread", capture the current conversation as a Powerloom coordination handoff:
+
+1. Summarize the active thread into a short title, safe scope slug, one-line summary, key decisions, touched files/commands, and next actions.
+2. If the user wants it registered and `weave whoami` succeeds, use:
+
+```bash
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
+```
+
+3. Do not invent unsupported `--actor-kind` values such as `codex` or `gemini`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command for later.
+
 ### Top-level auth aliases (shortcuts for `weave auth <cmd>`)
 | Command | Purpose |
 |---|---|

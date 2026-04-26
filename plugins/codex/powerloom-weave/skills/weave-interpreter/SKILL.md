@@ -69,6 +69,20 @@ weave session tail <session-id>
 
 These commands are read-only runtime inspection. They do not modify manifest-backed Agent state.
 
+## Thread Plucking
+
+If the user asks to "pluck this thread", treat it as a Powerloom handoff/coordination capture for the current conversation, not as a model-provider call.
+
+1. Summarize the active thread into a short title, a safe scope slug, a one-line summary, key decisions, touched files/commands, and next actions.
+2. If the user wants it registered and `weave whoami` succeeds, use the current coordination-session schema:
+
+```bash
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
+```
+
+3. Do not invent unsupported `--actor-kind` values such as `codex` or `gemini`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+4. If the user is not signed in or no API is available, output the handoff summary plus the exact `weave agent-session register ...` command they can run later.
+
 ## Provider/Model Configuration
 
 Use `weave agent config <agent>` to inspect runtime/model and `weave agent set-model <agent> --model <model>` to update the model through Powerloom. Do not pass provider/model flags to `weave ask` or `weave chat`; those commands use the target Agent's configured runtime/model. Runtime/provider changes are manifest-owned until the API exposes a safe runtime patch endpoint.

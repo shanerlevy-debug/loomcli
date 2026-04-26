@@ -22,8 +22,11 @@ All plugins should route agent invocation through `weave ask` or `weave chat`, n
 claude --plugin-dir /path/to/loomcli/plugin
 
 # Codex
-# Add plugins/codex/powerloom-weave to a Codex plugin marketplace or load as a local plugin.
+# Codex installs marketplace roots. Point it at plugins/codex, not the package folder.
+codex plugin marketplace add /path/to/loomcli/plugins/codex
 
 # Gemini CLI
-gemini extensions link /path/to/loomcli/plugins/gemini/powerloom-weave
+gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
 ```
+
+On Windows, if Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.

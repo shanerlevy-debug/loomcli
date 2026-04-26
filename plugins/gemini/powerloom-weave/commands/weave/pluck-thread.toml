@@ -1,0 +1,20 @@
+description = "Capture the current conversation as a Powerloom coordination handoff."
+prompt = """
+The user wants to "pluck this thread" into Powerloom.
+
+Treat this as a coordination handoff for the current conversation:
+
+1. Summarize the thread into a short title, safe scope slug, one-line summary, key decisions, touched files/commands, and next actions.
+2. If the user wants it registered and `weave whoami` succeeds, run:
+
+```bash
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
+```
+
+3. Do not invent unsupported `--actor-kind` values such as `gemini` or `codex`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command they can run later.
+
+Arguments from the user:
+
+{{args}}
+"""
