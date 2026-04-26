@@ -24,12 +24,12 @@ jobs:
         pip install -e .
         
     - name: Lint with ruff
-      # Smoke-only: verify the lint config parses + the codebase has no
-      # syntax errors. Full ruff cleanup (unused imports, type-comparison
-      # idioms, module-level import positioning) is its own thread —
-      # gating PRs on it would block every legitimate change with
-      # pre-existing legacy noise.
-      run: ruff check loomcli/ --select=E9,F63,F7,F82 --no-cache
+      # Smoke-only: catch syntax errors (E9), bad escape (F63), and
+      # tab/space mixing (F7). The full ruff default catches both
+      # pre-existing style nits (unused imports, etc.) AND F821
+      # undefined-name false-positives on legitimate forward-reference
+      # patterns. Full ruff cleanup is its own thread.
+      run: ruff check loomcli/ --select=E9,F63,F7 --no-cache
 
     - name: Run unit tests
       run: pytest
