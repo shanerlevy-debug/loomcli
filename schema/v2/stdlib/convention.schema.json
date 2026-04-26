@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/convention.schema.json",
+  "title": "Convention (v2 stdlib derivation)",
+  "description": "A human-codified organizational rule scoped to a slice of the org. Conventions are top-down authored intent — operators write them, version-control them, review them — distinct from procedural memory templates (which are bottom-up reinforced from observed runs). Each Convention names a body of guidance plus an enforcement_mode (advisory / warn / enforce) that the engine and downstream agents respect when the convention's scope matches. Derivation: compose(Policy[intent], Scope[applies_to]). Cross-references concept_ids (when the convention codifies a stabilized concept per Chomskian R18) and type_definitions (when it constrains how a type composes).",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Policy", "Scope"],
+    "roles": {
+      "Policy": "intent",
+      "Scope": "applies_to"
+    }
+  },
+  "x-powerloom-apply-order": 65,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "$defs": {
+    "convention_body": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The convention's content. summary is required free text; items is an optional structured checklist; references link to other governance primitives this convention codifies or constrains.",
+      "required": ["summary"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "The rule itself, written for humans. Markdown allowed. Keep short — the body of a convention is its essence; reference docs go elsewhere."
+        },
+        "items": {
+          "type": "array",
+          "description": "Optional ordered checklist or rule list. Each item is a short label suitable for a UI checkbox; the prose explanation of each item lives in summary.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      }
+    },
+    "enforcement_mode": {
+      "type": "string",
+      "enum": ["advisory", "warn", "enforce"],
+      "description": "How the convention is enforced. advisory: stored + visible but no runtime check. warn: violations log + surface in audit but don't block. enforce: violations block the action."
+    },
+    "convention_status": {
+      "type": "string",
+      "enum": ["active", "archived"],
+      "description": "Lifecycle state. active: visible + enforced per enforcement_mode. archived: historical record, no enforcement; preserved for audit + concept-promotion provenance."
+    },
+    "convention_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional cross-reference to a concept or type-definition this convention codifies. v064 ships the field shape; cross-validation against existing concept_id / type_definition_id rows happens at apply time on the engine.",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["concept", "type_definition", "stdlib"]
+        },
+        "id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "UUID for concept / type_definition kinds. Null for stdlib kind references where name carries the identity.",
+          "default": null
+        },
+        "name": {
+          "type": ["string", "null"],
+          "maxLength": 128,
+          "default": null
+        }
+      }
+    }
+  },
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "Convention" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "code-review-checklist"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "applies_to_scope_ref", "body"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "Code Review Checklist"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "applies_to_scope_ref": {
+          "$ref": "../common.schema.json#/$defs/scope_ref",
+          "description": "Primary scope this convention governs. Resources within this scope (or its descendants per the scope tree) check the convention when relevant actions fire."
+        },
+        "additional_scope_refs": {
+          "type": "array",
+          "description": "Rare — additional scopes the convention also governs. Most conventions need only the primary applies_to_scope_ref; populate this when one rule legitimately spans multiple scope subtrees.",
+          "items": { "$ref": "../common.schema.json#/$defs/scope_ref" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "body": { "$ref": "#/$defs/convention_body" },
+        "enforcement_mode": {
+          "$ref": "#/$defs/enforcement_mode",
+          "default": "advisory"
+        },
+        "status": {
+          "$ref": "#/$defs/convention_status",
+          "default": "active"
+        },
+        "references": {
+          "type": "array",
+          "description": "Optional cross-references to concepts (Chomskian R18 — convention codifies a stabilized regularity), type_definitions (convention constrains a type), or stdlib kinds.",
+          "items": { "$ref": "#/$defs/convention_reference" },
+          "default": []
+        }
+      }
+    }
+  }
+}

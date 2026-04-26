@@ -5,6 +5,36 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.2-rc1 — 2026-04-26 (CLI, side-branch draft)
+
+**v064 first slice: `Convention` stdlib derivation (11th v2 stdlib kind).** Top-down authored organizational rules — distinct from the bottom-up procedural memory templates the engine companion ships. Each Convention names a body (summary + optional checklist) plus an enforcement_mode (advisory / warn / enforce); the engine companion adds a dedicated `conventions` table + `/memory/semantic/conventions/*` route surface.
+
+> Stacks on `0.6.1-rc4`. Resolves the Q6 procedural-memory storage open question via D-1: conventions ship as a v2 stdlib kind alongside Agent/Skill/etc.; procedural memory ships as `type_memory_procedural` table symmetric with grammar/lexicon.
+
+### New
+
+- **`schema/v2/stdlib/convention.schema.json`** — derivation `compose(Policy[intent], Scope[applies_to])`. Required spec fields: `display_name`, `applies_to_scope_ref`, `body`. Optional: `description`, `additional_scope_refs`, `enforcement_mode` (default `advisory`), `status` (default `active`), `references` (cross-link to concept_id / type_definition_id / stdlib name).
+- **`examples/minimal/convention.yaml`** — code-review-checklist exemplar covering the canonical fields.
+- **`tests/schema/test_convention.py`** — 19 tests covering required-field omissions, body shape, enforcement_mode + status enum, references kinds, additionalProperties lockdown.
+- **`schema/v2/powerloom.v2.bundle.json`** — `oneOf` extended; description bumped 10 → 11 stdlib derivations.
+- **`tests/schema/test_v2_schemas.py`** — discovery floor lifted 18 → 19.
+- Schema version: `2.0.1-draft.1` → `2.0.2-draft.1`. CLI: `0.6.1-rc4` → `0.6.2-rc1`.
+
+### Engine companion
+
+The matching engine PR (same session branch) adds:
+  - migration `0059_conventions.py` for the dedicated table,
+  - migration `0060_type_memory_procedural.py` for the symmetric procedural table,
+  - `services/conventions.py` for CRUD + scope resolution,
+  - `routes/memory_semantic_conventions.py` (`POST/GET/PUT/DELETE /memory/semantic/conventions/*`),
+  - `routes/memory_procedural.py` (`GET /memory/procedural/search`, `POST /memory/procedural/reinforce`),
+  - `_STDLIB_NAMES += Convention` so `compose: extends: Convention` resolves.
+
+### Compat
+
+- Additive on the v2 surface. Pre-v064 manifests + engines unchanged.
+- A v0.6.2-rc1 CLI talking to a pre-v064 engine that doesn't have migration 0059 will lint a Convention manifest cleanly but `weave apply` would 404/500. Forward-only for the full Convention story.
+
 ## v0.6.1-rc4 — 2026-04-26 (CLI, side-branch draft)
 
 **v061 first slice: TypeDefinition stdlib derivation (10th v2 stdlib kind).** Operators declare named types the engine accumulates memory around — grammar (how it composes with others) + lexicon (specific instances + outcome signals). The manifest itself ships here; engine companion adds the `type_memory_grammar` + `type_memory_lexicon` storage tables (migrations 0055/0056) and the `/memory/episodic/*` + `/memory/semantic/.../grammar` read routes.
