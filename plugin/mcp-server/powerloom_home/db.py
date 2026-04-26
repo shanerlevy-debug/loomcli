@@ -151,7 +151,7 @@ class HomeDB:
             str(self._path), check_same_thread=False, timeout=10.0
         )
         self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._init()
 
     def _init(self) -> None:

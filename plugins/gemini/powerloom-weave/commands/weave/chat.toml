@@ -1,0 +1,18 @@
+description = "Start an interactive Powerloom agent chat through weave chat."
+prompt = """
+The user wants an interactive Powerloom agent session.
+
+Run or guide them to run:
+
+```bash
+weave chat {{args}}
+```
+
+Expected arguments:
+
+```bash
+<agent-uuid-or-/ou/path/name> ["optional first prompt"]
+```
+
+Provider-agnostic rule: the CLI does not pick a provider. Powerloom invokes the selected agent using that agent's configured runtime/model and the user/org runtime credential.
+"""

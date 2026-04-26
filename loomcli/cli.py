@@ -15,6 +15,7 @@ from typing import Annotated, Optional
 import typer
 
 from loomcli import __version__
+from loomcli.commands import agent_cmd
 from loomcli.commands import agent_session_cmd
 from loomcli.commands import apply as apply_cmd
 from loomcli.commands import auth_cmd
@@ -118,6 +119,8 @@ app.add_typer(audit_cmd.app, name="audit", help="Query the Powerloom audit log."
 app.add_typer(approval_cmd.app, name="approval", help="Inspect + decide on approval requests (list/get/approve/reject/cancel/bulk-cancel).")
 app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v2.0.0 Compose kinds (scaffold/lint/show).")
 app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1→v2).")
+app.command("ask", help="Ask a Powerloom agent and stream the answer.")(agent_cmd.ask_command)
+app.command("chat", help="Start an interactive terminal chat with a Powerloom agent.")(agent_cmd.chat_command)
 app.command("apply", help="Apply a manifest (create/update resources).")(apply_cmd.apply_command)
 app.command("plan", help="Show what apply would do, without making changes.")(plan_cmd.plan_command)
 app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.destroy_command)

@@ -1,0 +1,13 @@
+description = "Check weave authentication and basic Powerloom CLI status."
+prompt = """
+Check whether the Powerloom `weave` CLI is usable in this workspace.
+
+Run:
+
+```bash
+weave --version
+weave whoami
+```
+
+If `weave whoami` says the user is not signed in, tell them to run `weave login`. Do not ask them to paste a PAT into chat.
+"""

@@ -32,6 +32,7 @@ env/
 # Editor / OS
 .vscode/
 .idea/
+.claude/settings.local.json
 *.swp
 .DS_Store
 Thumbs.db
