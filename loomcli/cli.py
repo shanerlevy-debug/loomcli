@@ -37,6 +37,7 @@ from loomcli.commands import migrate_cmd
 from loomcli.commands import thread_cmd
 from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
+from loomcli.commands import setup_cmd
 
 
 app = typer.Typer(
@@ -129,6 +130,7 @@ app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v
 app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1→v2).")
 app.add_typer(thread_cmd.app, name="thread", help="Manage tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md §4.10.")
 app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles and defaults.")
+app.add_typer(setup_cmd.app, name="setup-claude-code", help="Wire the Powerloom MCP plugin into a Claude Code project (idempotent).")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
 app.command("ask", help="Ask a Powerloom agent and stream the answer.")(agent_cmd.ask_command)
 app.command("chat", help="Start an interactive terminal chat with a Powerloom agent.")(agent_cmd.chat_command)
