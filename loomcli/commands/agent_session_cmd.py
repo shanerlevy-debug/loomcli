@@ -11,6 +11,9 @@ lists CMA agent-runtime sessions.
 from __future__ import annotations
 
 import json
+import re
+import subprocess
+from datetime import date
 from typing import Annotated, Optional
 
 import typer
@@ -19,6 +22,9 @@ from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.config import load_runtime_config
+
+# Pattern for the project's branch naming convention: session/<scope>-<yyyymmdd>
+_BRANCH_RE = re.compile(r"^session/(?P<scope>.+)-(?P<date>\d{8})$")
 
 
 _console = Console()
@@ -39,21 +45,94 @@ def _client() -> PowerloomClient:
     return PowerloomClient(cfg)
 
 
+def _current_git_branch() -> Optional[str]:
+    """Return the current git branch name, or None if not in a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip() or None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+
+def _parse_branch(branch_name: str) -> tuple[str, str] | None:
+    """Extract (scope, branch_name) from a session/<scope>-<yyyymmdd> branch.
+
+    Returns None if the branch doesn't match the convention.
+    The scope returned is the full slug including the date suffix:
+    e.g. 'phase23-service-accounts-20260425'.
+    """
+    m = _BRANCH_RE.match(branch_name)
+    if not m:
+        return None
+    scope = f"{m.group('scope')}-{m.group('date')}"
+    return scope, branch_name
+
+
 @app.command("register")
 def register_cmd(
-    scope: Annotated[str, typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`")],
-    summary: Annotated[str, typer.Option("--summary", help="One-line scope description")],
-    branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name")] = None,
+    scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch is set.")] = None,
+    summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. Required unless --from-branch is set (which uses the branch name as a fallback).")] = None,
+    branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags (e.g. 'ui,docs,python')")] = None,
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
     version: Annotated[Optional[str], typer.Option("--version", help="Target version, e.g. v030")] = None,
     actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | cma | human")] = "claude_code",
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email)")] = None,
+    from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (must match session/<scope>-<yyyymmdd>).")] = False,
+    if_not_active: Annotated[bool, typer.Option("--if-not-active", help="No-op (exit 0) if a session with the same scope is already active. Safe for SessionStart hooks.")] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Register a new active agent session. Returns session id, work-chain
     event hash, and any overlap warnings."""
+
+    # --from-branch: resolve scope + branch from git
+    if from_branch:
+        git_branch = _current_git_branch()
+        if not git_branch:
+            _console.print(
+                "[red]--from-branch: could not determine the current git branch.[/red]"
+            )
+            raise typer.Exit(1)
+        parsed = _parse_branch(git_branch)
+        if not parsed:
+            _console.print(
+                f"[red]--from-branch: branch {git_branch!r} does not match "
+                f"session/<scope>-<yyyymmdd> convention.[/red]"
+            )
+            raise typer.Exit(1)
+        inferred_scope, inferred_branch = parsed
+        scope = scope or inferred_scope
+        branch = branch or inferred_branch
+        summary = summary or f"Claude Code session on {inferred_scope}"
+
+    # Validate required fields (may still be None if --from-branch wasn't set)
+    if not scope:
+        _console.print("[red]--scope is required (or use --from-branch).[/red]")
+        raise typer.Exit(1)
+    if not summary:
+        _console.print("[red]--summary is required (or use --from-branch).[/red]")
+        raise typer.Exit(1)
+
+    # --if-not-active: check for an existing active session with this scope
+    if if_not_active:
+        client = _client()
+        try:
+            resp = client.get("/agent-sessions", status="active", limit=100)
+            existing = resp.get("sessions", [])
+            if any(s.get("session_slug") == scope for s in existing):
+                _console.print(
+                    f"[dim]Session {scope!r} already active — skipping registration.[/dim]"
+                )
+                return
+        except PowerloomApiError:
+            pass  # network error — fall through and attempt registration
+
     caps = [c.strip() for c in (capabilities or "").split(",") if c.strip()]
     body = {
         "session_slug": scope,

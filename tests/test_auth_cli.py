@@ -452,3 +452,70 @@ def test_login_oidc_still_stubbed(isolated_home):
     assert result.exit_code == 1
     # Message should mention v056 as the target release.
     assert "v056" in result.stdout.lower() or "device-code" in result.stdout.lower()
+
+
+# ---------------------------------------------------------------------------
+# M1 — weave auth mcp-url + weave auth token (weave-claude-code-setup)
+# ---------------------------------------------------------------------------
+
+FAKE_ME_WITH_PROXY = {
+    "id": "user-abc",
+    "email": "dev@example.com",
+    "organization_id": "org-xyz",
+    "mcp_proxy_id": "cf2b72ba-af17-4e71-b10a-86a8cae45e49",
+}
+
+
+def test_auth_mcp_url_prints_full_url(isolated_home):
+    """`weave auth mcp-url` prints the complete MCP proxy URL."""
+    (isolated_home / "credentials").write_text("test-token", encoding="utf-8")
+    with patch("loomcli.auth.PowerloomClient") as mock_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.get.return_value = FAKE_ME_WITH_PROXY
+        mock_cls.return_value = mock_client
+
+        result = runner.invoke(app, ["auth", "mcp-url"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == (
+        "https://cf2b72ba-af17-4e71-b10a-86a8cae45e49.mcp.powerloom.org/mcp"
+    )
+
+
+def test_auth_mcp_url_not_signed_in(isolated_home):
+    """`weave auth mcp-url` exits non-zero when not authenticated."""
+    result = runner.invoke(app, ["auth", "mcp-url"])
+    assert result.exit_code != 0
+    assert "signed in" in result.output.lower() or "login" in result.output.lower()
+
+
+def test_auth_mcp_url_missing_proxy_id(isolated_home):
+    """`weave auth mcp-url` exits non-zero when /me has no mcp_proxy_id."""
+    (isolated_home / "credentials").write_text("test-token", encoding="utf-8")
+    me_without_proxy = {k: v for k, v in FAKE_ME_WITH_PROXY.items() if k != "mcp_proxy_id"}
+    with patch("loomcli.auth.PowerloomClient") as mock_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.get.return_value = me_without_proxy
+        mock_cls.return_value = mock_client
+
+        result = runner.invoke(app, ["auth", "mcp-url"])
+
+    assert result.exit_code != 0
+    assert "proxy" in result.output.lower() or "support" in result.output.lower()
+
+
+def test_auth_token_prints_pat(isolated_home):
+    """`weave auth token` prints the stored PAT to stdout."""
+    (isolated_home / "credentials").write_text("pat_abc123", encoding="utf-8")
+    result = runner.invoke(app, ["auth", "token"])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == "pat_abc123"
+
+
+def test_auth_token_not_signed_in(isolated_home):
+    """`weave auth token` exits non-zero when credentials are absent."""
+    result = runner.invoke(app, ["auth", "token"])
+    assert result.exit_code != 0
+    assert "signed in" in result.output.lower() or "login" in result.output.lower()

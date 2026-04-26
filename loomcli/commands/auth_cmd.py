@@ -165,6 +165,43 @@ def whoami() -> None:
     run_whoami()
 
 
+@app.command("mcp-url")
+def mcp_url() -> None:
+    """Print the hosted MCP server URL for this account.
+
+    Output is a plain URL suitable for use in .mcp.json or scripts:
+      https://<mcp_proxy_id>.mcp.powerloom.org/mcp
+    """
+    cfg = load_runtime_config()
+    if not cfg.access_token:
+        _console.print("[yellow]Not signed in — run `weave auth login` first.[/yellow]")
+        raise typer.Exit(1)
+    try:
+        me = auth_api.whoami(cfg)
+    except PowerloomApiError as e:
+        _console.print(f"[red]Failed to fetch account info:[/red] {e}")
+        raise typer.Exit(1) from None
+    proxy_id = me.get("mcp_proxy_id")
+    if not proxy_id:
+        _console.print("[red]No MCP proxy ID on this account. Contact support.[/red]")
+        raise typer.Exit(1)
+    typer.echo(f"https://{proxy_id}.mcp.powerloom.org/mcp")
+
+
+@app.command("token")
+def token_cmd() -> None:
+    """Print the stored Personal Access Token.
+
+    Intended for scripts and setup automation. Output is the raw token,
+    suitable for piping into other commands or writing to config files.
+    """
+    cfg = load_runtime_config()
+    if not cfg.access_token:
+        _console.print("[yellow]Not signed in — run `weave auth login` first.[/yellow]")
+        raise typer.Exit(1)
+    typer.echo(cfg.access_token)
+
+
 # ---------------------------------------------------------------------------
 # `weave auth pat ...` subgroup — PAT management (0.5.1)
 # ---------------------------------------------------------------------------
