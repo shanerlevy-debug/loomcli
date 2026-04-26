@@ -10,6 +10,8 @@ Gemini CLI extension for operating the Powerloom `weave` CLI.
   - `/weave:chat`
   - `/weave:status`
   - `/weave:plan`
+  - `/weave:agent-status`
+  - `/weave:session-tail`
 
 ## Development Install
 

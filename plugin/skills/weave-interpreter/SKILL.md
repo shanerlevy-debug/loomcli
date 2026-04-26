@@ -31,6 +31,8 @@ Weave uses a two-level command tree: top-level commands + subgroups. As of 0.6.1
 | `weave import` | Adopt an existing resource into a manifest | varies |
 | `weave ask` | Ask a Powerloom agent one prompt and stream the answer | `<agent> "prompt"` |
 | `weave chat` | Start an interactive terminal chat with a Powerloom agent | `<agent> ["first prompt"]` |
+| `weave agent status` | Show runtime/model, sync state, and recent work for one agent | `<agent>` |
+| `weave session tail` | Poll durable session events after invoke-time WS tickets expire | `<session-id>` |
 
 ### Agent ask/chat provider model
 
@@ -43,6 +45,20 @@ weave ask <agent-uuid> "prompt"
 weave ask /org/ou/agent-name "prompt"
 weave ask agent-name "prompt" --ou /org/ou
 ```
+
+### Agent/session observability
+
+These commands read runtime state only and do not mutate manifests:
+
+```bash
+weave agent status /org/ou/agent-name
+weave agent sessions /org/ou/agent-name
+weave agent watch /org/ou/agent-name --interval 3
+weave session events <session-id>
+weave session tail <session-id>
+```
+
+Use them to answer what an agent is currently doing, whether it has active sessions, and what durable events have been recorded.
 
 ### Top-level auth aliases (shortcuts for `weave auth <cmd>`)
 | Command | Purpose |
@@ -351,6 +367,8 @@ weave whoami
 # Agent sessions
 weave ask /ou/path/agent "prompt"                    # one turn, streamed
 weave chat /ou/path/agent                            # interactive terminal chat
+weave agent status /ou/path/agent                    # live work snapshot
+weave session tail <session-id>                      # durable event tail
 
 # Apply manifests
 weave apply <path> [<path>...]                       # positional; multiple OK

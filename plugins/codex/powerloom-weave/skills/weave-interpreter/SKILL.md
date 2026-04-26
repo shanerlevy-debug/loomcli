@@ -25,6 +25,8 @@ weave login
 weave whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
+weave agent status /dev-org/alfred
+weave session tail <session-id>
 weave plan manifest.yaml
 weave apply manifest.yaml
 weave apply -y ./manifests/
@@ -48,6 +50,20 @@ weave ask alfred "prompt" --ou /dev-org
 ```
 
 UUIDs also work.
+
+## Agent/Session Observability
+
+Use these when the user asks what an agent is doing:
+
+```bash
+weave agent status /org/ou/agent-name
+weave agent sessions /org/ou/agent-name
+weave agent watch /org/ou/agent-name --interval 3
+weave session events <session-id>
+weave session tail <session-id>
+```
+
+These commands are read-only runtime inspection. They do not modify manifest-backed Agent state.
 
 ## Auth
 
