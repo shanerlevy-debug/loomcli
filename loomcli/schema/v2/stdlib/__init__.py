@@ -7,5 +7,6 @@ from . import memory_policy  # noqa: F401
 from . import organization  # noqa: F401
 from . import ou  # noqa: F401
 from . import skill  # noqa: F401
+from . import type_definition  # noqa: F401
 from . import workflow  # noqa: F401
 from . import workflow_type  # noqa: F401

@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schema/v2/stdlib/type-definition.schema.json
+apiVersion: powerloom.app/v2
+kind: TypeDefinition
+metadata:
+  name: contract-clause
+  ou_path: /acme/legal
+spec:
+  display_name: ContractClause
+  description: |
+    A clause in a legal contract. Memory accumulates grammar (how it
+    composes with other types — Entity-with-Policy, Entity-with-Scope)
+    + lexicon (specific clause instances + outcome signals from
+    review runs).
+  type_kind: domain
+  applies_to_scope_ref: legal.contracts
+  memory:
+    grammar:
+      enabled: true
+      decay_half_life_days: 365
+    lexicon:
+      enabled: true
+      retention_days: 90
+      max_rows: 50000
+    reinforcement:
+      promote_after_count: 8
+      min_outcome_signal: 0.75
