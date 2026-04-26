@@ -26,7 +26,11 @@ weave whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
 weave agent status /dev-org/alfred
+weave agent config /dev-org/alfred
+weave agent set-model /dev-org/alfred --model gpt-5.5
 weave session tail <session-id>
+weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
+weave commands --json
 weave plan manifest.yaml
 weave apply manifest.yaml
 weave apply -y ./manifests/
@@ -65,6 +69,10 @@ weave session tail <session-id>
 
 These commands are read-only runtime inspection. They do not modify manifest-backed Agent state.
 
+## Provider/Model Configuration
+
+Use `weave agent config <agent>` to inspect runtime/model and `weave agent set-model <agent> --model <model>` to update the model through Powerloom. Do not pass provider/model flags to `weave ask` or `weave chat`; those commands use the target Agent's configured runtime/model. Runtime/provider changes are manifest-owned until the API exposes a safe runtime patch endpoint.
+
 ## Auth
 
 If any command reports "Not signed in", run:
@@ -91,6 +99,12 @@ weave --justification "reason for the change" apply manifest.yaml
 ```
 
 or set `POWERLOOM_APPROVAL_JUSTIFICATION`.
+
+If an operation creates a pending approval, poll it with:
+
+```bash
+weave approval wait <approval-id>
+```
 
 ## Debugging
 

@@ -211,6 +211,66 @@ def test_agent_status_shows_runtime_and_latest_session(
     assert "running" in result.stdout
 
 
+@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_agent_config_shows_provider_and_model(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    cfg = _cfg()
+    mock_load_cfg.return_value = cfg
+    client = MagicMock()
+    agent_id = "00000000-0000-0000-0000-000000000001"
+    client.get.return_value = {
+        "id": agent_id,
+        "name": "alfred",
+        "runtime_type": "openai",
+        "model": "gpt-5.5",
+        "agent_kind": "user",
+    }
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["agent", "config", agent_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "runtime_type" in result.stdout
+    assert "openai" in result.stdout
+    assert "gpt-5.5" in result.stdout
+
+
+@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_agent_set_model_patches_agent_model(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    cfg = _cfg()
+    mock_load_cfg.return_value = cfg
+    client = MagicMock()
+    agent_id = "00000000-0000-0000-0000-000000000001"
+    client.get.return_value = {
+        "id": agent_id,
+        "name": "alfred",
+        "runtime_type": "openai",
+        "model": "gpt-5.4",
+    }
+    client.patch.return_value = {
+        "id": agent_id,
+        "name": "alfred",
+        "runtime_type": "openai",
+        "model": "gpt-5.5",
+    }
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(
+        app, ["agent", "set-model", agent_id, "--model", "gpt-5.5"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    client.patch.assert_called_once_with(f"/agents/{agent_id}", {"model": "gpt-5.5"})
+    assert "gpt-5.5" in result.stdout
+
+
 @patch("loomcli.commands.session_cmd.PowerloomClient")
 @patch("loomcli.commands.agent_cmd.load_runtime_config")
 def test_session_events_prints_durable_events(

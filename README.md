@@ -117,7 +117,12 @@ weave auth whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
 weave agent status /dev-org/alfred
+weave agent config /dev-org/alfred
+weave agent set-model /dev-org/alfred --model gpt-5.5
 weave session tail <session-id>
+weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
+weave commands --json
+weave approval wait <approval-id>
 weave workflow apply workflow.yaml
 weave workflow run my-workflow --inputs scope=example
 weave workflow status <run-id>
@@ -159,6 +164,28 @@ weave session tail <session-id>
 ```
 
 Use them to answer "what is this agent doing?", see the latest session status, and tail durable event traces after a WebSocket ticket has expired.
+
+### Agent config and CLI profiles
+
+Provider/model selection stays schema-safe:
+
+```bash
+weave agent config /dev-org/alfred
+weave agent set-model /dev-org/alfred --model gpt-5.5
+weave profile set --default-runtime openai --default-model gpt-5.5
+weave profile show
+```
+
+`weave agent set-model` updates the Agent row through the control plane. Runtime/provider changes still belong in manifests (`weave apply`) until Powerloom exposes a safe runtime patch endpoint. Profiles store local defaults in `config.toml`; they do not change remote resources by themselves.
+
+### Command discovery and approvals
+
+```bash
+weave commands --json
+weave approval wait <approval-id>
+```
+
+`weave commands` exports command metadata for autocomplete, mobile clients, and plugin docs. `weave approval wait` polls a pending approval until it is approved, rejected, cancelled, expired, or times out.
 
 ## Schema as source of truth
 

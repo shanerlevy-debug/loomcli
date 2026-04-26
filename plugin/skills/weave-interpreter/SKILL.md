@@ -32,11 +32,17 @@ Weave uses a two-level command tree: top-level commands + subgroups. As of 0.6.1
 | `weave ask` | Ask a Powerloom agent one prompt and stream the answer | `<agent> "prompt"` |
 | `weave chat` | Start an interactive terminal chat with a Powerloom agent | `<agent> ["first prompt"]` |
 | `weave agent status` | Show runtime/model, sync state, and recent work for one agent | `<agent>` |
+| `weave agent config` | Show provider/runtime and model config for one agent | `<agent>` |
+| `weave agent set-model` | Update an Agent row's model through the control plane | `<agent> --model <model>` |
 | `weave session tail` | Poll durable session events after invoke-time WS tickets expire | `<session-id>` |
+| `weave profile` | Manage local CLI defaults for agent/runtime/model/output/API URL | `show`, `set`, `clear` |
+| `weave commands` | Export command metadata for autocomplete/plugins/mobile | `[--json]` |
 
 ### Agent ask/chat provider model
 
 `weave ask` and `weave chat` are provider-agnostic. They call Powerloom's `POST /agents/{id}/invoke` endpoint and stream the resulting session. The CLI does not read OpenAI, Anthropic, Gemini, Bedrock, or other model keys locally. Runtime/provider selection comes from the Agent row (`runtime_type` + `model`) and the backend uses the user/org runtime credential configured in Powerloom.
+
+Use `weave agent config <agent>` to inspect the current runtime/model. Use `weave agent set-model <agent> --model <model>` to update only the model field. Runtime/provider changes remain manifest-owned until the API exposes a safe runtime patch endpoint. Local defaults for new work can be stored with `weave profile set --default-runtime ... --default-model ...`.
 
 Agent identifiers can be:
 
@@ -264,7 +270,7 @@ The header `X-Approval-Justification` is sent on every request for the invocatio
 1. **Justification-required** (409 with `justification_required`) — provide text and proceed. No human approval.
 2. **Approval-required** (202 with pending approval ID) — request queued for human approval. Resource not created until approved.
 
-Case 2 requires polling via the approvals API; weave doesn't currently auto-poll. Ask for guidance if you encounter a 202 on apply.
+Case 2 requires polling via the approvals API. Use `weave approval wait <approval-id>` to poll one pending request until it is approved, rejected, cancelled, expired, or times out.
 
 ## Schema versions
 
@@ -308,7 +314,7 @@ Org has an approval policy. Pass `--justification "reason"` or set `POWERLOOM_AP
 A resource with that name already exists. If intentional, use `weave apply` (which updates) instead of direct POST.
 
 ### 202 Accepted with pending approval
-Operation needs human approval before taking effect. Currently no auto-polling in weave; check the approvals UI or API.
+Operation needs human approval before taking effect. Use `weave approval wait <approval-id>` after capturing the pending approval ID, or check the approvals UI.
 
 ### schema validation failed (client-side, before the request)
 Your manifest doesn't match the bundled schema. Check: apiVersion matches a supported version, all required fields present, no unexpected properties (many kinds use `additionalProperties: false`).

@@ -96,6 +96,96 @@ def sessions_command(
     _print_sessions(rows, title=f"{agent} sessions")
 
 
+def config_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """Show provider/runtime and model configuration for one agent."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        row = client.get(f"/agents/{target.id}")
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(row, default=str))
+        return
+
+    table = Table(title="Agent config", show_header=True)
+    table.add_column("Field")
+    table.add_column("Value")
+    for key in (
+        "id",
+        "name",
+        "display_name",
+        "runtime_type",
+        "model",
+        "agent_kind",
+        "ou_id",
+    ):
+        table.add_row(key, str(row.get(key) or ""))
+    _console.print(table)
+    _console.print(
+        "[dim]Provider/runtime changes are manifest/API-owned. "
+        "Use `weave apply` for runtime_type until the API exposes a safe "
+        "runtime patch endpoint.[/dim]"
+    )
+
+
+def set_model_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    model: Annotated[
+        str,
+        typer.Option("--model", help="New model value for the Agent row."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """Update an agent's model using the Agent PATCH API."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        row = client.patch(f"/agents/{target.id}", {"model": model})
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(row, default=str))
+        return
+    _console.print(
+        f"[green]Updated model[/green] {row.get('name') or target.id} "
+        f"-> [bold]{row.get('model', model)}[/bold]"
+    )
+
+
 def watch_command(
     agent: Annotated[
         str,
@@ -256,4 +346,6 @@ def _sync_label(sync: dict[str, Any]) -> str:
 
 app.command("status", help="Show an agent status snapshot.")(status_command)
 app.command("sessions", help="List recent sessions for an agent.")(sessions_command)
+app.command("config", help="Show provider/runtime and model config.")(config_command)
+app.command("set-model", help="Update an agent model.")(set_model_command)
 app.command("watch", help="Poll an agent status snapshot.")(watch_command)

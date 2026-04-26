@@ -21,7 +21,11 @@ weave whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
 weave agent status /dev-org/alfred
+weave agent config /dev-org/alfred
+weave agent set-model /dev-org/alfred --model gpt-5.5
 weave session tail <session-id>
+weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
+weave commands --json
 weave plan manifest.yaml
 weave apply manifest.yaml
 weave get agents --ou /dev-org
@@ -32,6 +36,7 @@ If a mutation is approval-gated, use:
 
 ```bash
 weave --justification "reason for this change" apply manifest.yaml
+weave approval wait <approval-id>
 ```
 
 Never print, store, or commit raw PATs.
@@ -39,6 +44,8 @@ Never print, store, or commit raw PATs.
 ## Agent/Session Observability
 
 Use `weave agent status`, `weave agent sessions`, and `weave session tail` when the user asks what an agent is doing. These are read-only runtime inspection commands and do not change manifests, provider, or model.
+
+Use `weave agent config` and `weave agent set-model` for model inspection/update. Runtime/provider changes remain manifest-owned until Powerloom exposes a safe runtime patch endpoint; do not add provider/model flags to `weave ask` or `weave chat`.
 
 ## Tracker thread workflow (CLAUDE.md / GEMINI.md / AGENTS.md §4.10)
 
