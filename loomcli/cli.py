@@ -40,6 +40,7 @@ from loomcli.commands import thread_cmd
 from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
 from loomcli.commands import setup_cmd
+from loomcli.commands import sprint_cmd
 from loomcli.commands import thread_cmd
 
 
@@ -134,6 +135,7 @@ app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v
 app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1→v2).")
 app.add_typer(plugin_cmd.app, name="plugin", help="Inspect and install Powerloom client plugins.")
 app.add_typer(thread_cmd.app, name="thread", help="Manage tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md §4.10.")
+app.add_typer(sprint_cmd.app, name="sprint", help="Manage tracker sprints (W1.5.2 — create / list / show / update / activate / complete / archive / add-thread / remove-thread / threads).")
 app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles and defaults.")
 app.add_typer(setup_cmd.app, name="setup-claude-code", help="Wire the Powerloom MCP plugin into a Claude Code project (idempotent).")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
