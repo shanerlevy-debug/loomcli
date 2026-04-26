@@ -12,7 +12,26 @@ Codex plugin package for operating the Powerloom `weave` CLI.
 
 ## Development Install
 
-Add this plugin directory to a local Codex plugin marketplace, or load it using the Codex plugin development flow available in your environment.
+Codex installs plugin marketplaces, not raw plugin package directories. Point Codex at the marketplace root:
+
+```bash
+codex plugin marketplace add /path/to/loomcli/plugins/codex
+```
+
+On this checkout:
+
+```powershell
+codex plugin marketplace add D:\powerloom\loomcli\plugins\codex
+```
+
+The plugin package lives at `plugins/codex/powerloom-weave`; the marketplace manifest lives at `plugins/codex/.agents/plugins/marketplace.json`.
+
+Codex CLI currently exposes marketplace management from the terminal. If the plugin does not appear as enabled after adding the marketplace, enable `powerloom-weave@powerloom` in Codex's plugin UI or add this to `~/.codex/config.toml`:
+
+```toml
+[plugins."powerloom-weave@powerloom"]
+enabled = true
+```
 
 The plugin expects `weave` to be installed:
 
@@ -24,3 +43,4 @@ weave --version
 ## Onboarding a fresh Codex session
 
 If you're a fresh Codex session reading this for the first time, ask "how do I get started with Powerloom?" — the `powerloom-onboarding` skill auto-loads and walks you through installing loomcli, `weave login`, loading this plugin, and filing your first tracker thread.
+If Codex reports that the marketplace root does not contain a supported manifest, use the `plugins/codex` directory above instead of `plugins/codex/powerloom-weave`.

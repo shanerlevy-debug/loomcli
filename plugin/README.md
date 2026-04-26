@@ -6,6 +6,7 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 
 - **Agentic hosted commands**: `/powerloom-home:weave-ask` and `/powerloom-home:weave-chat` wrap `weave ask` / `weave chat` for provider-agnostic hosted agent sessions.
 - **Agent observability commands**: `/powerloom-home:weave-agent-status` and `/powerloom-home:weave-session-tail` wrap `weave agent status` / `weave session tail`.
+- **Coordination handoff command**: `/powerloom-home:weave-pluck-thread` captures the current thread as a Powerloom agent-session handoff.
 
 - **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-thread`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
 - **Powerloom-onboarding skill** — first-10-minutes walk for fresh agent sessions: install, sign in, load the plugin, file your first tracker thread. Auto-loads when a session asks "how do I get started with Powerloom?".
@@ -105,6 +106,14 @@ These commands call `weave ask` / `weave chat`. The CLI does not call provider A
 ```
 
 These commands read runtime state only. They do not patch manifests or change the agent's provider/model.
+
+### Pluck a coordination thread
+
+```
+/powerloom-home:weave-pluck-thread
+```
+
+Captures the active conversation as a Powerloom handoff summary and, when signed in, can register it with `weave agent-session register`.
 
 ### Configure CLI defaults and model
 

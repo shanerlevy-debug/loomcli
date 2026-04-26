@@ -1,0 +1,20 @@
+{
+  "name": "powerloom",
+  "interface": {
+    "displayName": "Powerloom"
+  },
+  "plugins": [
+    {
+      "name": "powerloom-weave",
+      "source": {
+        "source": "local",
+        "path": "./powerloom-weave"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}
