@@ -9,6 +9,7 @@ clicking each one individually in the Web UI or curl-ing per-id.
 from __future__ import annotations
 
 import json
+import time
 from typing import Any, Optional
 
 import typer
@@ -126,6 +127,63 @@ def get_approval(
             raise typer.Exit(1) from None
 
     _console.print(json.dumps(r, indent=2, default=str))
+
+
+@app.command("wait")
+def wait_approval(
+    request_id: str = typer.Argument(..., help="Approval request UUID."),
+    interval: float = typer.Option(
+        3.0, "--interval", help="Polling interval in seconds."
+    ),
+    timeout: float = typer.Option(
+        300.0, "--timeout", help="Maximum seconds to wait."
+    ),
+    json_out: bool = typer.Option(False, "--json", help="Print final row as JSON."),
+) -> None:
+    """Poll one approval request until it leaves pending."""
+    cfg = load_runtime_config()
+    if not cfg.access_token:
+        _console.print("[yellow]Not signed in.[/yellow]")
+        raise typer.Exit(1)
+
+    deadline = time.monotonic() + timeout
+    with PowerloomClient(cfg) as client:
+        while True:
+            try:
+                row = client.get(f"/approvals/{request_id}")
+            except PowerloomApiError as e:
+                _console.print(f"[red]Wait failed:[/red] {e}")
+                raise typer.Exit(1) from None
+
+            status = str(row.get("status", ""))
+            if status != "pending":
+                if json_out:
+                    _console.print(json.dumps(row, indent=2, default=str))
+                else:
+                    _console.print(
+                        f"[green]Approval {request_id} is {status}.[/green]"
+                        if status == "approved"
+                        else f"[yellow]Approval {request_id} is {status}.[/yellow]"
+                    )
+                if status == "approved":
+                    return
+                raise typer.Exit(2)
+
+            if time.monotonic() >= deadline:
+                if json_out:
+                    _console.print(json.dumps(row, indent=2, default=str))
+                else:
+                    _console.print(
+                        f"[yellow]Timed out waiting for {request_id}; "
+                        "still pending.[/yellow]"
+                    )
+                raise typer.Exit(124)
+
+            if not json_out:
+                _console.print(
+                    f"[dim]{request_id} pending; polling again in {interval:g}s[/dim]"
+                )
+            time.sleep(interval)
 
 
 @app.command("approve")

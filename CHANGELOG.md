@@ -11,6 +11,7 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 - **`weave ask` / `weave chat`**: provider-agnostic terminal agent sessions. Both commands invoke Powerloom's existing `/agents/{id}/invoke` endpoint and stream the session; the CLI does not read model-provider keys locally. Runtime/model selection stays on the Agent row and the control plane uses the user/org runtime credential.
 - **Agent/session observability**: `weave agent status`, `weave agent sessions`, `weave agent watch`, `weave session events`, and `weave session tail` inspect live agent work and durable session event traces without mutating manifest-backed Agent state.
+- **CLI defaults and command discovery**: `weave profile show/set/clear`, `weave commands`, `weave agent config`, `weave agent set-model`, and `weave approval wait` add schema-safe provider/model defaults, command-registry metadata, and approval polling without moving provider selection into `ask/chat`.
 - **Client plugin packages**: keeps the existing Claude Code plugin and adds OpenAI Codex + Gemini CLI plugin/extension packages under `plugins/`.
 
 ## v0.6.3-rc1 — 2026-04-26 (CLI)

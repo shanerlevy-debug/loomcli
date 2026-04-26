@@ -100,6 +100,18 @@ These commands call `weave ask` / `weave chat`. The CLI does not call provider A
 
 These commands read runtime state only. They do not patch manifests or change the agent's provider/model.
 
+### Configure CLI defaults and model
+
+```bash
+weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
+weave agent config /dev-org/alfred
+weave agent set-model /dev-org/alfred --model gpt-5.5
+weave commands --json
+weave approval wait <approval-id>
+```
+
+Profiles are local defaults. `agent set-model` updates the remote Agent model; runtime/provider changes remain manifest-owned.
+
 ### Diagnose an error
 
 ```
