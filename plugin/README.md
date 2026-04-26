@@ -8,6 +8,8 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 - **Agent observability commands**: `/powerloom-home:weave-agent-status` and `/powerloom-home:weave-session-tail` wrap `weave agent status` / `weave session tail`.
 
 - **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-thread`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
+- **Powerloom-onboarding skill** — first-10-minutes walk for fresh agent sessions: install, sign in, load the plugin, file your first tracker thread. Auto-loads when a session asks "how do I get started with Powerloom?".
+- **Weave-tracker skill** — full §4.10 tracker thread workflow (create, pluck, reply, done; multi-session coordination; sub-principal attribution).
 - **Weave-interpreter skill** — comprehensive reference for the `weave` CLI auto-loaded when you ask Claude about weave operations.
 - **Local MCP server (`powerloom-home`)** — 10 tools exposing Powerloom OU/Skill/Agent CRUD, backed by SQLite at `$CLAUDE_PLUGIN_DATA/powerloom-home.sqlite`.
 - **Hooks** — Claude greets you with home-backend status at session start; automatically runs `weave plan` when you edit a Powerloom YAML manifest.
@@ -59,6 +61,10 @@ Welcome — Powerloom home backend is live.
 DB: C:\Users\you\AppData\Roaming\claude\...\powerloom-home.sqlite
 Version: 0.1.0-dev
 ```
+
+### Brand-new to Powerloom?
+
+Ask Claude "how do I get started with Powerloom?" — the `powerloom-onboarding` skill auto-loads and walks you through the first 10 minutes (install loomcli, `weave login`, file your first tracker thread).
 
 ### Create your first fleet
 
@@ -170,10 +176,13 @@ plugin/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin manifest — registers MCP server + metadata
 ├── skills/
+│   ├── powerloom-onboarding/
+│   │   └── SKILL.md          # Fresh-agent onboarding walk
 │   ├── weave-interpreter/
+│   │   └── SKILL.md          # Full weave CLI reference
 │   └── weave-tracker/
-│       └── SKILL.md          # The comprehensive weave CLI reference
-├── commands/                 # 11 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail)
+│       └── SKILL.md          # §4.10 tracker thread workflow
+├── commands/                 # 12 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail/thread)
 ├── hooks/
 │   └── hooks.json            # SessionStart greeting + PostToolUse manifest-detect
 ├── mcp-server/

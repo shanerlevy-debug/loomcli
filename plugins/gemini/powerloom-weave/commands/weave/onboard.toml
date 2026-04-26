@@ -1,0 +1,81 @@
+description = "Onboard a fresh agent session to Powerloom from zero — install loomcli, sign in, load the Gemini extension, file your first tracker thread."
+prompt = """
+The user is a fresh agent session that needs to come up to speed on Powerloom from zero. Walk them through these steps in order, stopping at the first one that fails so they can fix it before continuing.
+
+The canonical, full version of this guide lives in the loomcli repo at `plugin/skills/powerloom-onboarding/SKILL.md` (Claude Code path) and `plugins/codex/powerloom-weave/skills/powerloom-onboarding/SKILL.md` (Codex path). Read the Claude Code copy if the user has the loomcli repo checked out and you need detail beyond what's inlined here.
+
+## Step 1 — Install loomcli
+
+```bash
+pip install loomcli
+weave --version
+```
+
+If `weave: command not found`, the pip user-bin isn't on PATH — either add it or use a venv (`python3 -m venv ~/.venvs/powerloom && source ~/.venvs/powerloom/bin/activate && pip install loomcli`). Python 3.11+ required.
+
+## Step 2 — Sign in
+
+Default flow (browser PAT-paste):
+
+```bash
+weave login
+weave whoami
+```
+
+This opens `https://powerloom.org/settings/access-tokens`, the user mints a PAT, pastes it. The CLI verifies and writes credentials.
+
+For headless: `weave login --no-browser` then paste the PAT. For non-interactive scripts: `weave login --pat <token>` (never echo the token in chat).
+
+For a self-hosted control plane: set `POWERLOOM_API_BASE_URL=https://powerloom.internal.example.com` BEFORE `weave login`, or pass `--api-url` as a global flag.
+
+## Step 3 — Load the Gemini extension
+
+```bash
+gemini extensions link /path/to/loomcli/plugins/gemini/powerloom-weave
+```
+
+Restart Gemini CLI or reload commands after linking. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension auto-merges into the project context.
+
+## Step 4 — Read CLAUDE.md / GEMINI.md / AGENTS.md §4.10
+
+The project's working agreement requires every meaningful unit of agent work to be filed as a tracker thread via `weave`. CLAUDE.md is canonical; GEMINI.md and AGENTS.md mirror it (per §4.9). Read at least §4.10 before doing any code or doc work.
+
+The short version: TodoWrite lists die when context compacts, threads don't. Threads are the durable record + shared queue + audit trail.
+
+## Step 5 — File your first thread
+
+```bash
+weave thread create --project powerloom \
+  --title "<imperative phrase>" --priority high \
+  --description "<context, definition of done>"
+weave thread pluck <returned-id>
+
+# As decisions/blockers come up
+weave thread reply <id> "decision: chose option A because..."
+
+# At PR merge
+weave thread done <id>
+```
+
+Push back on vague titles — "Fix Alfred WS connection" not "Look into X". Description shape: Reported / Repro / Definition of done / Out of scope. Reference threads to model after: `8d2c7502, c41a8294, 3671bfaf, 9210c2c2, e011a581, 2be84503, a0a715dc, 9d29ac25` — read any with `weave thread show <id>`.
+
+If the user's loomcli predates the `weave thread` subcommands (loomcli 0.6.3+, tracked as thread `2be84503`), fall back to direct `curl -X POST https://api.powerloom.org/projects/<project_id>/threads` or the Python helper at `scratch/create_dogfood_threads.py` in the Powerloom repo.
+
+## Step 6 — Know what else is here
+
+Other Gemini slash commands available: `/weave:ask`, `/weave:chat`, `/weave:status`, `/weave:plan`, `/weave:agent-status`, `/weave:session-tail`, `/weave:thread:create`, `/weave:thread:pluck`, `/weave:thread:reply`, `/weave:thread:done`, `/weave:thread:list`.
+
+For the full CLI reference (manifests, apply semantics, skill archive lifecycle, approval gates, error codes), read the `weave-interpreter` skill — equivalent content lives in the Claude Code / Codex plugin skill files.
+
+## Common error modes
+
+- `weave: command not found` → PATH issue or venv needed
+- `Connection refused` → check `POWERLOOM_API_BASE_URL`; for prod use `https://api.powerloom.org`
+- `HTTP 401` on whoami → `weave logout && weave login`
+- `HTTP 403` → token lacks RBAC for the op
+- `HTTP 409 justification_required` → org has approval policy, pass `--justification "reason"`
+- `HTTP 409 Thread already plucked` → another session has it; `weave thread show <id>` to see who
+- Slash commands missing after install → restart Gemini CLI; verify the link target has `gemini-extension.json`
+
+If the user is stuck on something not covered here, point them at the canonical SKILL.md path above.
+"""
