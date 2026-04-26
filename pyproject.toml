@@ -53,6 +53,7 @@ dependencies = [
     "jsonschema>=4.23,<5.0",
     "referencing>=0.35,<1.0",
     "websockets>=12,<16",
+    "packaging>=24.0",
 ]
 
 [project.optional-dependencies]
