@@ -43,8 +43,33 @@ def _mcp_url(proxy_id: str) -> str:
     return f"https://{proxy_id}.{MCP_ZONE}/mcp"
 
 
-def _write_mcp_json(project_dir: Path, url: str, quiet: bool) -> None:
-    """Write/update .mcp.json with the powerloom server entry."""
+def _write_mcp_json(
+    project_dir: Path,
+    url: str,
+    quiet: bool,
+    *,
+    pat: str,
+    use_env_substitution: bool = False,
+) -> None:
+    """Write/update .mcp.json with the powerloom server entry under the
+    canonical `mcpServers` wrapper.
+
+    Schema (Claude Code .mcp.json format):
+
+        {"mcpServers": {"<name>": {"type": "http", "url": "...", ...}}}
+
+    NOT the broken pre-hotfix shape (server entries at top level):
+
+        {"<name>": {...}}
+
+    Pre-hotfix versions of `weave setup-claude-code` wrote the broken shape;
+    Claude Code rejects it with `mcpServers: Does not adhere to MCP server
+    configuration schema`. This function now auto-migrates broken files on
+    next write — detects top-level keys whose value is a dict containing
+    server-config keys (type / url / command / args), MOVES them under
+    `mcpServers`, and removes the duplicates from the top level so the file
+    isn't left in a confusingly-doubled state.
+    """
     mcp_file = project_dir / ".mcp.json"
     data: dict = {}
     if mcp_file.exists():
@@ -53,10 +78,39 @@ def _write_mcp_json(project_dir: Path, url: str, quiet: bool) -> None:
         except json.JSONDecodeError:
             data = {}
 
-    data[MCP_SERVER_NAME] = {
+    # Auto-migrate pre-hotfix broken shape: move + remove top-level server
+    # entries under the canonical `mcpServers` wrapper.
+    server_keys_at_top = [
+        k for k, v in list(data.items())
+        if k != "mcpServers"
+        and isinstance(v, dict)
+        and any(field in v for field in ("type", "url", "command", "args"))
+    ]
+    if server_keys_at_top:
+        data.setdefault("mcpServers", {})
+        for k in server_keys_at_top:
+            data["mcpServers"][k] = data.pop(k)
+
+    data.setdefault("mcpServers", {})
+    # Authorization: write the literal Bearer token rather than the
+    # `${POWERLOOM_MCP_TOKEN}` substitution. Claude Code's HTTP-transport
+    # MCP config doesn't reliably env-var-substitute inside the `headers`
+    # dict (verified 2026-04-27 — server reported `failed` until the literal
+    # token was inlined). The literal value is per-user + per-machine and
+    # `.mcp.json` is gitignored in personal workspaces, so this isn't a
+    # secret-leak risk for the typical case. For shared/committed workspaces
+    # (e.g. the powerloom repo itself), pass `--use-env-substitution` to opt
+    # back into the `${VAR}` form (the user then sets POWERLOOM_MCP_TOKEN in
+    # their shell).
+    auth_value = (
+        f"Bearer ${{{TOKEN_ENV_VAR}}}"
+        if use_env_substitution
+        else f"Bearer {pat}"
+    )
+    data["mcpServers"][MCP_SERVER_NAME] = {
         "type": "http",
         "url": url,
-        "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV_VAR}}}"},
+        "headers": {"Authorization": auth_value},
     }
     mcp_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     if not quiet:
@@ -104,6 +158,20 @@ def setup_claude_code(
         bool,
         typer.Option("--quiet", "-q", help="Suppress all output (for use in hooks)."),
     ] = False,
+    use_env_substitution: Annotated[
+        bool,
+        typer.Option(
+            "--use-env-substitution",
+            help=(
+                "Write `Bearer ${POWERLOOM_MCP_TOKEN}` instead of the literal "
+                "token in .mcp.json. Useful for shared/committed workspaces "
+                "(e.g. the powerloom repo itself) where the token must come "
+                "from each user's shell env. Default: write the literal token "
+                "(more reliable — Claude Code's HTTP-transport MCP config "
+                "doesn't always env-var-substitute inside header values)."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Wire the Powerloom MCP server into a Claude Code project.
 
@@ -142,7 +210,11 @@ def setup_claude_code(
             f"[bold]Setting up Powerloom Claude Code plugin[/bold] in [dim]{target}[/dim]"
         )
 
-    _write_mcp_json(target, url, quiet)
+    _write_mcp_json(
+        target, url, quiet,
+        pat=cfg.access_token,
+        use_env_substitution=use_env_substitution,
+    )
     _write_settings_local(target, cfg.access_token, quiet)
 
     if not quiet:
