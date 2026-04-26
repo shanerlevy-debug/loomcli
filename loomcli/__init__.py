@@ -9,4 +9,4 @@ Public entry point is `loomcli.cli:app` (Typer). Installed as the
 `weave` console script via pyproject.toml.
 """
 
-__version__ = "0.6.2-rc1"
+__version__ = "0.6.3-rc1"
