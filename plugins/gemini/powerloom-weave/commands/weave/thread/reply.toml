@@ -1,0 +1,24 @@
+description = "Post a reply to a Powerloom tracker thread (decisions, blockers, scope changes)."
+prompt = """
+The user wants to add a reply to a tracker thread. Replies are durable breadcrumbs in the thread's audit trail.
+
+Run or guide them to run:
+
+```bash
+weave thread reply <thread_id> "message body"
+weave thread reply <thread_id> --from-stdin < notes.md   # for long content
+```
+
+Use replies for:
+- Significant decisions you made
+- Blockers you hit
+- Scope changes
+- Dependencies you discovered
+- Links to related PRs / threads / docs
+
+**Don't use replies for** progress narration ("now doing X, now doing Y"). Replies are for moments future-you would want to see — not a play-by-play.
+
+The reply timeline is what someone will read when they ask "why did this take three days?" or "what was the actual decision here?" — write replies that answer that future question.
+
+If `weave` reports the user is not signed in, run `weave whoami` to confirm and tell them to run `weave login`.
+"""

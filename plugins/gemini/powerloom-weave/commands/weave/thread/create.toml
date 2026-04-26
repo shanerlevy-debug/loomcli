@@ -1,0 +1,28 @@
+description = "Create a Powerloom tracker thread for the current session's work."
+prompt = """
+The user wants to create a Powerloom tracker thread to register the work this session is doing. Per CLAUDE.md / GEMINI.md / AGENTS.md §4.10, every meaningful unit of agent work gets a tracker thread.
+
+Run or guide them to run:
+
+```bash
+weave thread create \\
+  --project powerloom \\
+  --title "<short imperative phrase>" \\
+  --priority <critical|high|medium|low> \\
+  --description "<context, repro, definition-of-done>"
+```
+
+If the user gave a vague title, push back: titles should be imperative phrases like "Fix Alfred WS connection" or "Add right-click menu to threads", not vague things like "Look into X".
+
+The description should follow this shape:
+1. **Reported:** YYYY-MM-DD by <session/person> + one paragraph of context
+2. **Repro / current state** — bug = numbered repro steps; feature = what exists today + what's missing
+3. **Definition of done** — bulleted concrete outcomes another agent can verify
+4. **Out of scope for this thread** — bullets capturing what was considered but not pursued
+
+Save the returned thread `id` for follow-up commands (`weave thread pluck <id>`, `weave thread reply <id>`, `weave thread done <id>`).
+
+If `weave` reports the user is not signed in, run `weave whoami` to confirm and tell them to run `weave login`.
+
+Reference: the canonical example threads are filed under the `powerloom` project as ids 8d2c7502, c41a8294, 3671bfaf, 9210c2c2, e011a581, 2be84503, a0a715dc — read any of them with `weave thread show <id>` to see the canonical structure.
+"""

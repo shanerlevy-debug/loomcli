@@ -4,7 +4,7 @@ Codex plugin package for operating the Powerloom `weave` CLI.
 
 ## What It Provides
 
-- `weave-interpreter` skill for agentic `weave ask` / `weave chat`.
+- `weave-interpreter` skill for general weave operations + `weave-tracker` skill for tracker thread workflow (CLAUDE.md/AGENTS.md §4.10).
 - Manifest authoring and troubleshooting guidance.
 - Provider-agnostic invocation rules: Codex should use Powerloom's control plane, not direct provider API calls.
 

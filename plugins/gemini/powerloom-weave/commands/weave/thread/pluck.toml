@@ -1,0 +1,22 @@
+description = "Pluck (claim) a Powerloom tracker thread to mark it in_progress."
+prompt = """
+The user wants to claim a Powerloom tracker thread. Plucking sets the thread's status to `in_progress` and stamps `plucked_by` to the current authenticated principal.
+
+Run or guide them to run:
+
+```bash
+weave thread pluck {{args}}
+```
+
+(`{{args}}` is the thread_id — a UUID.)
+
+**Pluck is one-shot.** If the thread is already plucked, the call returns 409 "Thread already plucked." Use `weave thread show <id>` to see who has it, and coordinate before reassigning. The right pattern when another session has it:
+
+1. Don't pick up the work — two sessions on the same thread is a coordination bug.
+2. If you suspect the other session is stuck or stale, post a reply: `weave thread reply <id> "Other session: are you still on this? If not I'll take over."`
+3. Wait a reasonable interval before reassigning via `weave thread update <id> --assigned-to <principal_id>`.
+
+After successful pluck, the thread shows up in `weave thread list --mine`. Confirm with `weave thread show {{args}}`.
+
+If `weave` reports the user is not signed in, run `weave whoami` to confirm and tell them to run `weave login`.
+"""
