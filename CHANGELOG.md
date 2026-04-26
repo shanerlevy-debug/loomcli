@@ -12,6 +12,16 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **`weave ask` / `weave chat`**: provider-agnostic terminal agent sessions. Both commands invoke Powerloom's existing `/agents/{id}/invoke` endpoint and stream the session; the CLI does not read model-provider keys locally. Runtime/model selection stays on the Agent row and the control plane uses the user/org runtime credential.
 - **Client plugin packages**: keeps the existing Claude Code plugin and adds OpenAI Codex + Gemini CLI plugin/extension packages under `plugins/`.
 
+## v0.6.2-rc1 — 2026-04-26 (CLI)
+
+**v059 self-import MVP — `weave import-project`.** New CLI command that imports a Powerloom-shaped checkout (Project.md + docs/phases/*.md + KNOWN_ISSUES.md + docs/out-of-scope.md + docs/handoffs/*.md + ReadMe.md) into the engine's tracker subsystem. The CLI walks the local files and POSTs their contents; the engine does the parsing + apply via the new `POST /projects/import/from-source` endpoint (Powerloom PR #129). No engine-package dependency on the client side.
+
+### New
+
+- **`weave import-project <path>`** — uploads a checkout's source files to the engine and reports created/updated counters. Flags: `--dry-run` (rollback semantics), `--slug` / `--name` (defaults `powerloom` / `Powerloom`), `--slug-override` (apply against a sandbox project without disturbing the canonical one). Idempotent — re-runs against the same source produce 0 new threads via the engine's dedupe-key matching.
+- **`loomcli/commands/import_project_cmd.py`** — collects the canonical source path set, enforces the 5 MB upload cap locally before round-trip, passes `git rev-parse --short HEAD` as `commit_sha` for source-drift provenance.
+- **`tests/test_import_project_cli.py`** — 13 tests: command discovery, auth gate, empty-repo rejection, source-file collection, body shape (slug/name/dry-run/override), result rendering (success summary, dry-run banner, per-op errors), API-error propagation. Engine-side parsing is covered by Powerloom's own integration tests.
+
 ## v0.6.1-rc1 — 2026-04-25 (CLI, side-branch draft)
 
 **v057 stdlib expansion: `FailureRecoveryFrame`.** First Frame-Semantics derivation lands as a v2.0.1 stdlib kind. Operators can now author scope-attached recovery templates that bind the canonical four frame elements (`Action_Attempted` / `Error_Type` / `Corrective_Action` / `Final_Outcome`) to specific failure patterns agents should follow. v058+ will let consolidation distill these from episodic runs (`provenance: distilled_from_episodic`); v057 ships only the operator-authored path.

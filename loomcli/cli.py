@@ -23,6 +23,7 @@ from loomcli.commands import describe as describe_cmd
 from loomcli.commands import destroy as destroy_cmd
 from loomcli.commands import get as get_cmd
 from loomcli.commands import import_ as import_cmd
+from loomcli.commands import import_project_cmd
 from loomcli.commands import plan as plan_cmd
 from loomcli.commands import workflow_cmd
 from loomcli.commands import antigravity_worker_cmd
@@ -127,6 +128,10 @@ app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.d
 app.command("get", help="List or show a resource kind.")(get_cmd.get_command)
 app.command("describe", help="Show a single resource with full detail.")(describe_cmd.describe_command)
 app.command("import", help="Adopt an existing resource into a manifest.")(import_cmd.import_command)
+app.command(
+    "import-project",
+    help="Import a Powerloom-shaped repo into the tracker (v059 self-import MVP).",
+)(import_project_cmd.import_project_command)
 
 
 # Top-level aliases — `weave login`, `weave logout`, `weave whoami` —
