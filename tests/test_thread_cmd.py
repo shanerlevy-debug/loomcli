@@ -394,3 +394,138 @@ def test_thread_my_work_watch_once_prints_summary(
     assert "my-work total=2" in result.stdout
     assert "blocked=1" in result.stdout
     assert "open=1" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# W1.3 / Friendly-names Layer 4 — auto-stamp session_attribution
+# ---------------------------------------------------------------------------
+
+
+def _attribution_test_subprincipal() -> dict:
+    return {
+        "id": "sp-uuid-aaaa",
+        "principal_id": "principal-uuid-bbbb",
+        "user_id": "user-uuid-cccc",
+        "name": "Test Claude Code Session",
+        "client_kind": "claude-code",
+    }
+
+
+def test_create_no_env_no_attribution(monkeypatch, mock_client) -> None:
+    """When POWERLOOM_ACTIVE_SUBPRINCIPAL_ID is unset, no extra calls + no
+    attribution stamping happens. Pure backward compat for direct human
+    callers who haven't opted in."""
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    mock_client.get.side_effect = [[{"id": "p1", "slug": "powerloom"}]]
+    mock_client.post.return_value = _seed_thread()
+    result = runner.invoke(app, ["thread", "create", "--title", "x"])
+    assert result.exit_code == 0, result.stdout
+    # No /me/agents/<id> lookup because env var is unset
+    assert not any(
+        "/me/agents/" in c.args[0] for c in mock_client.get.call_args_list if c.args
+    )
+    # No PATCH (no stamp-then-refresh dance)
+    assert not mock_client.patch.called
+
+
+def test_create_with_env_stamps_attribution(monkeypatch, mock_client) -> None:
+    """When POWERLOOM_ACTIVE_SUBPRINCIPAL_ID is set, the CLI fetches the
+    sub-principal + PATCHes the new thread with session_attribution metadata."""
+    monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "sp-uuid-aaaa")
+    sp = _attribution_test_subprincipal()
+    created = _seed_thread()
+    # client.get is called for: 1. /projects (slug→UUID), 2. /me/agents/<id>.
+    # The PATCH return value is what the caller uses (no re-fetch needed).
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],
+        sp,
+    ]
+    mock_client.post.return_value = created
+    mock_client.patch.return_value = {
+        **created,
+        "metadata_json": {"session_attribution": {"subprincipal_name": sp["name"]}},
+    }
+
+    result = runner.invoke(app, ["thread", "create", "--title", "x"])
+    assert result.exit_code == 0, result.stdout
+
+    # /me/agents/<id> lookup happened
+    me_agents_calls = [c for c in mock_client.get.call_args_list if c.args and "/me/agents/" in c.args[0]]
+    assert len(me_agents_calls) == 1
+    assert "sp-uuid-aaaa" in me_agents_calls[0].args[0]
+
+    # PATCH on /threads/<id> with session_attribution metadata
+    assert mock_client.patch.called
+    patch_args, _ = mock_client.patch.call_args
+    assert patch_args[0].startswith("/threads/")
+    metadata = patch_args[1]["metadata_json"]
+    assert "session_attribution" in metadata
+    sa = metadata["session_attribution"]
+    assert sa["subprincipal_id"] == "sp-uuid-aaaa"
+    assert sa["subprincipal_name"] == "Test Claude Code Session"
+    assert sa["client_kind"] == "claude-code"
+    assert sa["parent_user_id"] == "user-uuid-cccc"
+    assert "stamped_at" in sa
+
+
+def test_create_no_attribution_flag_skips_stamping(monkeypatch, mock_client) -> None:
+    """--no-attribution opts out even when env var is set."""
+    monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "sp-uuid-aaaa")
+    mock_client.get.side_effect = [[{"id": "p1", "slug": "powerloom"}]]
+    mock_client.post.return_value = _seed_thread()
+    result = runner.invoke(app, ["thread", "create", "--title", "x", "--no-attribution"])
+    assert result.exit_code == 0, result.stdout
+    # No /me/agents fetch + no PATCH because --no-attribution short-circuits
+    assert not any("/me/agents/" in c.args[0] for c in mock_client.get.call_args_list if c.args)
+    assert not mock_client.patch.called
+
+
+def test_create_subprincipal_lookup_failure_warns_but_succeeds(monkeypatch, mock_client) -> None:
+    """If /me/agents/<id> fails (404, 403, network), the thread is still
+    created without attribution + a warning prints. Best-effort, never blocks
+    the create."""
+    monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "sp-stale")
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],
+        PowerloomApiError(404, "HTTP 404 GET /me/agents/sp-stale: not found"),
+    ]
+    mock_client.post.return_value = _seed_thread()
+    result = runner.invoke(app, ["thread", "create", "--title", "x"])
+    assert result.exit_code == 0, result.stdout
+    # Warning printed
+    assert "could not fetch sub-principal" in result.stdout.lower() or "warning" in result.stdout.lower()
+    # PATCH NOT called (no attribution stamped)
+    assert not mock_client.patch.called
+
+
+def test_reply_with_env_stamps_attribution_inline(monkeypatch, mock_client) -> None:
+    """`weave thread reply` stamps session_attribution into the reply's own
+    metadata_json at create time (no separate PATCH needed because
+    ReplyCreate accepts metadata_json directly)."""
+    monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "sp-uuid-aaaa")
+    sp = _attribution_test_subprincipal()
+    mock_client.get.side_effect = [sp]  # /me/agents/<id> lookup
+    mock_client.post.return_value = {"id": "r1", "thread_id": "t1", "content": "hi"}
+
+    result = runner.invoke(app, ["thread", "reply", "t1", "decision: option A"])
+    assert result.exit_code == 0, result.stdout
+    # POST body carries metadata_json.session_attribution
+    args, _ = mock_client.post.call_args
+    body = args[1]
+    assert body["content"] == "decision: option A"
+    assert "metadata_json" in body
+    sa = body["metadata_json"]["session_attribution"]
+    assert sa["subprincipal_id"] == "sp-uuid-aaaa"
+    assert sa["subprincipal_name"] == "Test Claude Code Session"
+
+
+def test_reply_no_env_skips_stamping(monkeypatch, mock_client) -> None:
+    """No env -> no metadata_json on the reply body. Direct human-call path
+    unchanged."""
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    mock_client.post.return_value = {"id": "r1", "thread_id": "t1", "content": "hi"}
+    result = runner.invoke(app, ["thread", "reply", "t1", "hi"])
+    assert result.exit_code == 0
+    args, _ = mock_client.post.call_args
+    body = args[1]
+    assert "metadata_json" not in body
