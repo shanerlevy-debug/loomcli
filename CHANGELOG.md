@@ -5,6 +5,33 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.1-rc4 — 2026-04-26 (CLI, side-branch draft)
+
+**v061 first slice: TypeDefinition stdlib derivation (10th v2 stdlib kind).** Operators declare named types the engine accumulates memory around — grammar (how it composes with others) + lexicon (specific instances + outcome signals). The manifest itself ships here; engine companion adds the `type_memory_grammar` + `type_memory_lexicon` storage tables (migrations 0055/0056) and the `/memory/episodic/*` + `/memory/semantic/.../grammar` read routes.
+
+> Stacks on `0.6.1-rc3`. Both ship together as v057-closeout + v061-foundation.
+
+### New
+
+- **`schema/v2/stdlib/type-definition.schema.json`** — derivation `compose(Entity[type_identity], Policy[memory_governance])`. Required spec fields: `display_name`, `type_kind` (domain/process/event/relation), `applies_to_scope_ref`. Optional: `extends_type_ref`, `type_namespace`, `description`, `memory` block. The `memory` block declares grammar decay, lexicon retention, reinforcement thresholds, concept-stabilization (v063+ field, defaults to disabled). Schema version stays `2.0.1-draft.1` — additive on the v2 surface.
+- **`examples/minimal/type-definition.yaml`** — minimal manifest (legal ContractClause).
+- **`tests/schema/test_type_definition.py`** — 22 tests covering the optional + bounded fields, derivation metadata sanity, and `additionalProperties` lockdown across root/metadata/spec/memory_block.
+- **`schema/v2/powerloom.v2.bundle.json`** — `oneOf` extended; description bumped 9 → 10 stdlib derivations.
+- **`tests/schema/test_v2_schemas.py`** — discovery floor lifted 17 → 18.
+
+### Engine companion
+
+The matching engine PR adds:
+  - migrations `0055_type_memory_grammar.py` + `0056_type_memory_lexicon.py` (storage tables, fast-decay vs. slow-decay surfaces),
+  - `routes/memory_episodic_semantic.py` (`GET /memory/episodic/search`, `GET /memory/episodic/run/{run_id}`, `GET /memory/semantic/types/{ns}/{name}/grammar`),
+  - `POST /memory/episodic/promote` returns 501 with `X-Powerloom-Available-In: v062` header (consolidation pipeline that fills the cells lands at v062),
+  - `_STDLIB_NAMES += TypeDefinition` so `compose: extends: TypeDefinition` resolves.
+
+### Compat
+
+- Pre-v061 manifests continue to validate. New stdlib kind is purely additive.
+- A v0.6.1-rc4 CLI talking to a pre-v061 engine that doesn't have migrations 0055/0056 will see `weave compose lint` accept the manifest, but applying it would 404/500 since the engine doesn't have the storage tables. Forward-only behavior — operators relying on TypeDefinition need both ends.
+
 ## v0.6.1-rc3 — 2026-04-25 (CLI, side-branch draft)
 
 **v057 Sprint 1 item 2: scope-driven compose gating (Option D) — authoring surface.** Compose manifests gain `metadata.target_ou_path` so operators can declare which OU a kind is published into. The engine then evaluates `compose:create|update|archive` approval policies against that scope rather than the org root, letting a leaf-OU admin self-approve publishes within their subtree without escalating. JSON-Schema-only change here; the engine companion does the path → UUID resolution and the gate scope swap.
