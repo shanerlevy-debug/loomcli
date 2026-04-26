@@ -50,6 +50,13 @@ class PowerloomClient:
         # (env var) provide the value.
         if cfg.approval_justification:
             headers["X-Approval-Justification"] = cfg.approval_justification
+        # v0.6.1 — version negotiation. Send the loomcli SCHEMA_VERSION
+        # so the engine can 426 us if the major's unsupported and we
+        # surface a clear "upgrade your CLI" message instead of a generic
+        # 4xx. Engine: powerloom_api/core/schema_version_check.py.
+        from loomcli.schema import SCHEMA_VERSION  # local import to avoid cycle
+
+        headers["X-Powerloom-Schema-Version"] = SCHEMA_VERSION
         self._http = httpx.Client(
             base_url=cfg.api_base_url,
             headers=headers,
@@ -177,6 +184,12 @@ class PowerloomClient:
             except Exception:
                 parsed = {"raw": res.text}
             detail = _extract_detail(parsed) or res.text[:200]
+            # v0.6.1 — 426 Upgrade Required. Engine emits this when the
+            # CLI's SCHEMA_VERSION major is not supported. Format a
+            # clearer message that surfaces the supported list so the
+            # user knows what to install instead of seeing a raw 426.
+            if res.status_code == 426:
+                detail = _format_version_mismatch(parsed) or detail
             raise PowerloomApiError(
                 res.status_code,
                 f"HTTP {res.status_code} {method} {path}: {detail}",
@@ -188,6 +201,29 @@ class PowerloomClient:
             return res.json()
         except Exception:
             return res.text
+
+
+def _format_version_mismatch(body: Any) -> str | None:
+    """Render a 426 schema-version-unsupported body into a CLI-friendly
+    line. Returns None if `body` doesn't have the engine's expected
+    `error.detail.{supported_versions, client_sent}` shape."""
+    if not isinstance(body, dict):
+        return None
+    err = body.get("error")
+    if not isinstance(err, dict):
+        return None
+    detail = err.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    supported = detail.get("supported_versions")
+    sent = detail.get("client_sent")
+    if not isinstance(supported, list) or not isinstance(sent, str):
+        return None
+    return (
+        f"engine rejected schema version {sent!r}; supported: {supported}. "
+        f"upgrade weave/loomcli to a version whose SCHEMA_VERSION major is "
+        f"in that list."
+    )
 
 
 def _extract_detail(body: Any) -> str | None:
