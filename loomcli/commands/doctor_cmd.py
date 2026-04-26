@@ -6,6 +6,7 @@ import shutil
 from typing import Annotated, Any
 
 import typer
+from packaging import version
 from rich.console import Console
 from rich.table import Table
 
@@ -40,13 +41,41 @@ def doctor_command(
     try:
         with PowerloomClient(cfg) as client:
             capabilities = client.get("/capabilities")
+        
+        server_ver = capabilities.get("server_version", "?")
         checks.append(
             _check(
                 "server.capabilities",
                 "ok",
-                f"{capabilities.get('server_version', '?')} {capabilities.get('api_contract_version', '')}",
+                f"{server_ver} {capabilities.get('api_contract_version', '')}",
             )
         )
+
+        # v061.x — CLI version health check
+        min_ver = capabilities.get("min_loomcli_version")
+        rec_ver = capabilities.get("recommended_loomcli_version")
+        local_ver = version.parse(__version__)
+
+        if min_ver:
+            if local_ver < version.parse(min_ver):
+                checks.append(
+                    _check(
+                        "loomcli.health",
+                        "fail",
+                        f"OUTDATED. Minimum required is {min_ver}. Run `pip install -U loomcli`.",
+                    )
+                )
+            elif rec_ver and local_ver < version.parse(rec_ver):
+                checks.append(
+                    _check(
+                        "loomcli.health",
+                        "warn",
+                        f"UPDATE RECOMMENDED. Server suggests {rec_ver}. Run `pip install -U loomcli`.",
+                    )
+                )
+            else:
+                checks.append(_check("loomcli.health", "ok", "Up to date"))
+
         actor_kinds = set(capabilities.get("actor_kinds") or [])
         for actor_kind in ("claude_code", "codex_cli", "gemini_cli", "antigravity"):
             checks.append(

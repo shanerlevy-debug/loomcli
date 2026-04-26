@@ -90,6 +90,10 @@ def doctor_cmd(
         typer.Argument(help="Optional client to check."),
     ] = None,
     json_out: Annotated[bool, typer.Option("--json")] = False,
+    fix: Annotated[
+        bool,
+        typer.Option("--fix", help="Attempt to fix identified issues automatically."),
+    ] = False,
 ) -> None:
     """Check local plugin files and client binaries."""
     specs = _client_specs()
@@ -102,13 +106,34 @@ def doctor_cmd(
         binary = spec.get("binary")
         binary_path = shutil.which(binary) if binary else None
         plugin_path = Path(spec["path"])
+        
+        status_plugin = "ok" if plugin_path.exists() else "fail"
+        status_binary = "ok" if (not binary or binary_path) else "warn"
+
+        if fix:
+            if status_plugin == "fail" or status_binary == "warn":
+                _console.print(f"[bold]Attempting to fix {key}...[/bold]")
+                install_cmd(key, execute=True)
+                # Re-check
+                binary_path = shutil.which(binary) if binary else None
+                status_plugin = "ok" if plugin_path.exists() else "fail"
+                status_binary = "ok" if (not binary or binary_path) else "warn"
+            
+            # Special case for Gemini: ensure enablement if requested
+            if key == "gemini" and status_plugin == "ok" and status_binary == "ok":
+                _console.print("Enabling gemini extension...")
+                try:
+                    subprocess.run(["gemini", "extensions", "enable", "powerloom-weave"], check=True)
+                except (FileNotFoundError, subprocess.CalledProcessError) as e:
+                    _console.print(f"[yellow]Enable failed (non-critical):[/yellow] {e}")
+
         rows.append(
             {
                 "client": key,
                 "plugin_path": str(plugin_path),
-                "plugin_path_status": "ok" if plugin_path.exists() else "fail",
+                "plugin_path_status": status_plugin,
                 "binary": binary or "(manual config)",
-                "binary_status": "ok" if (not binary or binary_path) else "warn",
+                "binary_status": status_binary,
                 "binary_path": binary_path or "",
             }
         )

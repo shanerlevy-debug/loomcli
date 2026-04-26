@@ -8,6 +8,19 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 ## Unreleased
 
 
+## v0.6.4-rc2 — 2026-04-27 (CLI)
+
+**Agent onboarding friction reduction + security hardening.** This release focuses on making the first-time setup experience smoother for agents and humans alike, paired with server-side capability discovery.
+
+### New Features & Fixes
+
+- **`weave doctor` version health** — Now retrieves `min_loomcli_version` and `recommended_loomcli_version` from the server's `/capabilities` endpoint. Warns the user with a clear `pip install -U loomcli` hint if their CLI version is outdated or below recommendation.
+- **`weave plugin doctor --fix`** — Automated repair for common setup issues. Detects missing binary or plugin files and executes the necessary install/enable commands (e.g., automatically enabling the Gemini extension).
+- **CI Pipeline** — Added GitHub Actions workflow for automated `ruff` linting and `pytest` execution on every push and PR.
+- **Dependency Update** — Added `packaging` to core dependencies for robust PEP 440 version comparison.
+- **Onboarding Guide** — Added links to the new "Connect Your Agent" guide in README and command outputs.
+
+
 ## v0.6.4-rc1 — 2026-04-27 (CLI)
 
 **Substantial new command surface + dogfood loop hardening.** Ships the `weave thread` family that CLAUDE.md / GEMINI.md / AGENTS.md §4.10 has been referencing, plus auto-attribution, plus several Codex/Gemini plugin install fixes, plus the post-prod-deploy MCP setup hotfix.
