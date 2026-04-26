@@ -18,6 +18,8 @@ Gemini CLI extension for operating the Powerloom `weave` CLI.
   - `/weave:thread:reply`
   - `/weave:thread:done`
   - `/weave:thread:list`
+  - `/weave:my-work`
+  - `/weave:pluck-thread`
 
 ## Development Install
 

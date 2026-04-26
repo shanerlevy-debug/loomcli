@@ -5,7 +5,7 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 ## What you get
 
 - **Agentic hosted commands**: `/powerloom-home:weave-ask` and `/powerloom-home:weave-chat` wrap `weave ask` / `weave chat` for provider-agnostic hosted agent sessions.
-- **Agent observability commands**: `/powerloom-home:weave-agent-status` and `/powerloom-home:weave-session-tail` wrap `weave agent status` / `weave session tail`.
+- **Agent + coordination observability commands**: `/powerloom-home:weave-agent-status`, `/powerloom-home:weave-session-tail`, and `/powerloom-home:weave-my-work` wrap `weave agent status`, `weave session tail`, and `weave thread my-work`.
 - **Coordination handoff command**: `/powerloom-home:weave-pluck-thread` captures the current thread as a Powerloom agent-session handoff.
 
 - **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-thread`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
@@ -103,9 +103,10 @@ These commands call `weave ask` / `weave chat`. The CLI does not call provider A
 ```
 /powerloom-home:weave-agent-status /dev-org/alfred
 /powerloom-home:weave-session-tail <session-id>
+/powerloom-home:weave-my-work --watch --interval 5
 ```
 
-These commands read runtime state only. They do not patch manifests or change the agent's provider/model.
+These commands read runtime and coordination state only. They do not patch manifests or change the agent's provider/model.
 
 ### Pluck a coordination thread
 
@@ -192,6 +193,9 @@ plugin/
 │   └── weave-tracker/
 │       └── SKILL.md          # §4.10 tracker thread workflow
 ├── commands/                 # 12 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail/thread)
+│   └── weave-interpreter/
+│       └── SKILL.md          # The comprehensive weave CLI reference
+├── commands/                 # 12 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail/my-work)
 ├── hooks/
 │   └── hooks.json            # SessionStart greeting + PostToolUse manifest-detect
 ├── mcp-server/

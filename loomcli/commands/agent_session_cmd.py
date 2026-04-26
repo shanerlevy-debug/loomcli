@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 from datetime import date
+import time
 from typing import Annotated, Optional
 
 import typer
@@ -28,6 +29,8 @@ _BRANCH_RE = re.compile(r"^session/(?P<scope>.+)-(?P<date>\d{8})$")
 
 
 _console = Console()
+
+_TERMINAL_STATUSES = {"merged", "abandoned", "yielded"}
 
 app = typer.Typer(
     help="Agent-session coordination (Phase 14 Foundation).",
@@ -82,7 +85,13 @@ def register_cmd(
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
     version: Annotated[Optional[str], typer.Option("--version", help="Target version, e.g. v030")] = None,
-    actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | cma | human")] = "claude_code",
+    actor_kind: Annotated[
+        str,
+        typer.Option(
+            "--actor-kind",
+            help="claude_code | codex_cli | gemini_cli | antigravity | cma | human",
+        ),
+    ] = "claude_code",
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email)")] = None,
     from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (must match session/<scope>-<yyyymmdd>).")] = False,
     if_not_active: Annotated[bool, typer.Option("--if-not-active", help="No-op (exit 0) if a session with the same scope is already active. Safe for SessionStart hooks.")] = False,
@@ -285,6 +294,188 @@ def get_cmd(
         v = resp.get(k)
         if v is not None and v != "":
             _console.print(f"  {k}: {v}")
+
+
+@app.command("status")
+def status_cmd(
+    session_id: Annotated[str, typer.Argument(help="Agent-session ID (UUID)")],
+    events_limit: Annotated[
+        int,
+        typer.Option("--events-limit", min=0, max=100, help="Recent work-chain events to include when the API supports them."),
+    ] = 5,
+    json_out: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show one coordination session plus assigned tasks and recent events."""
+    client = _client()
+    try:
+        snapshot = _agent_session_snapshot(client, session_id, events_limit=events_limit)
+    except PowerloomApiError as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    if json_out:
+        typer.echo(json.dumps(snapshot, indent=2, default=str))
+        return
+    _print_agent_session_snapshot(snapshot)
+
+
+@app.command("watch")
+def watch_cmd(
+    session_id: Annotated[str, typer.Argument(help="Agent-session ID (UUID)")],
+    interval: Annotated[
+        float,
+        typer.Option("--interval", min=1.0, help="Polling interval in seconds."),
+    ] = 3.0,
+    events_limit: Annotated[
+        int,
+        typer.Option("--events-limit", min=0, max=100, help="Recent work-chain events to include when the API supports them."),
+    ] = 5,
+    once: Annotated[
+        bool,
+        typer.Option("--once", help="Print one snapshot and exit."),
+    ] = False,
+) -> None:
+    """Poll a coordination session until interrupted or terminal."""
+    client = _client()
+    try:
+        while True:
+            snapshot = _agent_session_snapshot(
+                client, session_id, events_limit=events_limit
+            )
+            _console.print(_watch_line(snapshot))
+            if once or str(snapshot["session"].get("status", "")).lower() in _TERMINAL_STATUSES:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        typer.echo()
+    except PowerloomApiError as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+def _agent_session_snapshot(
+    client: PowerloomClient,
+    session_id: str,
+    *,
+    events_limit: int,
+) -> dict:
+    session = client.get(f"/agent-sessions/{session_id}")
+    tasks = []
+    try:
+        task_resp = client.get(f"/agent-sessions/{session_id}/tasks")
+    except PowerloomApiError as e:
+        if e.status_code != 404:
+            raise
+        task_resp = {}
+    if isinstance(task_resp, dict):
+        tasks = [t for t in task_resp.get("tasks", []) if isinstance(t, dict)]
+
+    events = []
+    events_available = False
+    if events_limit > 0:
+        try:
+            event_resp = client.get(
+                f"/agent-sessions/{session_id}/events", limit=events_limit
+            )
+            events_available = True
+        except PowerloomApiError as e:
+            if e.status_code != 404:
+                raise
+            event_resp = []
+        if isinstance(event_resp, list):
+            events = [e for e in event_resp if isinstance(e, dict)]
+        elif isinstance(event_resp, dict):
+            events = [
+                e for e in event_resp.get("events", []) if isinstance(e, dict)
+            ]
+
+    return {
+        "session": session,
+        "tasks": tasks,
+        "events": events,
+        "events_available": events_available,
+    }
+
+
+def _print_agent_session_snapshot(snapshot: dict) -> None:
+    session = snapshot["session"]
+    table = Table(title="Agent session status", show_header=True)
+    table.add_column("Field")
+    table.add_column("Value")
+    for key in (
+        "id",
+        "session_slug",
+        "status",
+        "actor_kind",
+        "actor_id",
+        "branch_name",
+        "scope_summary",
+        "version_claimed",
+        "started_at",
+        "merged_at",
+        "abandoned_reason",
+    ):
+        value = session.get(key)
+        if value is not None and value != "":
+            table.add_row(key, str(value))
+    table.add_row("assigned_tasks", str(len(snapshot["tasks"])))
+    _console.print(table)
+
+    if snapshot["tasks"]:
+        task_table = Table(title="Assigned tasks", show_header=True)
+        for col in ("id", "workflow_name", "node_id", "node_kind", "status"):
+            task_table.add_column(col)
+        for task in snapshot["tasks"]:
+            task_table.add_row(
+                str(task.get("id", "")),
+                str(task.get("workflow_name") or ""),
+                str(task.get("node_id", "")),
+                str(task.get("node_kind", "")),
+                str(task.get("status", "")),
+            )
+        _console.print(task_table)
+
+    if snapshot["events"]:
+        event_table = Table(title="Recent events", show_header=True)
+        for col in ("seq", "event_type", "created_at", "summary"):
+            event_table.add_column(col)
+        for event in snapshot["events"]:
+            event_table.add_row(
+                str(event.get("seq", "")),
+                str(event.get("event_type", "")),
+                str(event.get("created_at", "")),
+                _event_summary(event),
+            )
+        _console.print(event_table)
+    elif not snapshot.get("events_available"):
+        _console.print(
+            "[dim]Recent agent-session events are not exposed by this API yet.[/dim]"
+        )
+
+
+def _watch_line(snapshot: dict) -> str:
+    session = snapshot["session"]
+    slug = session.get("session_slug") or session.get("id")
+    task_bits = []
+    for task in snapshot["tasks"][:3]:
+        label = task.get("node_id") or task.get("id")
+        task_bits.append(f"{label}:{task.get('status', 'unknown')}")
+    tasks = ", ".join(task_bits) if task_bits else "none"
+    return (
+        f"{slug} | status={session.get('status', 'unknown')} | "
+        f"actor={session.get('actor_kind', '')} | tasks={tasks}"
+    )
+
+
+def _event_summary(row: dict) -> str:
+    payload = row.get("payload")
+    if isinstance(payload, dict):
+        for key in ("message", "summary", "reason", "status"):
+            value = payload.get(key)
+            if value:
+                return str(value)[:120]
+        return json.dumps(payload, default=str)[:120]
+    return ""
 
 
 # ---------------------------------------------------------------------------

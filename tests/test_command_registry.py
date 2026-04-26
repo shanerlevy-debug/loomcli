@@ -13,6 +13,9 @@ def test_command_registry_includes_new_cli_surfaces():
     commands = {row["command"] for row in list_commands()}
     assert "weave agent config" in commands
     assert "weave agent set-model" in commands
+    assert "weave agent-session status" in commands
+    assert "weave agent-session watch" in commands
+    assert "weave thread my-work" in commands
     assert "weave profile set" in commands
     assert "weave approval wait" in commands
 
@@ -22,4 +25,5 @@ def test_commands_command_exports_json():
 
     assert result.exit_code == 0, result.stdout
     assert "weave agent config" in result.stdout
+    assert "weave agent-session status" in result.stdout
     assert "weave profile set" not in result.stdout

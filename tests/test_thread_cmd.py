@@ -315,3 +315,82 @@ def test_show_no_replies_flag(mock_client) -> None:
     assert result.exit_code == 0
     # Only one GET call (the thread itself), not two
     assert mock_client.get.call_count == 1
+
+
+# === PR #25: my-work watch tests ===
+
+def _cfg() -> MagicMock:
+    cfg = MagicMock()
+    cfg.access_token = "fake-token"
+    cfg.api_base_url = "https://api.powerloom.org"
+    cfg.request_timeout_seconds = 30
+    return cfg
+
+
+def test_thread_help_lists_my_work():
+    result = runner.invoke(app, ["thread", "--help"])
+    assert result.exit_code == 0
+    assert "my-work" in result.stdout
+
+
+@patch("loomcli.commands.thread_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_thread_my_work_renders_table(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    mock_load_cfg.return_value = _cfg()
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.get.return_value = [
+        {
+            "id": "thread-1",
+            "sequence_number": 31,
+            "status": "open",
+            "priority": "high",
+            "title": "Fix loom MCP stdio packaging",
+            "updated_at": "2026-04-26T12:00:00Z",
+        }
+    ]
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["thread", "my-work", "--status", "open"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Fix loom MCP stdio packaging" in result.stdout
+    client.get.assert_called_once_with("/threads/my-work", limit=50, status="open")
+
+
+@patch("loomcli.commands.thread_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_thread_my_work_watch_once_prints_summary(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    mock_load_cfg.return_value = _cfg()
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.get.return_value = [
+        {
+            "sequence_number": 31,
+            "status": "open",
+            "priority": "high",
+            "title": "Fix loom MCP stdio packaging",
+            "updated_at": "2026-04-26T12:00:00Z",
+        },
+        {
+            "sequence_number": 44,
+            "status": "blocked",
+            "priority": "medium",
+            "title": "Default behavior on new sub-principal",
+            "updated_at": "2026-04-26T12:01:00Z",
+        },
+    ]
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["thread", "my-work", "--watch", "--once"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "my-work total=2" in result.stdout
+    assert "blocked=1" in result.stdout
+    assert "open=1" in result.stdout

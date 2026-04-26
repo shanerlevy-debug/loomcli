@@ -511,3 +511,98 @@ def show(
             ts = r.get("created_at", "")[:19]
             kind = r.get("reply_type", "comment")
             _console.print(f"  [cyan]{ts}[/cyan] [dim]({kind})[/dim] {r.get('content','')[:200]}")
+
+
+# ---------------------------------------------------------------------------
+# my-work (richer dedicated subcommand with --watch mode)
+# ---------------------------------------------------------------------------
+#
+# Distinct from `weave thread list --mine` — this one adds watch-mode polling
+# + a compact one-line summary view + JSON output. Useful for "I want a
+# heads-up display" workflows + CI integrations. Added in PR #25 on top of
+# T1's broader `list` subcommand.
+
+import json as _json_mw
+import time as _time_mw
+from collections import Counter as _Counter_mw
+
+
+def _fetch_my_work(client, *, status: Optional[str], limit: int) -> list[dict]:
+    params: dict = {"limit": limit}
+    if status:
+        params["status"] = status
+    rows = client.get("/threads/my-work", **params)
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _print_my_work_table(rows: list[dict]) -> None:
+    if not rows:
+        _console.print("[dim]No threads in my work.[/dim]")
+        return
+    table = Table(title=f"My work — {len(rows)} thread(s)", show_header=True)
+    for col in ("#", "status", "priority", "title", "updated"):
+        table.add_column(col)
+    for row in rows:
+        table.add_row(
+            str(row.get("sequence_number", "")),
+            str(row.get("status", "")),
+            str(row.get("priority", "")),
+            str(row.get("title", ""))[:100],
+            str(row.get("updated_at", ""))[:19],
+        )
+    _console.print(table)
+
+
+def _watch_line(rows: list[dict]) -> str:
+    counts = _Counter_mw(str(row.get("status", "unknown")) for row in rows)
+    counts_text = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
+    top = rows[0] if rows else {}
+    top_label = ""
+    if top:
+        top_label = (
+            f" | top=#{top.get('sequence_number', '')} "
+            f"{top.get('status', '')} {str(top.get('title', ''))[:80]}"
+        )
+    return f"my-work total={len(rows)} statuses={counts_text}{top_label}"
+
+
+@app.command("my-work")
+def my_work(
+    status: Annotated[Optional[str], typer.Option("--status", help="Filter by thread status.")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
+    output: Annotated[str, typer.Option("-o", "--output", help="table or json")] = "table",
+    watch: Annotated[bool, typer.Option("--watch", help="Poll until interrupted.")] = False,
+    interval: Annotated[float, typer.Option("--interval", min=1.0)] = 5.0,
+    once: Annotated[bool, typer.Option("--once", help="Poll once and exit (debug; useful with --watch).")] = False,
+) -> None:
+    """Show tracker threads assigned to, plucked by, or created by me.
+
+    Richer than `weave thread list --mine` — adds watch-mode polling with a
+    compact one-line status summary + JSON output for scripting / heads-up
+    displays.
+    """
+    with _client_or_exit() as client:
+        try:
+            while True:
+                rows = _fetch_my_work(client, status=status, limit=limit)
+                if output == "json":
+                    print(_json_mw.dumps(rows, indent=2, default=str))
+                elif watch:
+                    _console.print(_watch_line(rows))
+                else:
+                    _print_my_work_table(rows)
+                if not watch or once:
+                    break
+                _time_mw.sleep(interval)
+        except KeyboardInterrupt:
+            typer.echo()
+        except PowerloomApiError as e:
+            _console.print(f"[red]Error:[/red] {e}")
+            if e.status_code == 422:
+                _console.print(
+                    "[yellow]The server may still have /threads/my-work shadowed by "
+                    "/threads/{thread_id}. Deploy the route-order fix (Powerloom #143/#145), then retry.[/yellow]"
+                )
+            raise typer.Exit(1) from None
