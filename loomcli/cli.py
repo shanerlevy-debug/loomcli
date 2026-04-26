@@ -34,6 +34,7 @@ from loomcli.commands import approval_cmd
 from loomcli.commands import commands_cmd
 from loomcli.commands import compose_cmd
 from loomcli.commands import migrate_cmd
+from loomcli.commands import thread_cmd
 from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
 
@@ -126,6 +127,7 @@ app.add_typer(audit_cmd.app, name="audit", help="Query the Powerloom audit log."
 app.add_typer(approval_cmd.app, name="approval", help="Inspect + decide on approval requests (list/get/approve/reject/cancel/bulk-cancel).")
 app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v2.0.0 Compose kinds (scaffold/lint/show).")
 app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1→v2).")
+app.add_typer(thread_cmd.app, name="thread", help="Manage tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md §4.10.")
 app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles and defaults.")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
 app.command("ask", help="Ask a Powerloom agent and stream the answer.")(agent_cmd.ask_command)
