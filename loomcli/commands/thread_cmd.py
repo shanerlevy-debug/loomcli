@@ -861,3 +861,166 @@ def my_work(
                     "/threads/{thread_id}. Deploy the route-order fix (Powerloom #143/#145), then retry.[/yellow]"
                 )
             raise typer.Exit(1) from None
+
+
+# ---------------------------------------------------------------------------
+# W1.5.3 — tree view (`weave thread tree <ref>`, `weave project orphans`)
+# ---------------------------------------------------------------------------
+
+
+def _render_tree_node(node: dict, prefix: str = "", is_last: bool = True) -> None:
+    """ASCII-render a single tree node + recurse into children. Style:
+
+      └─ ki-004  Thread title here
+          ├─ child-1  Another thread
+          └─ child-2  ...
+    """
+    thread = node.get("thread") or {}
+    title = thread.get("title", "(no title)")
+    slug = thread.get("slug") or (thread.get("id") or "?")[:8]
+    status = thread.get("status", "?")
+    pri = thread.get("priority", "?")
+    truncated = node.get("truncated_at_depth", False)
+    depth = node.get("depth", 0)
+
+    branch = "└─ " if is_last else "├─ "
+    if depth == 0:
+        # Root has no prefix
+        line_prefix = ""
+        branch = ""
+    else:
+        line_prefix = prefix + branch
+
+    trunc_marker = " [yellow](more...)[/yellow]" if truncated else ""
+    _console.print(
+        f"{line_prefix}[bold cyan]{slug}[/bold cyan] [dim]({status}/{pri})[/dim] "
+        f"{title[:80]}{trunc_marker}"
+    )
+    children = node.get("children") or []
+    new_prefix = prefix + ("   " if is_last else "│  ") if depth > 0 else ""
+    for i, child in enumerate(children):
+        _render_tree_node(
+            child, prefix=new_prefix, is_last=(i == len(children) - 1),
+        )
+
+
+@app.command("tree")
+def tree(
+    thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug, or 'project:slug'.")],
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=50, help="Max levels to descend.")] = 10,
+    json_output: Annotated[bool, typer.Option("--json", help="Print the raw tree as JSON.")] = False,
+) -> None:
+    """Print the parent/child tree rooted at <thread_id>.
+
+    Children are merged from `parent_thread_id` (W1.2 column form) and
+    `parent_of` dependency edges (W1.5.2 graph form). Nodes whose
+    children weren't expanded show "(more...)"; re-run with a higher
+    `--max-depth` or rooted at that node to see the missing subtree.
+    """
+    with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
+        try:
+            tree_data = client.get(
+                f"/threads/{thread_uuid}/tree", max_depth=max_depth,
+            )
+        except PowerloomApiError as e:
+            _console.print(f"[red]Tree fetch failed:[/red] {e}")
+            raise typer.Exit(1) from None
+
+    if json_output:
+        _output_json(tree_data)
+        return
+    _render_tree_node(tree_data)
+
+
+# ---------------------------------------------------------------------------
+# Sprint subcommands — sit on `weave thread tree` for now (singular surface)
+# but a sprint-rooted tree is its own command for clarity.
+# ---------------------------------------------------------------------------
+
+
+@app.command("sprint-tree")
+def sprint_tree_cmd(
+    sprint_id: Annotated[str, typer.Argument(help="Sprint UUID. (Slug-form CLI for sprints lands in a follow-up.)")],
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=50)] = 10,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Render every top-level thread in the sprint as a tree.
+
+    A "top-level" thread in a sprint is one whose parent isn't also in
+    the sprint — so a flat sprint of 5 unrelated threads renders as 5
+    single-node trees.
+    """
+    # Validate UUID shape (sprint slug-resolution lands later)
+    try:
+        uuid.UUID(sprint_id)
+    except ValueError:
+        _console.print(
+            "[red]Sprint argument must be a UUID[/red] "
+            "(slug-form for sprints is on the W1.5 follow-up list)."
+        )
+        raise typer.Exit(2)
+
+    with _client_or_exit() as client:
+        try:
+            data = client.get(f"/sprints/{sprint_id}/tree", max_depth=max_depth)
+        except PowerloomApiError as e:
+            _console.print(f"[red]Sprint tree fetch failed:[/red] {e}")
+            raise typer.Exit(1) from None
+
+    if json_output:
+        _output_json(data)
+        return
+
+    sprint = data.get("sprint") or {}
+    _console.print(
+        f"\n[bold]Sprint:[/bold] {sprint.get('name','(no name)')} "
+        f"[dim]({sprint.get('slug','?')}, status={sprint.get('status','?')})[/dim]"
+    )
+    trees = data.get("trees") or []
+    if not trees:
+        _console.print("[dim]No threads in this sprint yet.[/dim]")
+        return
+    for t in trees:
+        _console.print()
+        _render_tree_node(t)
+
+
+@app.command("orphans")
+def orphans_cmd(
+    project: Annotated[str, typer.Option("--project", "-p", help="Project slug or UUID.")] = "powerloom",
+    include_done: Annotated[bool, typer.Option("--include-done", help="Include done/closed/wont_do threads in the orphan list.")] = False,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 200,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List threads in the project with no parent and no sprint membership.
+
+    The "what's loose right now?" triage view — work that might fall
+    through the cracks if nobody picks it up.
+    """
+    with _client_or_exit() as client:
+        project_id = _resolve_project(client, project)
+        try:
+            params: dict = {"limit": limit}
+            if include_done:
+                params["include_done"] = True
+            rows = client.get(f"/projects/{project_id}/orphans", **params)
+        except PowerloomApiError as e:
+            _console.print(f"[red]Orphan fetch failed:[/red] {e}")
+            raise typer.Exit(1) from None
+
+    rows = _rows_from_response(rows)
+    if json_output:
+        _output_json(rows)
+        return
+    if not rows:
+        _console.print(f"[green]No orphan threads in {project!r}.[/green]")
+        return
+
+    _console.print(f"\n[bold]Orphan threads in {project!r}[/bold] ([dim]{len(rows)}[/dim])")
+    for t in rows:
+        slug = t.get("slug") or (t.get("id") or "?")[:8]
+        _console.print(
+            f"  [cyan]{slug}[/cyan] [dim]({t.get('status','?')}/{t.get('priority','?')})[/dim] "
+            f"{t.get('title','')[:80]}"
+        )
