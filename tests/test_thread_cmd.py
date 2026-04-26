@@ -620,3 +620,133 @@ def test_reply_no_env_skips_stamping(monkeypatch, mock_client) -> None:
     args, _ = mock_client.post.call_args
     body = args[1]
     assert "metadata_json" not in body
+
+
+# ---------------------------------------------------------------------------
+# W1.5.3 — `weave thread tree` / `sprint-tree` / `orphans`
+# ---------------------------------------------------------------------------
+
+
+def _tree_payload(thread_id="11111111-1111-1111-1111-111111111111", title="Root", slug="ki-001", children=None):
+    return {
+        "thread": {
+            "id": thread_id, "title": title, "slug": slug,
+            "status": "open", "priority": "high",
+        },
+        "depth": 0,
+        "children": children or [],
+        "truncated_at_depth": False,
+    }
+
+
+def test_thread_tree_renders(mock_client) -> None:
+    """`weave thread tree <uuid>` renders root + children."""
+    child_id = "22222222-2222-2222-2222-222222222222"
+    payload = _tree_payload(
+        children=[{
+            "thread": {
+                "id": child_id, "title": "Child A", "slug": "ki-002",
+                "status": "open", "priority": "medium",
+            },
+            "depth": 1,
+            "children": [],
+            "truncated_at_depth": False,
+        }],
+    )
+    mock_client.get.side_effect = [payload]
+    result = runner.invoke(app, ["thread", "tree", "11111111-1111-1111-1111-111111111111"])
+    assert result.exit_code == 0, result.stdout
+    assert "ki-001" in result.stdout
+    assert "ki-002" in result.stdout
+    # The GET was hit on the tree endpoint
+    call = mock_client.get.call_args
+    assert "/threads/11111111-1111-1111-1111-111111111111/tree" in call.args[0]
+
+
+def test_thread_tree_truncated_marker(mock_client) -> None:
+    """`truncated_at_depth=True` renders as (more...)."""
+    payload = _tree_payload(
+        children=[{
+            "thread": {
+                "id": "33333333-3333-3333-3333-333333333333",
+                "title": "Has hidden kids",
+                "slug": "deep-1",
+                "status": "in_progress",
+                "priority": "medium",
+            },
+            "depth": 1,
+            "children": [],
+            "truncated_at_depth": True,
+        }],
+    )
+    mock_client.get.side_effect = [payload]
+    result = runner.invoke(app, ["thread", "tree", "11111111-1111-1111-1111-111111111111"])
+    assert result.exit_code == 0
+    assert "more" in result.stdout.lower()
+
+
+def test_thread_tree_max_depth_passed_to_api(mock_client) -> None:
+    mock_client.get.side_effect = [_tree_payload()]
+    result = runner.invoke(
+        app, ["thread", "tree", "11111111-1111-1111-1111-111111111111", "--max-depth", "3"],
+    )
+    assert result.exit_code == 0
+    call = mock_client.get.call_args
+    # max_depth comes through as a kwarg
+    assert call.kwargs.get("max_depth") == 3
+
+
+def test_sprint_tree_rejects_non_uuid(mock_client) -> None:
+    """Sprint slug-resolution isn't shipped yet — non-UUID args exit 2."""
+    result = runner.invoke(app, ["thread", "sprint-tree", "not-a-uuid"])
+    assert result.exit_code == 2
+
+
+def test_sprint_tree_renders_top_level(mock_client) -> None:
+    sprint_uuid = "99999999-9999-9999-9999-999999999999"
+    payload = {
+        "sprint": {
+            "id": sprint_uuid, "name": "v064 cleanup",
+            "slug": "v064", "status": "active",
+            "project_id": "p1",
+            "created_at": "2026-04-26T00:00:00Z",
+            "updated_at": "2026-04-26T00:00:00Z",
+        },
+        "trees": [_tree_payload(), _tree_payload(thread_id="55555555-5555-5555-5555-555555555555", title="Other root", slug="ki-007")],
+    }
+    mock_client.get.side_effect = [payload]
+    result = runner.invoke(app, ["thread", "sprint-tree", sprint_uuid])
+    assert result.exit_code == 0, result.stdout
+    assert "v064 cleanup" in result.stdout
+    assert "ki-001" in result.stdout
+    assert "ki-007" in result.stdout
+
+
+def test_orphans_lists_open_threads(mock_client) -> None:
+    """`weave thread orphans` lists threads with no parent + no sprint."""
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],
+        [
+            {"id": "t1", "title": "Loose thread A", "slug": "ki-100", "status": "open", "priority": "high"},
+            {"id": "t2", "title": "Loose thread B", "slug": "ki-101", "status": "in_progress", "priority": "medium"},
+        ],
+    ]
+    result = runner.invoke(app, ["thread", "orphans"])
+    assert result.exit_code == 0, result.stdout
+    assert "ki-100" in result.stdout
+    assert "ki-101" in result.stdout
+    # Default --include-done is False → not in the params
+    last_call = mock_client.get.call_args_list[-1]
+    assert "/orphans" in last_call.args[0]
+    assert last_call.kwargs.get("include_done") is None
+
+
+def test_orphans_include_done_flag(mock_client) -> None:
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],
+        [],
+    ]
+    result = runner.invoke(app, ["thread", "orphans", "--include-done"])
+    assert result.exit_code == 0
+    last_call = mock_client.get.call_args_list[-1]
+    assert last_call.kwargs.get("include_done") is True
