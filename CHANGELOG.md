@@ -7,11 +7,39 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
-### New
 
-- **`weave ask` / `weave chat`**: provider-agnostic terminal agent sessions. Both commands invoke Powerloom's existing `/agents/{id}/invoke` endpoint and stream the session; the CLI does not read model-provider keys locally. Runtime/model selection stays on the Agent row and the control plane uses the user/org runtime credential.
-- **Agent/session observability**: `weave agent status`, `weave agent sessions`, `weave agent watch`, `weave session events`, and `weave session tail` inspect live agent work and durable session event traces without mutating manifest-backed Agent state.
-- **CLI defaults and command discovery**: `weave profile show/set/clear`, `weave commands`, `weave agent config`, `weave agent set-model`, and `weave approval wait` add schema-safe provider/model defaults, command-registry metadata, and approval polling without moving provider selection into `ask/chat`.
+## v0.6.4-rc1 — 2026-04-27 (CLI)
+
+**Substantial new command surface + dogfood loop hardening.** Ships the `weave thread` family that CLAUDE.md / GEMINI.md / AGENTS.md §4.10 has been referencing, plus auto-attribution, plus several Codex/Gemini plugin install fixes, plus the post-prod-deploy MCP setup hotfix.
+
+### New commands
+
+- **`weave thread create / pluck / reply / done / close / wont-do / list / show / update`** — the canonical CLI surface for the §4.10 tracker-thread workflow. Closes the "use weave thread create" parenthetical that was an escape-hatch in the project-rules docs.
+- **`weave thread my-work [--watch --interval N]`** — heads-up display for "what am I working on right now," with poll-mode + summary-line + JSON output.
+- **`weave agent-session status / watch`** — inspect coordination sessions with optional polling.
+- **`weave thread reply` auto-stamping** — when `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var is set, both `create` and `reply` automatically populate `metadata_json.session_attribution` so audit trails distinguish "you" from "your agent session acting as you." Pure opt-in — direct human callers without the env see no behavior change. `--no-attribution` flag opts out per-command.
+
+### Skill + plugin updates
+
+- **`powerloom-onboarding` skill** — fresh-agent first-10-minute walkthrough for Claude Code, Codex CLI, and Gemini CLI. Mirrors across all three plugin packages.
+- **`weave-tracker` skill** — full thread-lifecycle reference; the §4.10 "fallback when subcommands aren't shipped" section retired (the subcommands are here now).
+- **Codex marketplace + Gemini install fixes** — corrects plugin install paths + the install instructions in the docs.
+
+### Hotfix: `weave setup-claude-code` writes correct .mcp.json schema
+
+Pre-hotfix, `weave setup-claude-code` wrote `.mcp.json` with server entries at the top level (no `mcpServers` wrapper), which Claude Code rejects with `mcpServers: Does not adhere to MCP server configuration schema`. The hotfix:
+- Writes the canonical `{"mcpServers": {...}}` shape.
+- Auto-migrates pre-hotfix broken files on next run (detects + relocates top-level server entries; removes the duplicates).
+- Switches default to writing the literal `Bearer pat_xxx` token instead of `${POWERLOOM_MCP_TOKEN}` substitution (CC's HTTP-transport MCP config doesn't reliably env-var-substitute inside header values; verified 2026-04-27 against api.powerloom.org). New `--use-env-substitution` flag opts back into the `${VAR}` form for committed/shared workspaces.
+
+### Co-deployed with Powerloom #146 (P0 routing-loop fix)
+
+This release pairs with the engine-side fix to the AWS ALB routing loop that was returning HTTP 463 to fresh CC sessions. Both must be deployed together for the demo loop to work end-to-end.
+
+### Tests
+
+627/627 pass (524 pre-existing + 22 weave-thread + new my-work + L4 auto-stamp + setup-claude-code migration tests). Two pre-existing unrelated failures remain on `main` (covered in their own threads).
+
 - **Client plugin packages**: keeps the existing Claude Code plugin and adds OpenAI Codex + Gemini CLI plugin/extension packages under `plugins/`.
 
 ## v0.6.3-rc1 — 2026-04-26 (CLI)
