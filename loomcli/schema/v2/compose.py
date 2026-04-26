@@ -152,6 +152,10 @@ class Metadata(BaseModel):
     """
     Dotted namespace for the composed kind (e.g. 'legal.acme'). Prevents cross-branch name collisions.
     """
+    target_ou_path: OuPath | None = None
+    """
+    Optional absolute OU path (e.g. '/acme/eng') the composed kind is published into. The approval gate for compose:create|update|archive evaluates against this scope rather than the org root, so a leaf-OU admin can publish kinds into their own subtree without escalating to org-root approval. Omitted = org-root publish (today's pre-v057 behavior, preserved for back-compat).
+    """
     display_name: DisplayName | None = None
     description: str | None = Field(None, max_length=2048)
 
