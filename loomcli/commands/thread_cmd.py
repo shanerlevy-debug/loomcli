@@ -48,9 +48,10 @@ show. JSON output via --json flag for scripting.
 from __future__ import annotations
 
 import json as _json
+import os
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 import typer
@@ -62,6 +63,87 @@ from loomcli.config import load_runtime_config
 
 
 app = typer.Typer(help="Manage Powerloom tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md / GEMINI.md / AGENTS.md §4.10.")
+
+# Friendly-names L4 — auto-stamp session_attribution into metadata_json on
+# create + reply when the caller has registered a sub-principal for this
+# session. Env-driven opt-in: the SessionStart hook (Powerloom #142 M3) +
+# CC plugin set POWERLOOM_ACTIVE_SUBPRINCIPAL_ID; the CLI lazy-fetches the
+# sub-principal details once per command invocation and stamps the metadata.
+# When the env var is absent (most current callers), no stamp is added —
+# zero behavior change for direct human users.
+SUBPRINCIPAL_ENV_VAR = "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID"
+
+
+def _build_session_attribution(client: PowerloomClient) -> Optional[dict]:
+    """Fetch the active sub-principal's details and assemble the
+    session_attribution payload to merge into metadata_json.
+
+    Returns None when:
+    - POWERLOOM_ACTIVE_SUBPRINCIPAL_ID env var is unset (most callers)
+    - The sub-principal lookup fails (logged as a debug warning, not a hard fail)
+    - The env var is set to an empty string
+
+    The shape matches what the dogfood scripts have been writing manually so
+    queries (e.g. "find threads attributed to Claude Code sessions") work
+    against both old (manually-stamped) and new (auto-stamped) threads.
+    """
+    sp_id = os.environ.get(SUBPRINCIPAL_ENV_VAR, "").strip()
+    if not sp_id:
+        return None
+    try:
+        sp = client.get(f"/me/agents/{sp_id}")
+    except PowerloomApiError as e:
+        # Best-effort. Log + continue without stamping rather than failing
+        # the create/reply call. The user can debug separately if attribution
+        # is missing.
+        _console.print(
+            f"[yellow]Warning:[/yellow] could not fetch sub-principal "
+            f"{sp_id} for attribution stamp: {e.status_code}. Thread will "
+            f"be created without session_attribution metadata.",
+            highlight=False,
+        )
+        return None
+    return {
+        "subprincipal_id": sp.get("id"),
+        "subprincipal_principal_id": sp.get("principal_id"),
+        "subprincipal_name": sp.get("name"),
+        "client_kind": sp.get("client_kind"),
+        "parent_user_id": sp.get("user_id"),
+        "stamped_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _maybe_stamp_attribution(
+    client: PowerloomClient,
+    thread: dict,
+    no_attribution: bool,
+) -> dict:
+    """If the caller has an active sub-principal, PATCH the thread's
+    metadata_json to add session_attribution. Returns the (possibly updated)
+    thread dict so callers can use it without a re-fetch.
+
+    No-op (returns the input thread unchanged) when disabled, env-unset, or
+    the sub-principal lookup fails.
+    """
+    if no_attribution:
+        return thread
+    attribution = _build_session_attribution(client)
+    if not attribution:
+        return thread
+    try:
+        # Use the in-memory `thread` rather than re-fetching — the engine
+        # just returned it from create/pluck so it's authoritative + fresh.
+        meta = dict(thread.get("metadata_json") or {})
+        meta["session_attribution"] = attribution
+        return client.patch(f"/threads/{thread['id']}", {"metadata_json": meta})
+    except PowerloomApiError as e:
+        _console.print(
+            f"[yellow]Warning:[/yellow] thread created/updated but "
+            f"attribution stamp failed: {e}. Run `weave thread show {thread['id']}` "
+            f"to verify state.",
+            highlight=False,
+        )
+        return thread
 _console = Console()
 
 # Status enum — must match engine's tracker_thread.status. Kept locally so the
@@ -148,6 +230,18 @@ def create(
     assigned_to: Annotated[Optional[str], typer.Option("--assigned-to", help="UUID of the user to assign. Default: unassigned.")] = None,
     tag_ids: Annotated[Optional[list[str]], typer.Option("--tag-id", help="Tag UUIDs (repeatable).")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the created thread as JSON.")] = False,
+    no_attribution: Annotated[
+        bool,
+        typer.Option(
+            "--no-attribution",
+            help=(
+                "Skip session_attribution metadata stamping even when "
+                "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID is set. By default, when the "
+                "env var is present, the CLI auto-fetches the sub-principal's "
+                "details and writes session_attribution into metadata_json."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Create a new tracker thread.
 
@@ -156,6 +250,13 @@ def create(
     follow the canonical four-section shape (Reported / Repro / Definition of
     done / Out of scope). See the weave-tracker skill for the description
     template.
+
+    **Friendly-names L4 — auto-attribution.** When the
+    `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var is set (e.g. by a CC SessionStart
+    hook or CI runner), the new thread's `metadata_json.session_attribution` is
+    populated automatically with the sub-principal's id / name / client_kind /
+    parent_user_id + a stamped_at timestamp. Pass `--no-attribution` to suppress
+    even when the env is set.
     """
     if priority not in _PRIORITY_CHOICES:
         _console.print(f"[red]Invalid priority {priority!r}.[/red] One of: {', '.join(_PRIORITY_CHOICES)}")
@@ -186,6 +287,10 @@ def create(
         except PowerloomApiError as e:
             _console.print(f"[red]Create failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+        # L4 auto-stamp — returns the patched thread (or the original if no-op)
+        # so the JSON / summary output reflects the stamped metadata.
+        thread = _maybe_stamp_attribution(client, thread, no_attribution)
 
     if json_output:
         _output_json(thread)
@@ -245,11 +350,23 @@ def reply(
     from_stdin: Annotated[bool, typer.Option("--from-stdin", help="Read reply content from stdin.")] = False,
     reply_type: Annotated[str, typer.Option("--type", help="Reply kind: comment, system, import_source.")] = "comment",
     json_output: Annotated[bool, typer.Option("--json", help="Print the created reply as JSON.")] = False,
+    no_attribution: Annotated[
+        bool,
+        typer.Option(
+            "--no-attribution",
+            help="Skip session_attribution metadata stamping (see `weave thread create --help`).",
+        ),
+    ] = False,
 ) -> None:
     """Post a reply to a thread (decisions, blockers, scope changes).
 
     Use replies for moments future-you would want to see. Don't use them for
     progress narration — that's session noise, not durable signal.
+
+    **Friendly-names L4 — auto-attribution.** When `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID`
+    is set, the reply's metadata_json carries `session_attribution` so the
+    audit trail shows "who wrote this reply" at sub-principal granularity.
+    Pass `--no-attribution` to suppress.
     """
     if from_stdin:
         if content:
@@ -260,8 +377,15 @@ def reply(
         _console.print("[red]Reply content is required (positional arg or --from-stdin).[/red]")
         raise typer.Exit(2)
 
-    body = {"content": content, "reply_type": reply_type}
+    body: dict = {"content": content, "reply_type": reply_type}
     with _client_or_exit() as client:
+        # L4 auto-stamp — for replies, attribution lives on the reply's own
+        # metadata_json (set at create time, not via PATCH afterward; the
+        # ReplyCreate schema accepts the field directly).
+        if not no_attribution:
+            attribution = _build_session_attribution(client)
+            if attribution:
+                body["metadata_json"] = {"session_attribution": attribution}
         try:
             reply_obj = client.post(f"/threads/{thread_id}/replies", body)
         except PowerloomApiError as e:
