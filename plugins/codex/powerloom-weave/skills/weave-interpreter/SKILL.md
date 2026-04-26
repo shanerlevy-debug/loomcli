@@ -31,6 +31,9 @@ weave agent set-model /dev-org/alfred --model gpt-5.5
 weave session tail <session-id>
 weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
 weave commands --json
+weave doctor
+weave plugin doctor
+weave plugin instructions codex
 weave plan manifest.yaml
 weave apply manifest.yaml
 weave apply -y ./manifests/
@@ -65,12 +68,12 @@ weave agent sessions /org/ou/agent-name
 weave agent watch /org/ou/agent-name --interval 3
 weave session events <session-id>
 weave session tail <session-id>
-weave agent-session status <agent-session-id>
-weave agent-session watch <agent-session-id> --interval 3
-weave thread my-work --watch --interval 5
+weave agent-session status <coordination-session-id>
+weave agent-session watch <coordination-session-id>
+weave thread my-work --watch
 ```
 
-These commands are read-only runtime and coordination inspection. They do not modify manifest-backed Agent state.
+`weave agent ...` and `weave session ...` are read-only runtime inspection. `weave agent-session ...` and `weave thread my-work` inspect coordination state: claimed work, assigned workflow tasks, and tracker threads attached to the current user or agent.
 
 ## Thread Plucking
 
@@ -83,7 +86,7 @@ If the user asks to "pluck this thread", treat it as a Powerloom handoff/coordin
 weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind codex_cli
 ```
 
-3. Use supported actor kinds such as `codex_cli`, `gemini_cli`, `antigravity`, `claude_code`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
+3. Use `weave doctor` to confirm advertised actor kinds. If supported, use `--actor-kind codex_cli` for Codex, `--actor-kind gemini_cli` for Gemini, or `--actor-kind antigravity` for Antigravity. Do not use legacy short values such as `codex` or `gemini`.
 4. If the user is not signed in or no API is available, output the handoff summary plus the exact `weave agent-session register ...` command they can run later.
 
 ## Provider/Model Configuration

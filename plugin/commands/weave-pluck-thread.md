@@ -15,7 +15,7 @@ Treat this as a coordination handoff for the current conversation:
 weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
 ```
 
-3. Do not invent unsupported `--actor-kind` values such as `codex` or `gemini`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+3. Use `weave doctor` to confirm advertised actor kinds. If supported, use `--actor-kind codex_cli` for Codex, `--actor-kind gemini_cli` for Gemini, or `--actor-kind antigravity` for Antigravity. Do not use legacy short values such as `codex` or `gemini`.
 4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command they can run later.
 
 Arguments from the user:

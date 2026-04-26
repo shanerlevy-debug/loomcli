@@ -16,6 +16,8 @@ def test_command_registry_includes_new_cli_surfaces():
     assert "weave agent-session status" in commands
     assert "weave agent-session watch" in commands
     assert "weave thread my-work" in commands
+    assert "weave doctor" in commands
+    assert "weave plugin doctor" in commands
     assert "weave profile set" in commands
     assert "weave approval wait" in commands
 

@@ -24,6 +24,8 @@ On this checkout:
 codex plugin marketplace add D:\powerloom\loomcli\plugins\codex
 ```
 
+From a loomcli checkout, `weave plugin instructions codex` prints the exact marketplace path and `weave plugin doctor codex` checks that the package exists and Codex is on PATH.
+
 The plugin package lives at `plugins/codex/powerloom-weave`; the marketplace manifest lives at `plugins/codex/.agents/plugins/marketplace.json`.
 
 Codex CLI currently exposes marketplace management from the terminal. If the plugin does not appear as enabled after adding the marketplace, enable `powerloom-weave@powerloom` in Codex's plugin UI or add this to `~/.codex/config.toml`:

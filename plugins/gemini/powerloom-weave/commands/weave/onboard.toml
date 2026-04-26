@@ -31,10 +31,11 @@ For a self-hosted control plane: set `POWERLOOM_API_BASE_URL=https://powerloom.i
 ## Step 3 — Load the Gemini extension
 
 ```bash
-gemini extensions link /path/to/loomcli/plugins/gemini/powerloom-weave
+gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+gemini extensions enable powerloom-weave
 ```
 
-Restart Gemini CLI or reload commands after linking. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension auto-merges into the project context.
+From a loomcli checkout, `weave plugin instructions gemini` prints the correct local path. Restart Gemini CLI or reload commands after installing. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension auto-merges into the project context.
 
 ## Step 4 — Read CLAUDE.md / GEMINI.md / AGENTS.md §4.10
 
@@ -75,7 +76,9 @@ For the full CLI reference (manifests, apply semantics, skill archive lifecycle,
 - `HTTP 403` → token lacks RBAC for the op
 - `HTTP 409 justification_required` → org has approval policy, pass `--justification "reason"`
 - `HTTP 409 Thread already plucked` → another session has it; `weave thread show <id>` to see who
-- Slash commands missing after install → restart Gemini CLI; verify the link target has `gemini-extension.json`
+- Slash commands missing after install → restart Gemini CLI; verify the extension with `weave plugin doctor gemini`
+
+For first-pass diagnostics, run `weave doctor` and `weave plugin doctor`.
 
 If the user is stuck on something not covered here, point them at the canonical SKILL.md path above.
 """

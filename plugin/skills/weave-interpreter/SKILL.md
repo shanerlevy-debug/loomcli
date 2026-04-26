@@ -40,6 +40,8 @@ Weave uses a two-level command tree: top-level commands + subgroups. As of 0.6.1
 | `weave thread my-work` | Show tracker threads assigned to, plucked by, or created by me | `[--watch]` |
 | `weave profile` | Manage local CLI defaults for agent/runtime/model/output/API URL | `show`, `set`, `clear` |
 | `weave commands` | Export command metadata for autocomplete/plugins/mobile | `[--json]` |
+| `weave doctor` | Diagnose auth, API capabilities, actor kinds, and local tools | `[--json]` |
+| `weave plugin` | Diagnose or install client plugins for Claude Code, Codex, Gemini, Antigravity | `doctor`, `instructions`, `install` |
 
 ### Agent ask/chat provider model
 
@@ -65,12 +67,12 @@ weave agent sessions /org/ou/agent-name
 weave agent watch /org/ou/agent-name --interval 3
 weave session events <session-id>
 weave session tail <session-id>
-weave agent-session status <agent-session-id>
-weave agent-session watch <agent-session-id> --interval 3
-weave thread my-work --watch --interval 5
+weave agent-session status <coordination-session-id>
+weave agent-session watch <coordination-session-id>
+weave thread my-work --watch
 ```
 
-Use them to answer what an agent is currently doing, whether it has active sessions, what durable events have been recorded, and what coordination threads are currently plucked or assigned to the signed-in user.
+Use `weave agent ...` and `weave session ...` for runtime execution state. Use `weave agent-session ...` and `weave thread my-work` for coordination state: claimed work, assigned workflow tasks, and tracker threads attached to the current user or agent.
 
 ### Thread plucking
 
@@ -83,7 +85,7 @@ If the user asks to "pluck this thread", capture the current conversation as a P
 weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind claude_code
 ```
 
-3. Use supported actor kinds such as `claude_code`, `codex_cli`, `gemini_cli`, `antigravity`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
+3. Use `weave doctor` to confirm advertised actor kinds. If supported, use `--actor-kind codex_cli` for Codex, `--actor-kind gemini_cli` for Gemini, or `--actor-kind antigravity` for Antigravity. Do not use legacy short values such as `codex` or `gemini`.
 4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command for later.
 
 ### Top-level auth aliases (shortcuts for `weave auth <cmd>`)
@@ -100,7 +102,7 @@ weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<
 | `weave skill` | `upload`, `activate`, `upload-and-activate`, `versions` |
 | `weave workflow` | `apply`, `run`, `status`, `ls`, `cancel` (Phase 14 workflow CLI) |
 | `weave agent-session` | `register`, `end`, `ls`, `get`, `status`, `watch`, `tasks`, `task-complete` |
-| `weave thread` | `my-work` |
+| `weave plugin` | `doctor`, `instructions`, `install` |
 | `weave antigravity-worker` | Daemon for Antigravity IDE integration (stub) |
 
 ## Global options
