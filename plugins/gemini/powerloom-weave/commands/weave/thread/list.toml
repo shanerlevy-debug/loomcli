@@ -1,0 +1,36 @@
+description = "List Powerloom tracker threads (your work, project queue, in-flight work)."
+prompt = """
+The user wants to query the Powerloom tracker. Pick the right command for what they're looking for:
+
+**Their active queue:**
+```bash
+weave thread list --mine                          # everything plucked by them
+weave thread list --mine --status in_progress     # only active work
+```
+
+**What's open and unclaimed (where to look for work to pick up):**
+```bash
+weave thread list --project powerloom --status open
+weave thread list --project powerloom --status open --priority critical,high
+```
+
+**What other sessions are working on (coordination check):**
+```bash
+weave thread list --status in_progress           # everything in flight
+weave thread list --assignee <principal>         # specific session/agent's queue
+```
+
+**A specific thread:**
+```bash
+weave thread show <thread_id>                    # full detail + reply history
+```
+
+**Search by title fragment (avoid duplicate creates):**
+```bash
+weave thread list --search "<fragment>"
+```
+
+If the user hasn't said which view they want, default to `weave thread list --mine`. If they're starting fresh and looking for work, `weave thread list --project powerloom --status open --priority high,critical` is the right list.
+
+If `weave` reports the user is not signed in, run `weave whoami` to confirm and tell them to run `weave login`.
+"""

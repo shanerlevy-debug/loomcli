@@ -1,0 +1,18 @@
+description = "Mark a Powerloom tracker thread done / closed / wont-do at PR merge."
+prompt = """
+The user wants to close out a tracker thread. Pick the right verb based on outcome:
+
+```bash
+weave thread done <thread_id>     # status=done, normal completion (work shipped)
+weave thread close <thread_id>    # status=closed, scope abandoned (thread closed but underlying scope might still be relevant)
+weave thread wont-do <thread_id>  # status=wont_do, decided this isn't worth the cost
+```
+
+For `done`: the merge commit message for the PR that closes the thread should include the thread URL — `https://app.powerloom.org/projects/powerloom/threads/<id>` — so the cross-link is bidirectional.
+
+After marking done, confirm with `weave thread show <id>`. The thread moves off the active board (any `--status in_progress` queries) and into the `--status done` archive.
+
+These verbs are idempotent: repeating `done` on an already-`done` thread is a no-op. Same for `closed` / `wont_do`.
+
+If `weave` reports the user is not signed in, run `weave whoami` to confirm and tell them to run `weave login`.
+"""

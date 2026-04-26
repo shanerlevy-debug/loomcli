@@ -7,7 +7,7 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 - **Agentic hosted commands**: `/powerloom-home:weave-ask` and `/powerloom-home:weave-chat` wrap `weave ask` / `weave chat` for provider-agnostic hosted agent sessions.
 - **Agent observability commands**: `/powerloom-home:weave-agent-status` and `/powerloom-home:weave-session-tail` wrap `weave agent status` / `weave session tail`.
 
-- **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
+- **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-thread`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
 - **Weave-interpreter skill** — comprehensive reference for the `weave` CLI auto-loaded when you ask Claude about weave operations.
 - **Local MCP server (`powerloom-home`)** — 10 tools exposing Powerloom OU/Skill/Agent CRUD, backed by SQLite at `$CLAUDE_PLUGIN_DATA/powerloom-home.sqlite`.
 - **Hooks** — Claude greets you with home-backend status at session start; automatically runs `weave plan` when you edit a Powerloom YAML manifest.
@@ -158,7 +158,8 @@ plugin/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin manifest — registers MCP server + metadata
 ├── skills/
-│   └── weave-interpreter/
+│   ├── weave-interpreter/
+│   └── weave-tracker/
 │       └── SKILL.md          # The comprehensive weave CLI reference
 ├── commands/                 # 11 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail)
 ├── hooks/
