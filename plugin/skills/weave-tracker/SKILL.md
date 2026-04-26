@@ -66,7 +66,7 @@ Save the returned `id` — you'll need it for every subsequent step.
 weave thread pluck <thread_id>
 ```
 
-This sets `status=in_progress` and stamps `plucked_by` to the current authenticated principal. **Pluck is one-shot** — once a thread is plucked, re-plucking returns 409. If you need to take over a thread someone else plucked, use `weave thread reassign` (TODO: not yet implemented at the time of writing — fall back to `weave thread update <id> --assigned-to <principal>`).
+This sets `status=in_progress` and stamps `plucked_by` to the current authenticated principal. **Pluck is one-shot** — once a thread is plucked, re-plucking returns 409. If you need to take over a thread someone else plucked, use `weave thread update <id> --assigned-to <principal>` (explicit `weave thread reassign` may land as a future enhancement).
 
 After pluck, the thread shows up in `weave thread list --mine` (your work queue). Other sessions can `weave thread list --status in_progress` to see what's actively being worked on.
 
@@ -200,25 +200,6 @@ weave thread update <id> --assigned-to <principal_id>
 weave thread update <id> --metadata '{"key":"value"}'
 ```
 
-## When the `weave thread …` subcommands don't exist yet
-
-At the time of writing, the `weave thread` subcommand family is in flight (filed as a tracker thread itself). Until those land in a loomcli release, fall back to the helper script pattern at `scratch/create_dogfood_threads.py` in the Powerloom repo, or directly call:
-
-```bash
-curl -X POST https://api.powerloom.org/projects/<project_id>/threads \
-  -H "Authorization: Bearer $POWERLOOM_PAT" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"...","priority":"high","description":"..."}'
-```
-
-Or via Python:
-
-```python
-from loomcli.client import PowerloomClient
-from loomcli.config import load_runtime_config
-with PowerloomClient(load_runtime_config()) as c:
-    resp = c.post(f"/projects/{project_id}/threads", {...})
-```
 
 ## Reference: the canonical example threads
 
