@@ -5,6 +5,31 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## v0.6.1-rc3 — 2026-04-25 (CLI, side-branch draft)
+
+**v057 Sprint 1 item 2: scope-driven compose gating (Option D) — authoring surface.** Compose manifests gain `metadata.target_ou_path` so operators can declare which OU a kind is published into. The engine then evaluates `compose:create|update|archive` approval policies against that scope rather than the org root, letting a leaf-OU admin self-approve publishes within their subtree without escalating. JSON-Schema-only change here; the engine companion does the path → UUID resolution and the gate scope swap.
+
+> Stacks on top of `0.6.1-rc2`'s 426/header negotiation work. Both ship together as v057 closeout.
+
+### New
+
+- **`schema/v2/compose.schema.json`** — `metadata.target_ou_path` (optional). Pattern matches `common.schema.json#/$defs/ou_path` (absolute, lowercase, no trailing slash). Description spells out the back-compat semantics (omitted = org-root publish).
+- **`tests/schema/test_compose_target_ou.py`** — 12 tests covering the optional + well-formed + malformed paths and that the schema description carries the documentation `weave compose lint` users will read.
+- Pydantic regenerated cleanly via `scripts/generate_schema_package.py`.
+
+### Engine companion
+
+Engine companion on the same session branch adds:
+  - migration `0054_kind_registry_target_ou.py` (column + FK + partial index — first slot in the memory + schema arc reservation `0054+`),
+  - `services/compose.py` resolves the path to a UUID at create/update time,
+  - `routes/kind_registry.py` derives `scope_ou_id` for the gate from the manifest's `target_ou_path` (or org root if omitted),
+  - `ComposedKindOut` exposes `target_ou_id` on read.
+
+### Compat
+
+- Pre-v057 manifests (no `target_ou_path`) continue to validate + apply unchanged. Existing rows in `kind_registry` keep `target_ou_id IS NULL` and gate against org root, exactly as before.
+- A v0.6.1-rc3 CLI talking to a pre-v057 engine that doesn't have migration 0054 will see the manifest accepted but the engine will silently ignore the field (new column doesn't exist; the field never gets read into a model attribute). Forward-only behavior — operators relying on Option D need both ends.
+
 ## v0.6.1-rc2 — 2026-04-25 (CLI, side-branch draft)
 
 **v057 Sprint 1 item 1: schema-version negotiation (426 Upgrade Required handling).** Closes the version-handshake loop that landed in v056 (`GET /schema-versions`). The CLI now sends `X-Powerloom-Schema-Version: <SCHEMA_VERSION>` on every API call and renders engine 426s into a clear "engine rejected version X; supported: [...]" message instead of a generic 4xx.
