@@ -1,0 +1,39 @@
+{
+  "name": "powerloom-weave",
+  "version": "0.1.0",
+  "description": "Powerloom weave CLI integration for Codex. Ask and chat with Powerloom agents, author manifests, and troubleshoot loomcli safely.",
+  "author": {
+    "name": "Bespoke Technology Solutions",
+    "email": "shane.levy@bespoke-technology.com",
+    "url": "https://powerloom.org"
+  },
+  "homepage": "https://powerloom.org",
+  "repository": "https://github.com/shanerlevy-debug/loomcli",
+  "license": "Proprietary",
+  "keywords": [
+    "powerloom",
+    "weave",
+    "loomcli",
+    "agents",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Powerloom Weave",
+    "shortDescription": "Drive Powerloom agents and manifests from Codex.",
+    "longDescription": "Adds Powerloom weave CLI guidance for Codex: provider-agnostic agent ask/chat, manifest plan/apply/destroy, auth, skill archive lifecycle, approvals, and common diagnostics.",
+    "developerName": "Bespoke Technology Solutions",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://powerloom.org",
+    "defaultPrompt": [
+      "Use weave ask to query my Powerloom agent.",
+      "Author a valid Powerloom manifest.",
+      "Diagnose this weave CLI error."
+    ],
+    "brandColor": "#2F6B4F"
+  }
+}

@@ -5,6 +5,13 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Schema:** `schema-vX.Y.Z` git tags. Semver — breaking changes bump major, additive bump minor, docs-only bump patch.
 - **CLI:** `vX.Y.Z` git tags on this repo. Trigger PyPI publish via `.github/workflows/publish.yml`.
 
+## Unreleased
+
+### New
+
+- **`weave ask` / `weave chat`**: provider-agnostic terminal agent sessions. Both commands invoke Powerloom's existing `/agents/{id}/invoke` endpoint and stream the session; the CLI does not read model-provider keys locally. Runtime/model selection stays on the Agent row and the control plane uses the user/org runtime credential.
+- **Client plugin packages**: keeps the existing Claude Code plugin and adds OpenAI Codex + Gemini CLI plugin/extension packages under `plugins/`.
+
 ## v0.6.1-rc1 — 2026-04-25 (CLI, side-branch draft)
 
 **v057 stdlib expansion: `FailureRecoveryFrame`.** First Frame-Semantics derivation lands as a v2.0.1 stdlib kind. Operators can now author scope-attached recovery templates that bind the canonical four frame elements (`Action_Attempted` / `Error_Type` / `Corrective_Action` / `Final_Outcome`) to specific failure patterns agents should follow. v058+ will let consolidation distill these from episodic runs (`provenance: distilled_from_episodic`); v057 ships only the operator-authored path.

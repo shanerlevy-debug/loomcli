@@ -4,6 +4,8 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 
 ## What you get
 
+- **Agentic hosted commands**: `/powerloom-home:weave-ask` and `/powerloom-home:weave-chat` wrap `weave ask` / `weave chat` for provider-agnostic hosted agent sessions.
+
 - **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
 - **Weave-interpreter skill** — comprehensive reference for the `weave` CLI auto-loaded when you ask Claude about weave operations.
 - **Local MCP server (`powerloom-home`)** — 10 tools exposing Powerloom OU/Skill/Agent CRUD, backed by SQLite at `$CLAUDE_PLUGIN_DATA/powerloom-home.sqlite`.
@@ -78,6 +80,15 @@ Describes what you want ("an agent that reviews pull requests") and Claude scaff
 ```
 /powerloom-home:weave-apply path/to/manifest.yaml
 ```
+
+### Ask or chat with a hosted agent
+
+```
+/powerloom-home:weave-ask /dev-org/alfred "What should I work on next?"
+/powerloom-home:weave-chat /dev-org/alfred
+```
+
+These commands call `weave ask` / `weave chat`. The CLI does not call provider APIs directly; Powerloom uses the target agent's configured runtime/model and the user/org runtime credential.
 
 ### Diagnose an error
 

@@ -1,0 +1,12 @@
+description = "Preview Powerloom manifest changes with weave plan."
+prompt = """
+The user wants to preview Powerloom manifest changes.
+
+Run or guide them to run:
+
+```bash
+weave plan {{args}}
+```
+
+If schema validation fails, summarize the full error and point to the exact manifest field that needs correction. Do not run `weave apply` unless the user explicitly asks for a mutation.
+"""

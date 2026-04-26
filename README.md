@@ -114,6 +114,8 @@ weave get mcp-deployments -o json
 weave describe agent /dev-org/engineering/code-reviewer
 weave import agent /dev-org/engineering/code-reviewer > agent.yaml
 weave auth whoami
+weave ask /dev-org/alfred "What should I work on next?"
+weave chat /dev-org/alfred
 weave workflow apply workflow.yaml
 weave workflow run my-workflow --inputs scope=example
 weave workflow status <run-id>
@@ -128,6 +130,19 @@ Global flags:
 --config-dir PATH   Override POWERLOOM_HOME
 --version           Print CLI version and exit
 ```
+
+## Agentic CLI
+
+`weave ask` and `weave chat` make the terminal experience closer to Claude Code, Gemini CLI, and Codex CLI while keeping Powerloom provider-agnostic:
+
+```bash
+weave ask /dev-org/alfred "Summarize my open work."
+weave chat /dev-org/alfred
+```
+
+The CLI invokes a Powerloom Agent through the control plane. It does not read model-provider API keys locally; the backend uses the Agent's configured runtime/model and the user/org runtime credential stored in Powerloom.
+
+Agent identifiers can be UUIDs, full `/ou/path/agent-name` addresses, or bare names with `--ou`.
 
 ## Schema as source of truth
 

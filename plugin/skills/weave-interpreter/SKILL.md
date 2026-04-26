@@ -1,6 +1,6 @@
 ---
 name: weave-interpreter
-description: Authoritative guide to the weave CLI (loomcli). Understands command structure, auth flows, manifest apply/plan/destroy semantics, skill archive upload/activate pipeline, OU addressing, approval gates, environment variables, schema versions, and common error modes. Use when an agent needs to drive weave operations or diagnose CLI errors.
+description: Authoritative guide to the weave CLI (loomcli). Understands provider-agnostic agent ask/chat, command structure, auth flows, manifest apply/plan/destroy semantics, skill archive upload/activate pipeline, OU addressing, approval gates, environment variables, schema versions, and common error modes. Use when an agent needs to drive weave operations or diagnose CLI errors.
 ---
 
 # Weave Interpreter
@@ -12,13 +12,13 @@ You are an expert in the `weave` CLI — the command-line tool shipped by the `l
 - **Package:** `loomcli` on PyPI (`pip install loomcli`)
 - **Console script:** `weave`
 - **Source of truth:** https://github.com/shanerlevy-debug/loomcli
-- **API it talks to:** Powerloom control plane, default `http://localhost:8000`, production `https://api.powerloom.org`
-- **Release cadence:** patch (0.5.x) for CLI fixes; minor (0.6.0) for schema-version bumps
-- **Current version:** 0.5.3 (2026-04-24); schema version bundled is v1.2.0
+- **API it talks to:** Powerloom control plane, default `https://api.powerloom.org`; use `--api-url http://localhost:8000` for local docker-compose dev
+- **Release cadence:** patch for CLI fixes; minor for schema-version bumps and command families
+- **Current version:** 0.6.1-rc1 draft (2026-04-25); bundles v1 + v2 schema surfaces
 
 ## Command structure
 
-Weave uses a two-level command tree: top-level commands + subgroups. As of 0.5.3:
+Weave uses a two-level command tree: top-level commands + subgroups. As of 0.6.1-rc1:
 
 ### Top-level mutations + reads
 | Command | Purpose | Arg shape |
@@ -29,6 +29,20 @@ Weave uses a two-level command tree: top-level commands + subgroups. As of 0.5.3
 | `weave get` | List resources by kind | `<kind> [name]` |
 | `weave describe` | Show full detail of one resource | `<kind> <address>` |
 | `weave import` | Adopt an existing resource into a manifest | varies |
+| `weave ask` | Ask a Powerloom agent one prompt and stream the answer | `<agent> "prompt"` |
+| `weave chat` | Start an interactive terminal chat with a Powerloom agent | `<agent> ["first prompt"]` |
+
+### Agent ask/chat provider model
+
+`weave ask` and `weave chat` are provider-agnostic. They call Powerloom's `POST /agents/{id}/invoke` endpoint and stream the resulting session. The CLI does not read OpenAI, Anthropic, Gemini, Bedrock, or other model keys locally. Runtime/provider selection comes from the Agent row (`runtime_type` + `model`) and the backend uses the user/org runtime credential configured in Powerloom.
+
+Agent identifiers can be:
+
+```bash
+weave ask <agent-uuid> "prompt"
+weave ask /org/ou/agent-name "prompt"
+weave ask agent-name "prompt" --ou /org/ou
+```
 
 ### Top-level auth aliases (shortcuts for `weave auth <cmd>`)
 | Command | Purpose |
@@ -56,7 +70,7 @@ weave [--api-url URL] [--config-dir PATH] [--justification TEXT] [--version] <cm
 
 | Flag | Env var | Effect |
 |---|---|---|
-| `--api-url` | `POWERLOOM_API_BASE_URL` | Override control plane URL (default: `http://localhost:8000`) |
+| `--api-url` | `POWERLOOM_API_BASE_URL` | Override control plane URL (default: `https://api.powerloom.org`) |
 | `--config-dir` | `POWERLOOM_HOME` | Override credentials/config directory |
 | `--justification` | `POWERLOOM_APPROVAL_JUSTIFICATION` | Inject `X-Approval-Justification` header (required when approval policy demands) |
 | `--version` | — | Print CLI version and exit |
@@ -240,17 +254,17 @@ Case 2 requires polling via the approvals API; weave doesn't currently auto-poll
 
 Two current schema versions for manifests:
 
-### powerloom.app/v1 (default today)
+### powerloom.app/v1
 
-All production-compatible manifests. The CLI's bundled schema validator is v1-only until loomcli 0.6.0 ships.
+Production-compatible manifest surface for current hosted control planes.
 
-### powerloom.app/v2 (draft, not yet deployable)
+### powerloom.app/v2
 
-Chomskian 6-primitive root + 8 stdlib derivations. Requires:
-- loomcli 0.6.0 (bundles v2 schema)
-- Powerloom engine v056 (accepts v2 apiVersion)
+Chomskian 6-primitive root + stdlib derivations. Requires:
+- loomcli 0.6.x (bundles v2 schema)
+- A Powerloom engine version that accepts v2 manifests
 
-Both are in-flight. Until both ship, `apiVersion: powerloom.app/v2` in a manifest causes:
+If the target control plane has not been upgraded for v2, `apiVersion: powerloom.app/v2` in a manifest causes:
 ```
 apiVersion: 'powerloom.app/v2' is not one of ['powerloom.app/v1', 'powerloom/v1']
 ```
@@ -321,7 +335,8 @@ When something's wrong, run in this order:
 | 0.5.1 | 2026-04-24 | Auth UX: top-level aliases, browser-paste login, PAT commands, config path lazy |
 | 0.5.2 | 2026-04-24 | `weave skill upload/activate/upload-and-activate/versions` |
 | 0.5.3 | 2026-04-24 | `--justification` flag + `POWERLOOM_APPROVAL_JUSTIFICATION` env var; full error bodies in apply-results |
-| 0.6.0 | TBD | Schema 2.0.0 (Chomskian 6) + `compose` operator + `loomcli.schema` Python package |
+| 0.6.0-rc2 | 2026-04-24 | Schema v2 bundle, `compose`, `migrate v1-to-v2`, generated `loomcli.schema` package |
+| 0.6.1-rc1 | 2026-04-25 | v2.0.1 draft stdlib expansion; this plugin branch adds `weave ask` / `weave chat` |
 
 ## Quick reference card
 
@@ -332,6 +347,10 @@ weave login --pat <token>                            # non-interactive
 weave login --dev-as admin@dev.local                 # localhost dev
 weave logout
 weave whoami
+
+# Agent sessions
+weave ask /ou/path/agent "prompt"                    # one turn, streamed
+weave chat /ou/path/agent                            # interactive terminal chat
 
 # Apply manifests
 weave apply <path> [<path>...]                       # positional; multiple OK

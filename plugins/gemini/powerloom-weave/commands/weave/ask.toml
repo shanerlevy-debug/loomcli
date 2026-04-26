@@ -1,0 +1,14 @@
+description = "Ask a Powerloom agent through weave ask."
+prompt = """
+The user wants to ask a Powerloom agent through the `weave` CLI.
+
+Run or guide them to run:
+
+```bash
+weave ask {{args}}
+```
+
+If `weave` reports that the user is not signed in, run `weave whoami` to confirm and then tell them to run `weave login`.
+
+Provider-agnostic rule: do not call Gemini, OpenAI, Anthropic, or any other provider API directly. `weave ask` sends the prompt to the Powerloom control plane, which uses the target agent's configured runtime/model and stored runtime credential.
+"""
