@@ -198,6 +198,69 @@ def _resolve_project(client: PowerloomClient, project: str) -> str:
     raise typer.Exit(1)
 
 
+def _resolve_thread(
+    client: PowerloomClient,
+    ref: str,
+    *,
+    default_project: str = "powerloom",
+) -> str:
+    """W1.5.1 — Accept either a thread UUID, a `project:slug` pair, or a bare
+    slug; return the thread UUID.
+
+    Examples:
+        "8d2c7502-d79a-..."   -> direct UUID, no lookup
+        "powerloom:ki-004"    -> resolve project 'powerloom', GET by-slug
+        "ki-004"              -> use default project (powerloom), GET by-slug
+
+    Slug lookup hits GET /projects/{project_id}/threads/by-slug/{slug}
+    (added in API migration 0065). On 404, raises typer.Exit(1) with a
+    targeted message.
+    """
+    # 1. UUID — fast path, no network
+    try:
+        return str(uuid.UUID(ref))
+    except ValueError:
+        pass
+
+    # 2. Slug form — split out project context if present
+    if ":" in ref:
+        project_part, _, slug_part = ref.partition(":")
+        project_part = project_part.strip()
+        slug_part = slug_part.strip()
+        if not project_part or not slug_part:
+            _console.print(
+                f"[red]Invalid thread reference {ref!r}.[/red] "
+                "Expected `project-slug:thread-slug`, `thread-slug`, or a UUID."
+            )
+            raise typer.Exit(2)
+    else:
+        project_part = default_project
+        slug_part = ref.strip()
+
+    # Validate slug shape early — saves a useless HTTP roundtrip.
+    import re as _re_mod
+    if not _re_mod.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug_part):
+        _console.print(
+            f"[red]Invalid slug shape {slug_part!r}.[/red] "
+            "Slugs are lowercase alphanumeric + hyphens, 1-63 chars."
+        )
+        raise typer.Exit(2)
+
+    project_id = _resolve_project(client, project_part)
+    try:
+        thread = client.get(f"/projects/{project_id}/threads/by-slug/{slug_part}")
+    except PowerloomApiError as e:
+        if e.status_code == 404:
+            _console.print(
+                f"[red]No thread with slug {slug_part!r} in project "
+                f"{project_part!r}.[/red]"
+            )
+        else:
+            _console.print(f"[red]Slug lookup failed:[/red] {e}")
+        raise typer.Exit(1) from None
+    return str(thread["id"])
+
+
 def _print_thread_summary(t: dict) -> None:
     """Render a single-thread summary line. Used by create / pluck / done / etc.
     after a mutation lands so the user sees the new state."""
@@ -350,7 +413,7 @@ def create(
 
 @app.command("pluck")
 def pluck(
-    thread_id: Annotated[str, typer.Argument(help="UUID of the thread to claim.")],
+    thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug' (e.g. 'powerloom:ki-004').")],
     agent_id: Annotated[Optional[str], typer.Option("--agent-id", help="Optional Agent UUID to attribute the pluck to (for hosted-agent claiming).")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the updated thread as JSON.")] = False,
 ) -> None:
@@ -364,11 +427,12 @@ def pluck(
         pluck_body["agent_id"] = agent_id
 
     with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
         try:
-            thread = client.post(f"/threads/{thread_id}/pluck", pluck_body)
+            thread = client.post(f"/threads/{thread_uuid}/pluck", pluck_body)
         except PowerloomApiError as e:
             if e.status_code == 409:
-                _console.print(f"[yellow]Thread already plucked.[/yellow] Run `weave thread show {thread_id}` to see who has it.")
+                _console.print(f"[yellow]Thread already plucked.[/yellow] Run `weave thread show {thread_uuid}` to see who has it.")
             else:
                 _console.print(f"[red]Pluck failed:[/red] {e}")
             raise typer.Exit(1) from None
@@ -387,7 +451,7 @@ def pluck(
 
 @app.command("reply")
 def reply(
-    thread_id: Annotated[str, typer.Argument(help="UUID of the thread.")],
+    thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug, or 'project:slug'.")],
     content: Annotated[Optional[str], typer.Argument(help="Reply text. Use --from-stdin for long content.")] = None,
     from_stdin: Annotated[bool, typer.Option("--from-stdin", help="Read reply content from stdin.")] = False,
     reply_type: Annotated[str, typer.Option("--type", help="Reply kind: comment, system, import_source.")] = "comment",
@@ -421,6 +485,7 @@ def reply(
 
     body: dict = {"content": content, "reply_type": reply_type}
     with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
         # L4 auto-stamp — for replies, attribution lives on the reply's own
         # metadata_json (set at create time, not via PATCH afterward; the
         # ReplyCreate schema accepts the field directly).
@@ -429,7 +494,7 @@ def reply(
             if attribution:
                 body["metadata_json"] = {"session_attribution": attribution}
         try:
-            reply_obj = client.post(f"/threads/{thread_id}/replies", body)
+            reply_obj = client.post(f"/threads/{thread_uuid}/replies", body)
         except PowerloomApiError as e:
             _console.print(f"[red]Reply failed:[/red] {e}")
             raise typer.Exit(1) from None
@@ -447,8 +512,9 @@ def reply(
 
 def _set_status(thread_id: str, status: str, json_output: bool) -> None:
     with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
         try:
-            thread = client.patch(f"/threads/{thread_id}", {"status": status})
+            thread = client.patch(f"/threads/{thread_uuid}", {"status": status})
         except PowerloomApiError as e:
             _console.print(f"[red]Status update failed:[/red] {e}")
             raise typer.Exit(1) from None
@@ -529,8 +595,9 @@ def update(
         raise typer.Exit(2)
 
     with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
         try:
-            thread = client.patch(f"/threads/{thread_id}", body)
+            thread = client.patch(f"/threads/{thread_uuid}", body)
         except PowerloomApiError as e:
             _console.print(f"[red]Update failed:[/red] {e}")
             raise typer.Exit(1) from None
@@ -649,21 +716,22 @@ def my_work(
 
 @app.command("show")
 def show(
-    thread_id: Annotated[str, typer.Argument()],
+    thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug'.")],
     with_replies: Annotated[bool, typer.Option("--with-replies/--no-replies", help="Include reply timeline.")] = True,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Show full detail for one thread — fields, metadata, reply timeline."""
     with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_id)
         try:
-            thread = client.get(f"/threads/{thread_id}")
+            thread = client.get(f"/threads/{thread_uuid}")
         except PowerloomApiError as e:
             _console.print(f"[red]Fetch failed:[/red] {e}")
             raise typer.Exit(1) from None
         replies = []
         if with_replies and not json_output:
             try:
-                replies = client.get(f"/threads/{thread_id}/replies") or []
+                replies = client.get(f"/threads/{thread_uuid}/replies") or []
             except PowerloomApiError:
                 replies = []
 

@@ -172,18 +172,18 @@ def test_pluck_409_renders_friendly_message(mock_client) -> None:
 
 
 def test_reply_happy_path(mock_client) -> None:
-    mock_client.post.return_value = {"id": "r1", "thread_id": "t1", "content": "hi"}
-    result = runner.invoke(app, ["thread", "reply", "t1", "hi"])
+    mock_client.post.return_value = {"id": "r1", "thread_id": "11111111-1111-1111-1111-111111111111", "content": "hi"}
+    result = runner.invoke(app, ["thread", "reply", "11111111-1111-1111-1111-111111111111", "hi"])
     assert result.exit_code == 0
     args, _ = mock_client.post.call_args
-    assert args[0] == "/threads/t1/replies"
+    assert args[0] == "/threads/11111111-1111-1111-1111-111111111111/replies"
     assert args[1]["content"] == "hi"
     assert args[1]["reply_type"] == "comment"
 
 
 def test_reply_requires_content(mock_client) -> None:
     """No content + no --from-stdin → exit 2."""
-    result = runner.invoke(app, ["thread", "reply", "t1"])
+    result = runner.invoke(app, ["thread", "reply", "11111111-1111-1111-1111-111111111111"])
     assert result.exit_code == 2
     assert "required" in result.stdout.lower() or "from-stdin" in result.stdout.lower()
 
@@ -203,10 +203,10 @@ def test_reply_requires_content(mock_client) -> None:
 )
 def test_status_verb_patches_correctly(mock_client, verb, expected_status) -> None:
     mock_client.patch.return_value = _seed_thread(status=expected_status)
-    result = runner.invoke(app, ["thread", verb, "t1"])
+    result = runner.invoke(app, ["thread", verb, "11111111-1111-1111-1111-111111111111"])
     assert result.exit_code == 0, result.stdout
     args, _ = mock_client.patch.call_args
-    assert args[0] == "/threads/t1"
+    assert args[0] == "/threads/11111111-1111-1111-1111-111111111111"
     assert args[1] == {"status": expected_status}
 
 
@@ -219,7 +219,7 @@ def test_update_combines_fields(mock_client) -> None:
     mock_client.patch.return_value = _seed_thread(status="review", priority="critical")
     result = runner.invoke(
         app,
-        ["thread", "update", "t1", "--status", "review", "--priority", "critical"],
+        ["thread", "update", "11111111-1111-1111-1111-111111111111", "--status", "review", "--priority", "critical"],
     )
     assert result.exit_code == 0
     args, _ = mock_client.patch.call_args
@@ -230,19 +230,19 @@ def test_update_combines_fields(mock_client) -> None:
 def test_update_assigned_to_empty_string_unassigns(mock_client) -> None:
     """--assigned-to '' → null in body (unassign)."""
     mock_client.patch.return_value = _seed_thread()
-    result = runner.invoke(app, ["thread", "update", "t1", "--assigned-to", ""])
+    result = runner.invoke(app, ["thread", "update", "11111111-1111-1111-1111-111111111111", "--assigned-to", ""])
     assert result.exit_code == 0
     args, _ = mock_client.patch.call_args
     assert args[1] == {"assigned_to": None}
 
 
 def test_update_invalid_status_rejected(mock_client) -> None:
-    result = runner.invoke(app, ["thread", "update", "t1", "--status", "bogus"])
+    result = runner.invoke(app, ["thread", "update", "11111111-1111-1111-1111-111111111111", "--status", "bogus"])
     assert result.exit_code == 2
 
 
 def test_update_no_fields_short_circuits(mock_client) -> None:
-    result = runner.invoke(app, ["thread", "update", "t1"])
+    result = runner.invoke(app, ["thread", "update", "11111111-1111-1111-1111-111111111111"])
     assert result.exit_code == 2
     assert "No fields" in result.stdout or "no fields" in result.stdout.lower()
 
@@ -297,7 +297,7 @@ def test_show_renders_title_metadata_replies(mock_client) -> None:
         {"id": "r2", "content": "second reply", "reply_type": "system", "created_at": "2026-04-26T22:05:00"},
     ]
     mock_client.get.side_effect = [thread, replies]
-    result = runner.invoke(app, ["thread", "show", "t1"])
+    result = runner.invoke(app, ["thread", "show", "11111111-1111-1111-1111-111111111111"])
     assert result.exit_code == 0, result.stdout
     assert "Hello" in result.stdout
     assert "Body of the thread" in result.stdout
@@ -311,10 +311,101 @@ def test_show_no_replies_flag(mock_client) -> None:
     """--no-replies skips the replies fetch."""
     thread = _seed_thread()
     mock_client.get.return_value = thread
-    result = runner.invoke(app, ["thread", "show", "t1", "--no-replies"])
+    result = runner.invoke(app, ["thread", "show", "11111111-1111-1111-1111-111111111111", "--no-replies"])
     assert result.exit_code == 0
     # Only one GET call (the thread itself), not two
     assert mock_client.get.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# W1.5.1 — slug resolution
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_thread_uuid_passthrough(mock_client) -> None:
+    """A UUID arg skips slug lookup entirely — no /projects fetch, no
+    /by-slug fetch."""
+    mock_client.patch.return_value = _seed_thread(status="done")
+    result = runner.invoke(
+        app,
+        ["thread", "done", "11111111-1111-1111-1111-111111111111"],
+    )
+    assert result.exit_code == 0, result.stdout
+    # The PATCH call should target the UUID directly
+    args, _ = mock_client.patch.call_args
+    assert args[0] == "/threads/11111111-1111-1111-1111-111111111111"
+    # And no /projects fetch happened (mock_client.get.side_effect would
+    # only have been called for /projects, but it wasn't called at all)
+    assert mock_client.get.call_count == 0
+
+
+def test_resolve_thread_bare_slug_uses_default_project(mock_client) -> None:
+    """A bare slug like 'ki-004' resolves via default project 'powerloom'."""
+    resolved = _seed_thread(id="22222222-2222-2222-2222-222222222222")
+    # First GET = project list, second GET = by-slug lookup
+    mock_client.get.side_effect = [
+        [{"id": "00000000-0000-0000-0000-0000000000aa", "slug": "powerloom"}],
+        resolved,
+    ]
+    mock_client.patch.return_value = _seed_thread(
+        id="22222222-2222-2222-2222-222222222222", status="done",
+    )
+    result = runner.invoke(app, ["thread", "done", "ki-004"])
+    assert result.exit_code == 0, result.stdout
+    # PATCH targeted the resolved UUID, not the slug
+    args, _ = mock_client.patch.call_args
+    assert args[0] == "/threads/22222222-2222-2222-2222-222222222222"
+    # Slug-lookup endpoint was hit
+    by_slug_calls = [
+        c for c in mock_client.get.call_args_list
+        if c.args and "/by-slug/ki-004" in c.args[0]
+    ]
+    assert len(by_slug_calls) == 1
+
+
+def test_resolve_thread_project_colon_slug(mock_client) -> None:
+    """`proj:slug` form picks the project explicitly."""
+    resolved = _seed_thread(id="33333333-3333-3333-3333-333333333333")
+    mock_client.get.side_effect = [
+        [{"id": "p2-uuid", "slug": "loomcli"}],
+        resolved,
+    ]
+    mock_client.patch.return_value = _seed_thread(
+        id="33333333-3333-3333-3333-333333333333", status="done",
+    )
+    result = runner.invoke(app, ["thread", "done", "loomcli:t1-foo"])
+    assert result.exit_code == 0, result.stdout
+    # By-slug call was made against the loomcli project
+    by_slug_calls = [
+        c for c in mock_client.get.call_args_list
+        if c.args and "/projects/p2-uuid/threads/by-slug/t1-foo" in c.args[0]
+    ]
+    assert len(by_slug_calls) == 1
+
+
+def test_resolve_thread_invalid_slug_shape_rejected(mock_client) -> None:
+    """Slugs with uppercase / spaces / leading hyphen → exit 2."""
+    result = runner.invoke(app, ["thread", "done", "INVALID SLUG"])
+    assert result.exit_code == 2
+    assert "Invalid" in result.stdout or "invalid" in result.stdout.lower()
+
+
+def test_resolve_thread_404_friendly_message(mock_client) -> None:
+    """404 from by-slug renders a project + slug specific error."""
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],
+        PowerloomApiError(404, "not found"),
+    ]
+    # Make the 2nd `get` raise — side_effect with mixed value/exception
+    def _get(path, **kw):
+        if path == "/projects":
+            return [{"id": "p1", "slug": "powerloom"}]
+        raise PowerloomApiError(404, "not found")
+    mock_client.get.side_effect = _get
+    result = runner.invoke(app, ["thread", "done", "missing-slug"])
+    assert result.exit_code == 1
+    out = result.stdout.lower()
+    assert "no thread" in out and "missing-slug" in out
 
 
 # === PR #25: my-work watch tests ===
@@ -505,9 +596,9 @@ def test_reply_with_env_stamps_attribution_inline(monkeypatch, mock_client) -> N
     monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "sp-uuid-aaaa")
     sp = _attribution_test_subprincipal()
     mock_client.get.side_effect = [sp]  # /me/agents/<id> lookup
-    mock_client.post.return_value = {"id": "r1", "thread_id": "t1", "content": "hi"}
+    mock_client.post.return_value = {"id": "r1", "thread_id": "11111111-1111-1111-1111-111111111111", "content": "hi"}
 
-    result = runner.invoke(app, ["thread", "reply", "t1", "decision: option A"])
+    result = runner.invoke(app, ["thread", "reply", "11111111-1111-1111-1111-111111111111", "decision: option A"])
     assert result.exit_code == 0, result.stdout
     # POST body carries metadata_json.session_attribution
     args, _ = mock_client.post.call_args
@@ -523,8 +614,8 @@ def test_reply_no_env_skips_stamping(monkeypatch, mock_client) -> None:
     """No env -> no metadata_json on the reply body. Direct human-call path
     unchanged."""
     monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
-    mock_client.post.return_value = {"id": "r1", "thread_id": "t1", "content": "hi"}
-    result = runner.invoke(app, ["thread", "reply", "t1", "hi"])
+    mock_client.post.return_value = {"id": "r1", "thread_id": "11111111-1111-1111-1111-111111111111", "content": "hi"}
+    result = runner.invoke(app, ["thread", "reply", "11111111-1111-1111-1111-111111111111", "hi"])
     assert result.exit_code == 0
     args, _ = mock_client.post.call_args
     body = args[1]
