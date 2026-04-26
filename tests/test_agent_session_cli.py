@@ -264,15 +264,15 @@ def test_register_missing_summary_without_from_branch_errors():
         app, ["agent-session", "register", "--scope", "my-scope-20260426"]
     )
     assert result.exit_code != 0
+
+
 @patch("loomcli.commands.agent_session_cmd.PowerloomClient")
-@patch("loomcli.commands.agent_session_cmd.load_runtime_config")
-def test_agent_session_status_shows_tasks_and_events(
-    mock_load_cfg,
-    mock_client_cls,
-):
-    cfg = MagicMock()
-    cfg.access_token = "fake-token"
-    mock_load_cfg.return_value = cfg
+def test_agent_session_status_shows_coordination_tasks(mock_client_cls, monkeypatch, tmp_path):
+    home = tmp_path / "has-creds"
+    home.mkdir()
+    (home / "credentials").write_text("fake-token\n", encoding="utf-8")
+    monkeypatch.setenv("POWERLOOM_HOME", str(home))
+
     mock_client = MagicMock()
     session_id = "session-123"
 
@@ -297,15 +297,6 @@ def test_agent_session_status_shows_tasks_and_events(
                     }
                 ]
             }
-        if path == f"/agent-sessions/{session_id}/events" and params == {"limit": 5}:
-            return [
-                {
-                    "seq": 7,
-                    "event_type": "session.heartbeat",
-                    "payload": {"message": "still working"},
-                    "created_at": "2026-04-26T12:00:00Z",
-                }
-            ]
         raise AssertionError(f"unexpected GET {path} {params}")
 
     mock_client.get.side_effect = get_side_effect
@@ -317,47 +308,29 @@ def test_agent_session_status_shows_tasks_and_events(
     assert "codex-onboarding" in result.stdout
     assert "codex_cli" in result.stdout
     assert "finish-cli" in result.stdout
-    assert "still working" in result.stdout
 
 
 @patch("loomcli.commands.agent_session_cmd.PowerloomClient")
-@patch("loomcli.commands.agent_session_cmd.load_runtime_config")
-def test_agent_session_watch_once_prints_compact_line(
-    mock_load_cfg,
-    mock_client_cls,
-):
-    cfg = MagicMock()
-    cfg.access_token = "fake-token"
-    mock_load_cfg.return_value = cfg
+def test_agent_session_watch_once_prints_compact_line(mock_client_cls, monkeypatch, tmp_path):
+    home = tmp_path / "has-creds"
+    home.mkdir()
+    (home / "credentials").write_text("fake-token\n", encoding="utf-8")
+    monkeypatch.setenv("POWERLOOM_HOME", str(home))
+
     mock_client = MagicMock()
     session_id = "session-123"
-
-    def get_side_effect(path: str, **params):
-        if path == f"/agent-sessions/{session_id}":
-            return {
-                "id": session_id,
-                "session_slug": "codex-onboarding",
-                "status": "active",
-                "actor_kind": "codex_cli",
-            }
-        if path == f"/agent-sessions/{session_id}/tasks":
-            return {"tasks": [{"node_id": "finish-cli", "status": "running"}]}
-        raise AssertionError(f"unexpected GET {path} {params}")
-
-    mock_client.get.side_effect = get_side_effect
+    mock_client.get.side_effect = [
+        {
+            "id": session_id,
+            "session_slug": "codex-onboarding",
+            "status": "active",
+            "actor_kind": "codex_cli",
+        },
+        {"tasks": [{"node_id": "finish-cli", "status": "running"}]},
+    ]
     mock_client_cls.return_value = mock_client
 
-    result = runner.invoke(
-        app,
-        [
-            "agent-session",
-            "watch",
-            session_id,
-            "--once",
-            "--events-limit",
-            "0",
-        ],
-    )
+    result = runner.invoke(app, ["agent-session", "watch", session_id, "--once"])
 
     assert result.exit_code == 0, result.stdout
     assert "codex-onboarding" in result.stdout

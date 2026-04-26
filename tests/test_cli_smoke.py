@@ -26,7 +26,7 @@ def test_root_help_lists_subcommands():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     stdout = result.stdout
-    for cmd in ("apply", "plan", "destroy", "get", "describe", "import", "auth", "agent-session", "workflow", "thread"):
+    for cmd in ("apply", "plan", "destroy", "get", "describe", "import", "auth", "agent-session", "workflow", "doctor", "plugin", "thread"):
         assert cmd in stdout, f"missing subcommand help: {cmd}"
 
 

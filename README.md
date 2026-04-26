@@ -123,13 +123,16 @@ weave session tail <session-id>
 weave profile set --default-agent /dev-org/alfred --default-runtime openai --default-model gpt-5.5
 weave commands --json
 weave approval wait <approval-id>
+weave doctor
+weave plugin doctor
+weave plugin instructions codex
 weave workflow apply workflow.yaml
 weave workflow run my-workflow --inputs scope=example
 weave workflow status <run-id>
 weave agent-session register --scope "<slug>" --summary "<one-line>"
 weave agent-session ls --status active
-weave agent-session watch <agent-session-id> --interval 3
-weave thread my-work --watch --interval 5
+weave agent-session status <coordination-session-id>
+weave thread my-work --watch
 ```
 
 Global flags:
@@ -163,13 +166,12 @@ weave agent sessions /dev-org/alfred
 weave agent watch /dev-org/alfred --interval 3
 weave session events <session-id>
 weave session tail <session-id>
-weave agent-session status <agent-session-id>
-weave agent-session watch <agent-session-id> --interval 3
-weave thread my-work
-weave thread my-work --watch --interval 5
+weave agent-session status <coordination-session-id>
+weave agent-session watch <coordination-session-id>
+weave thread my-work --watch
 ```
 
-Use them to answer "what is this agent doing?", see the latest runtime session status, tail durable event traces after a WebSocket ticket has expired, and keep a live view of coordination sessions plus tracker threads plucked for your account.
+Use `weave agent ...` and `weave session ...` for runtime execution state. Use `weave agent-session ...` and `weave thread my-work` for coordination state: what a human or agent has claimed, which workflow tasks are assigned, and what tracker threads are active.
 
 ### Agent config and CLI profiles
 
@@ -192,6 +194,19 @@ weave approval wait <approval-id>
 ```
 
 `weave commands` exports command metadata for autocomplete, mobile clients, and plugin docs. `weave approval wait` polls a pending approval until it is approved, rejected, cancelled, expired, or times out.
+
+### Setup diagnostics and client plugins
+
+```bash
+weave doctor
+weave plugin doctor
+weave plugin instructions codex
+weave plugin instructions gemini
+weave plugin install codex
+weave plugin install gemini
+```
+
+`weave doctor` checks local auth, the configured API URL, advertised server capabilities, supported actor kinds, and common client binaries on PATH. `weave plugin doctor` checks local plugin package paths for Claude Code, Codex, Gemini, and Antigravity. Install commands default to dry-run output; pass `--execute` only after reviewing the command.
 
 ## Schema as source of truth
 

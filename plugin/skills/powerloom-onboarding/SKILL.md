@@ -22,8 +22,12 @@ weave whoami               # confirm identity
 
 # 3. Load your runtime's plugin (one of these)
 claude --plugin-dir /path/to/loomcli/plugin                          # Claude Code
-gemini extensions link /path/to/loomcli/plugins/gemini/powerloom-weave   # Gemini CLI
-# Codex: see "Step 3" below — install path varies by Codex version
+codex plugin marketplace add /path/to/loomcli/plugins/codex          # Codex CLI
+gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+
+# Or let weave print the exact command for your checkout:
+weave plugin instructions codex
+weave plugin instructions gemini
 
 # 4. File your first thread for the work this session is about to do
 weave thread create --project powerloom \
@@ -156,26 +160,27 @@ Slash commands appear under `/powerloom-home:weave-*` (login, status, ask, chat,
 ### Codex CLI
 
 ```bash
-# Codex's plugin install flow varies by version. Two common paths:
+codex plugin marketplace add /path/to/loomcli/plugins/codex
 
-# (a) link the plugin directory locally
-codex plugin add /path/to/loomcli/plugins/codex/powerloom-weave
-
-# (b) add to a Codex plugin marketplace and install by name
-codex plugin install powerloom-weave
+# From a loomcli checkout, this prints the correct local path:
+weave plugin instructions codex
 ```
 
-The skill files (`weave-tracker`, `weave-interpreter`, `powerloom-onboarding`) live under `plugins/codex/powerloom-weave/skills/` and are loaded by Codex when their descriptions match the user's request. The plugin manifest is at `plugins/codex/powerloom-weave/.codex-plugin/plugin.json`.
+Point Codex at `plugins/codex`, the marketplace root, not `plugins/codex/powerloom-weave`. The skill files (`weave-tracker`, `weave-interpreter`, `powerloom-onboarding`) live under `plugins/codex/powerloom-weave/skills/` and are loaded by Codex when their descriptions match the user's request. The plugin manifest is at `plugins/codex/powerloom-weave/.codex-plugin/plugin.json`; marketplace metadata is at `plugins/codex/.agents/plugins/marketplace.json`.
 
-If your Codex version doesn't have a `plugin add` subcommand yet, point it at the directory the way it expects local skills (typically a `~/.codex/skills/` symlink to the `skills/` subdir) and verify with whatever `codex skills list` your version exposes.
+After adding the marketplace, enable `powerloom-weave@powerloom` in Codex if it is not auto-enabled.
 
 ### Gemini CLI
 
 ```bash
-gemini extensions link /path/to/loomcli/plugins/gemini/powerloom-weave
+gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+gemini extensions enable powerloom-weave
+
+# From a loomcli checkout, this prints the correct local path:
+weave plugin instructions gemini
 ```
 
-Restart Gemini CLI or reload commands after linking. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension is auto-merged into your project's Gemini context — that's where the tracker workflow + provider-agnostic invocation rules come in.
+Restart Gemini CLI or reload commands after installing. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension is auto-merged into your project's Gemini context — that's where the tracker workflow + provider-agnostic invocation rules come in.
 
 Gemini extensions don't use markdown skill files — they use TOML slash commands. The onboarding equivalent for Gemini is `/weave:onboard`.
 
@@ -300,6 +305,8 @@ For anything else, fall back to the diagnostic ladder in `weave-interpreter`:
 ```bash
 weave --version          # CLI installed?
 weave whoami             # signed in? against the right API URL?
+weave doctor             # auth, API capabilities, actor kinds, PATH
+weave plugin doctor      # local plugin packages and client binaries
 weave get ou             # can you read?
 weave plan <manifest>    # safest preview if a manifest is misbehaving
 ```
@@ -318,6 +325,6 @@ weave plan <manifest>    # safest preview if a manifest is misbehaving
 
 ## Codex-specific install note
 
-The canonical onboarding doc lives at `loomcli/plugin/skills/powerloom-onboarding/SKILL.md` (Claude Code path); a verbatim copy lives at `loomcli/plugins/codex/powerloom-weave/skills/powerloom-onboarding/SKILL.md` (Codex path). The only delta is Step 3's plugin-install command, which differs per Codex version — see that step for the two common paths. Everything else is identical.
+The canonical onboarding doc lives at `loomcli/plugin/skills/powerloom-onboarding/SKILL.md` (Claude Code path); a verbatim copy lives at `loomcli/plugins/codex/powerloom-weave/skills/powerloom-onboarding/SKILL.md` (Codex path). Keep the runtime install commands aligned with `weave plugin instructions <client>`.
 
 If you find an inconsistency between the two copies, the Claude Code path is the source of truth (per CLAUDE.md §4.9). File a thread under project `powerloom` to flag the drift.

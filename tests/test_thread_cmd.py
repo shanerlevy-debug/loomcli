@@ -64,7 +64,7 @@ def _seed_thread(**overrides) -> dict:
 def test_thread_subgroup_registered() -> None:
     result = runner.invoke(app, ["thread", "--help"])
     assert result.exit_code == 0
-    for cmd in ("create", "pluck", "reply", "done", "close", "wont-do", "list", "show", "update"):
+    for cmd in ("create", "pluck", "reply", "done", "close", "wont-do", "list", "show", "update", "my-work"):
         assert cmd in result.stdout
 
 

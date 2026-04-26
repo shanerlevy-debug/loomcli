@@ -50,6 +50,7 @@ from __future__ import annotations
 import json as _json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Optional
@@ -212,6 +213,47 @@ def _print_thread_summary(t: dict) -> None:
 def _output_json(data) -> None:
     """Print data as JSON for --json flag. Handles UUIDs + datetimes."""
     print(_json.dumps(data, indent=2, default=str))
+
+
+def _rows_from_response(items) -> list[dict]:
+    rows = items if isinstance(items, list) else (items.get("items") or items.get("threads") or [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _print_thread_table(rows: list[dict]) -> None:
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Status", style="cyan", width=14)
+    table.add_column("Pri", width=8)
+    table.add_column("Title", overflow="fold")
+    table.add_column("Owner", overflow="fold", width=30)
+    table.add_column("ID", overflow="fold", width=10)
+    for t in rows:
+        sp = ((t.get("metadata_json") or {}).get("session_attribution") or {}).get("subprincipal_name") or ""
+        owner = sp[:28] if sp else (t.get("assigned_to") or "")[:8]
+        table.add_row(
+            t.get("status", "?"),
+            t.get("priority", "?"),
+            t.get("title", "")[:60],
+            owner,
+            (t.get("id") or "")[:8],
+        )
+    _console.print(table)
+    _console.print(f"[dim]{len(rows)} thread(s)[/dim]")
+
+
+def _my_work_watch_line(rows: list[dict]) -> str:
+    counts = Counter(str(row.get("status", "unknown")) for row in rows)
+    counts_text = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+    if not counts_text:
+        counts_text = "none"
+    top = rows[0] if rows else {}
+    top_label = ""
+    if top:
+        top_label = (
+            f" | top={top.get('status', '')} "
+            f"{str(top.get('title', ''))[:80]}"
+        )
+    return f"my-work total={len(rows)} statuses={counts_text}{top_label}"
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +589,7 @@ def list_threads(
                 _console.print(f"[red]Query failed:[/red] {e}")
                 raise typer.Exit(1) from None
 
-    rows = items if isinstance(items, list) else (items.get("items") or items.get("threads") or [])
+    rows = _rows_from_response(items)
 
     if json_output:
         _output_json(rows)
@@ -557,26 +599,47 @@ def list_threads(
         _console.print("[dim]No threads matched.[/dim]")
         return
 
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Status", style="cyan", width=14)
-    table.add_column("Pri", width=8)
-    table.add_column("Title", overflow="fold")
-    table.add_column("Owner", overflow="fold", width=30)
-    table.add_column("ID", overflow="fold", width=10)
-    for t in rows:
-        if not isinstance(t, dict):
-            continue
-        sp = ((t.get("metadata_json") or {}).get("session_attribution") or {}).get("subprincipal_name") or ""
-        owner = sp[:28] if sp else (t.get("assigned_to") or "")[:8]
-        table.add_row(
-            t.get("status", "?"),
-            t.get("priority", "?"),
-            t.get("title", "")[:60],
-            owner,
-            (t.get("id") or "")[:8],
-        )
-    _console.print(table)
-    _console.print(f"[dim]{len(rows)} thread(s)[/dim]")
+    _print_thread_table(rows)
+
+
+@app.command("my-work")
+def my_work(
+    status: Annotated[Optional[str], typer.Option("--status", help="Filter by status.")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
+    watch: Annotated[bool, typer.Option("--watch", help="Poll until interrupted.")] = False,
+    interval: Annotated[float, typer.Option("--interval", min=1.0, help="Polling interval in seconds.")] = 5.0,
+    once: Annotated[bool, typer.Option("--once", help="Poll once and exit. Useful with --watch.")] = False,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show threads assigned to, created by, or plucked by the signed-in user."""
+    with _client_or_exit() as client:
+        try:
+            while True:
+                params: dict = {"limit": limit}
+                if status:
+                    params["status"] = status
+                rows = _rows_from_response(client.get("/threads/my-work", **params))
+                if json_output:
+                    _output_json(rows)
+                elif watch:
+                    _console.print(_my_work_watch_line(rows))
+                elif rows:
+                    _print_thread_table(rows)
+                else:
+                    _console.print("[dim]No threads matched.[/dim]")
+                if not watch or once:
+                    break
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            typer.echo()
+        except PowerloomApiError as e:
+            _console.print(f"[red]Query failed:[/red] {e}")
+            if e.status_code == 422:
+                _console.print(
+                    "[yellow]The server may still have /threads/my-work shadowed by /threads/{thread_id}. "
+                    "Upgrade/deploy the route-order fix, then retry.[/yellow]"
+                )
+            raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------------------
