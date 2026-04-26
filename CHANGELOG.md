@@ -12,6 +12,34 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **`weave ask` / `weave chat`**: provider-agnostic terminal agent sessions. Both commands invoke Powerloom's existing `/agents/{id}/invoke` endpoint and stream the session; the CLI does not read model-provider keys locally. Runtime/model selection stays on the Agent row and the control plane uses the user/org runtime credential.
 - **Client plugin packages**: keeps the existing Claude Code plugin and adds OpenAI Codex + Gemini CLI plugin/extension packages under `plugins/`.
 
+## v0.6.3-rc1 — 2026-04-26 (CLI)
+
+**v057 closeout + v061-v064 first slices — schema-version negotiation, target-OU compose gating, TypeDefinition + Convention stdlib derivations.** Four landed-together commits from the v057-closeout side branch, reconciled onto v0.6.2-rc1 (the import-project release) and re-bumped to v0.6.3-rc1.
+
+### New
+
+- **`X-Powerloom-Schema-Version` header** — `loomcli/client.py` injects the header on every request, sourced from `loomcli.schema.SCHEMA_VERSION`. Engines pre-dating v057 ignore it; engines on v057+ run it through the `core/schema_version_check.py` 426 gate (engine companion in PR #133, ships in same deploy).
+- **426 response formatter** — `_format_version_mismatch()` recognizes the engine's canonical 426 body shape (`error.detail.{supported_versions, client_sent}`) and emits an upgrade-hint message; non-canonical 426s fall back to the default extractor.
+- **`metadata.target_ou_path` on Compose manifests** — manifest authors can publish a composed kind to a specific OU instead of the default org root. Engine-side resolution lands in PR #133 (`services/compose.py` resolve_target_ou_id + migration 0054).
+- **TypeDefinition stdlib derivation** — first cell-level memory primitive shipped as a v2 stdlib kind. New schema at `schema/v2/stdlib/type-definition.schema.json`; loomcli builder at `loomcli/schema/v2/stdlib/type_definition.py`; example manifest at `examples/minimal/type-definition.yaml`.
+- **Convention stdlib derivation** (v064) — `compose(Policy[intent], Scope[applies_to])`, the 11th stdlib kind. Top-down authored rules with `enforcement_mode` + `status` enums and `references_json` cross-links. Schema at `schema/v2/stdlib/convention.schema.json`.
+
+### Schema
+
+- 2.0.0-draft.1 → 2.0.2-draft.1 (additive: TypeDefinition + Convention; target_ou metadata on Compose).
+
+### Tests
+
+- 18 tests for X-Powerloom-Schema-Version header injection + formatter
+- 100 tests for compose target_ou validation + apply path
+- 172 tests for TypeDefinition schema validation
+- 19 tests for Convention schema validation
+- All 484 existing tests still pass — full suite 553/553 green
+
+### Reconcile note
+
+Originally three sequential `0.6.1-rcN` releases on `session/v057-closeout-20260425`, plus an additional `0.6.2-rc1` cut on the same branch carrying Convention. The `0.6.2-rc1` slot was pre-empted by the `weave import-project` cut (different feature, also dated 2026-04-26). This reconciles all four commits + bumps to `0.6.3-rc1` as a single unified release; the intermediate rc bumps are squashed away.
+
 ## v0.6.2-rc1 — 2026-04-26 (CLI)
 
 **v059 self-import MVP — `weave import-project`.** New CLI command that imports a Powerloom-shaped checkout (Project.md + docs/phases/*.md + KNOWN_ISSUES.md + docs/out-of-scope.md + docs/handoffs/*.md + ReadMe.md) into the engine's tracker subsystem. The CLI walks the local files and POSTs their contents; the engine does the parsing + apply via the new `POST /projects/import/from-source` endpoint (Powerloom PR #129). No engine-package dependency on the client side.
