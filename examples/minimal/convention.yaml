@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schema/v2/stdlib/convention.schema.json
+apiVersion: powerloom.app/v2
+kind: Convention
+metadata:
+  name: code-review-checklist
+  ou_path: /acme/eng
+spec:
+  display_name: Code Review Checklist
+  description: |
+    Every code review in /acme/eng must verify the items below.
+    Originally codified after the 2026-Q1 incident review where two
+    PRs landed without test coverage.
+  applies_to_scope_ref: engineering.code-reviews
+  body:
+    summary: |
+      Required checks for every code review:
+      - Tests pass + cover the changed lines.
+      - No new secrets introduced (run secret-scanner skill).
+      - Documentation updated when public APIs change.
+      - Migration files reviewed by a senior engineer when present.
+    items:
+      - tests_pass
+      - test_coverage
+      - secret_scan
+      - docs_updated
+      - migration_review
+  enforcement_mode: warn
+  status: active
