@@ -128,6 +128,8 @@ weave workflow run my-workflow --inputs scope=example
 weave workflow status <run-id>
 weave agent-session register --scope "<slug>" --summary "<one-line>"
 weave agent-session ls --status active
+weave agent-session watch <agent-session-id> --interval 3
+weave thread my-work --watch --interval 5
 ```
 
 Global flags:
@@ -161,9 +163,13 @@ weave agent sessions /dev-org/alfred
 weave agent watch /dev-org/alfred --interval 3
 weave session events <session-id>
 weave session tail <session-id>
+weave agent-session status <agent-session-id>
+weave agent-session watch <agent-session-id> --interval 3
+weave thread my-work
+weave thread my-work --watch --interval 5
 ```
 
-Use them to answer "what is this agent doing?", see the latest session status, and tail durable event traces after a WebSocket ticket has expired.
+Use them to answer "what is this agent doing?", see the latest runtime session status, tail durable event traces after a WebSocket ticket has expired, and keep a live view of coordination sessions plus tracker threads plucked for your account.
 
 ### Agent config and CLI profiles
 

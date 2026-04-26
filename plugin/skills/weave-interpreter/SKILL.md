@@ -35,6 +35,9 @@ Weave uses a two-level command tree: top-level commands + subgroups. As of 0.6.1
 | `weave agent config` | Show provider/runtime and model config for one agent | `<agent>` |
 | `weave agent set-model` | Update an Agent row's model through the control plane | `<agent> --model <model>` |
 | `weave session tail` | Poll durable session events after invoke-time WS tickets expire | `<session-id>` |
+| `weave agent-session status` | Show one coordination session, assigned tasks, and recent events when available | `<agent-session-id>` |
+| `weave agent-session watch` | Poll one coordination session and assigned tasks | `<agent-session-id>` |
+| `weave thread my-work` | Show tracker threads assigned to, plucked by, or created by me | `[--watch]` |
 | `weave profile` | Manage local CLI defaults for agent/runtime/model/output/API URL | `show`, `set`, `clear` |
 | `weave commands` | Export command metadata for autocomplete/plugins/mobile | `[--json]` |
 
@@ -62,9 +65,12 @@ weave agent sessions /org/ou/agent-name
 weave agent watch /org/ou/agent-name --interval 3
 weave session events <session-id>
 weave session tail <session-id>
+weave agent-session status <agent-session-id>
+weave agent-session watch <agent-session-id> --interval 3
+weave thread my-work --watch --interval 5
 ```
 
-Use them to answer what an agent is currently doing, whether it has active sessions, and what durable events have been recorded.
+Use them to answer what an agent is currently doing, whether it has active sessions, what durable events have been recorded, and what coordination threads are currently plucked or assigned to the signed-in user.
 
 ### Thread plucking
 
@@ -74,10 +80,10 @@ If the user asks to "pluck this thread", capture the current conversation as a P
 2. If the user wants it registered and `weave whoami` succeeds, use:
 
 ```bash
-weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind claude_code
 ```
 
-3. Do not invent unsupported `--actor-kind` values such as `codex` or `gemini`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+3. Use supported actor kinds such as `claude_code`, `codex_cli`, `gemini_cli`, `antigravity`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
 4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command for later.
 
 ### Top-level auth aliases (shortcuts for `weave auth <cmd>`)
@@ -93,7 +99,8 @@ weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<
 | `weave auth` | `login`, `logout`, `whoami`, `pat create`/`list`/`revoke` |
 | `weave skill` | `upload`, `activate`, `upload-and-activate`, `versions` |
 | `weave workflow` | `apply`, `run`, `status`, `ls`, `cancel` (Phase 14 workflow CLI) |
-| `weave agent-session` | `register`, `end`, `ls`, `get`, `tasks`, `task-complete` |
+| `weave agent-session` | `register`, `end`, `ls`, `get`, `status`, `watch`, `tasks`, `task-complete` |
+| `weave thread` | `my-work` |
 | `weave antigravity-worker` | Daemon for Antigravity IDE integration (stub) |
 
 ## Global options

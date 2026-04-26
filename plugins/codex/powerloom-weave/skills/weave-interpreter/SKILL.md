@@ -65,9 +65,12 @@ weave agent sessions /org/ou/agent-name
 weave agent watch /org/ou/agent-name --interval 3
 weave session events <session-id>
 weave session tail <session-id>
+weave agent-session status <agent-session-id>
+weave agent-session watch <agent-session-id> --interval 3
+weave thread my-work --watch --interval 5
 ```
 
-These commands are read-only runtime inspection. They do not modify manifest-backed Agent state.
+These commands are read-only runtime and coordination inspection. They do not modify manifest-backed Agent state.
 
 ## Thread Plucking
 
@@ -77,10 +80,10 @@ If the user asks to "pluck this thread", treat it as a Powerloom handoff/coordin
 2. If the user wants it registered and `weave whoami` succeeds, use the current coordination-session schema:
 
 ```bash
-weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>"
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind codex_cli
 ```
 
-3. Do not invent unsupported `--actor-kind` values such as `codex` or `gemini`; omit `--actor-kind` unless the target Powerloom control plane explicitly accepts that value.
+3. Use supported actor kinds such as `codex_cli`, `gemini_cli`, `antigravity`, `claude_code`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
 4. If the user is not signed in or no API is available, output the handoff summary plus the exact `weave agent-session register ...` command they can run later.
 
 ## Provider/Model Configuration

@@ -43,7 +43,7 @@ Never print, store, or commit raw PATs.
 
 ## Agent/Session Observability
 
-Use `weave agent status`, `weave agent sessions`, and `weave session tail` when the user asks what an agent is doing. These are read-only runtime inspection commands and do not change manifests, provider, or model.
+Use `weave agent status`, `weave agent sessions`, `weave session tail`, `weave agent-session status`, `weave agent-session watch`, and `weave thread my-work --watch` when the user asks what an agent or delegated coding session is doing. These are read-only runtime/coordination inspection commands and do not change manifests, provider, or model.
 
 Use `weave agent config` and `weave agent set-model` for model inspection/update. Runtime/provider changes remain manifest-owned until Powerloom exposes a safe runtime patch endpoint; do not add provider/model flags to `weave ask` or `weave chat`.
 
@@ -68,3 +68,8 @@ weave thread done <thread_id>
 Read the canonical example threads under the `powerloom` project (ids `8d2c7502`, `c41a8294`, `3671bfaf`, `9210c2c2`, `e011a581`, `2be84503`, `a0a715dc`) with `weave thread show <id>` to see the canonical description structure: context-up-front, repro/current-state, definition-of-done, out-of-scope.
 
 If the `weave thread …` subcommand family isn't yet in your installed loomcli version (it's tracked as thread `2be84503`), fall back to direct API calls via `curl` against `POST /projects/{project_id}/threads` — the underlying engine endpoints exist; only the CLI sugar is in flight.
+weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind gemini_cli
+```
+
+3. Use supported actor kinds such as `gemini_cli`, `codex_cli`, `antigravity`, `claude_code`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
+4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command for later.
