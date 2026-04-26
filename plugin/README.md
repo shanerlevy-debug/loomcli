@@ -5,6 +5,7 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 ## What you get
 
 - **Agentic hosted commands**: `/powerloom-home:weave-ask` and `/powerloom-home:weave-chat` wrap `weave ask` / `weave chat` for provider-agnostic hosted agent sessions.
+- **Agent observability commands**: `/powerloom-home:weave-agent-status` and `/powerloom-home:weave-session-tail` wrap `weave agent status` / `weave session tail`.
 
 - **Slash commands** — `/powerloom-home:weave-login`, `/powerloom-home:weave-status`, `/powerloom-home:weave-apply`, `/powerloom-home:weave-plan`, `/powerloom-home:weave-manifest`, `/powerloom-home:weave-diagnose`, `/powerloom-home:home-mode`.
 - **Weave-interpreter skill** — comprehensive reference for the `weave` CLI auto-loaded when you ask Claude about weave operations.
@@ -90,6 +91,15 @@ Describes what you want ("an agent that reviews pull requests") and Claude scaff
 
 These commands call `weave ask` / `weave chat`. The CLI does not call provider APIs directly; Powerloom uses the target agent's configured runtime/model and the user/org runtime credential.
 
+### Inspect live agent work
+
+```
+/powerloom-home:weave-agent-status /dev-org/alfred
+/powerloom-home:weave-session-tail <session-id>
+```
+
+These commands read runtime state only. They do not patch manifests or change the agent's provider/model.
+
 ### Diagnose an error
 
 ```
@@ -150,7 +160,7 @@ plugin/
 ├── skills/
 │   └── weave-interpreter/
 │       └── SKILL.md          # The comprehensive weave CLI reference
-├── commands/                 # 7 slash commands (login/status/apply/plan/manifest/diagnose/home-mode)
+├── commands/                 # 11 slash commands (login/status/apply/plan/manifest/diagnose/home-mode/ask/chat/agent-status/session-tail)
 ├── hooks/
 │   └── hooks.json            # SessionStart greeting + PostToolUse manifest-detect
 ├── mcp-server/

@@ -1,0 +1,19 @@
+description = "Inspect a Powerloom agent's runtime state through weave agent status."
+prompt = """
+The user wants to inspect what a Powerloom agent is doing.
+
+Run or guide them to run:
+
+```bash
+weave agent status {{args}}
+```
+
+Useful related commands:
+
+```bash
+weave agent sessions {{args}}
+weave agent watch {{args}} --interval 3
+```
+
+This is read-only observability. Do not change manifests, provider, model, credentials, or runtime settings unless the user separately asks for a mutation.
+"""

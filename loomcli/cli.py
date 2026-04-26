@@ -16,6 +16,7 @@ import typer
 
 from loomcli import __version__
 from loomcli.commands import agent_cmd
+from loomcli.commands import agent_observe_cmd
 from loomcli.commands import agent_session_cmd
 from loomcli.commands import apply as apply_cmd
 from loomcli.commands import auth_cmd
@@ -32,6 +33,7 @@ from loomcli.commands import audit_cmd
 from loomcli.commands import approval_cmd
 from loomcli.commands import compose_cmd
 from loomcli.commands import migrate_cmd
+from loomcli.commands import session_cmd
 
 
 app = typer.Typer(
@@ -112,7 +114,9 @@ def _root(
 
 # Register subcommands.
 app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami / PAT management.")
+app.add_typer(agent_observe_cmd.app, name="agent", help="Inspect agents and live work.")
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
+app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
 app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
 app.add_typer(skill_cmd.app, name="skill", help="Manage Skill archives (upload + activate versions).")

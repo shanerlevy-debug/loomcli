@@ -24,6 +24,8 @@ def test_root_help_lists_agentic_commands():
     assert result.exit_code == 0
     assert "ask" in result.stdout
     assert "chat" in result.stdout
+    assert "agent" in result.stdout
+    assert "session" in result.stdout
 
 
 @patch("loomcli.commands.agent_cmd.load_runtime_config")
@@ -161,3 +163,111 @@ def test_extract_text_from_common_event_shapes():
         )
         == "hi"
     )
+
+
+@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_agent_status_shows_runtime_and_latest_session(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    cfg = _cfg()
+    mock_load_cfg.return_value = cfg
+    client = MagicMock()
+    agent_id = "00000000-0000-0000-0000-000000000001"
+
+    def get_side_effect(path: str, **params):
+        if path == f"/agents/{agent_id}":
+            return {
+                "id": agent_id,
+                "name": "alfred",
+                "runtime_type": "openai",
+                "model": "gpt-5.5",
+            }
+        if path == f"/agents/{agent_id}/sync-status":
+            return {"status": "synced"}
+        if path == "/sessions" and params == {"agent_id": agent_id}:
+            return [
+                {
+                    "id": "session-1",
+                    "status": "running",
+                    "mode": "fire_and_forget",
+                    "title": "Working",
+                    "event_count": 3,
+                    "mcp_tool_use_count": 1,
+                    "started_at": "2026-04-26T12:00:00Z",
+                }
+            ]
+        raise AssertionError(f"unexpected GET {path} {params}")
+
+    client.get.side_effect = get_side_effect
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["agent", "status", agent_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "openai" in result.stdout
+    assert "gpt-5.5" in result.stdout
+    assert "running" in result.stdout
+
+
+@patch("loomcli.commands.session_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_session_events_prints_durable_events(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    cfg = _cfg()
+    mock_load_cfg.return_value = cfg
+    client = MagicMock()
+    client.__enter__.return_value = client
+    session_id = "00000000-0000-0000-0000-000000000002"
+    client.get.return_value = [
+        {
+            "id": "event-1",
+            "session_id": session_id,
+            "seq": 1,
+            "event_type": "text_delta",
+            "payload": {"text": "hello"},
+            "created_at": "2026-04-26T12:00:01Z",
+        }
+    ]
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["session", "events", session_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "text_delta" in result.stdout
+    assert "hello" in result.stdout
+    client.get.assert_called_once_with(
+        f"/sessions/{session_id}/events", limit=100
+    )
+
+
+@patch("loomcli.commands.session_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.load_runtime_config")
+def test_session_tail_once_prints_text(
+    mock_load_cfg,
+    mock_client_cls,
+):
+    cfg = _cfg()
+    mock_load_cfg.return_value = cfg
+    client = MagicMock()
+    client.__enter__.return_value = client
+    session_id = "00000000-0000-0000-0000-000000000002"
+    client.get.return_value = [
+        {
+            "id": "event-1",
+            "session_id": session_id,
+            "seq": 7,
+            "event_type": "text_delta",
+            "payload": {"text": "hello"},
+            "created_at": "2026-04-26T12:00:01Z",
+        }
+    ]
+    mock_client_cls.return_value = client
+
+    result = runner.invoke(app, ["session", "tail", session_id, "--once"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "hello" in result.stdout

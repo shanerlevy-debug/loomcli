@@ -20,6 +20,8 @@ weave login
 weave whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
+weave agent status /dev-org/alfred
+weave session tail <session-id>
 weave plan manifest.yaml
 weave apply manifest.yaml
 weave get agents --ou /dev-org
@@ -33,3 +35,7 @@ weave --justification "reason for this change" apply manifest.yaml
 ```
 
 Never print, store, or commit raw PATs.
+
+## Agent/Session Observability
+
+Use `weave agent status`, `weave agent sessions`, and `weave session tail` when the user asks what an agent is doing. These are read-only runtime inspection commands and do not change manifests, provider, or model.

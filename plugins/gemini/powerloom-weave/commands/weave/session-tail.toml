@@ -1,0 +1,19 @@
+description = "Tail durable Powerloom session events through weave session tail."
+prompt = """
+The user wants to inspect a Powerloom session event trace.
+
+Run or guide them to run:
+
+```bash
+weave session tail {{args}}
+```
+
+Useful variants:
+
+```bash
+weave session events {{args}}
+weave session tail {{args}} --raw-events
+```
+
+This reads durable session events from Powerloom. It does not need the one-time WebSocket ticket returned by `weave ask`.
+"""

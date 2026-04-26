@@ -116,6 +116,8 @@ weave import agent /dev-org/engineering/code-reviewer > agent.yaml
 weave auth whoami
 weave ask /dev-org/alfred "What should I work on next?"
 weave chat /dev-org/alfred
+weave agent status /dev-org/alfred
+weave session tail <session-id>
 weave workflow apply workflow.yaml
 weave workflow run my-workflow --inputs scope=example
 weave workflow status <run-id>
@@ -143,6 +145,20 @@ weave chat /dev-org/alfred
 The CLI invokes a Powerloom Agent through the control plane. It does not read model-provider API keys locally; the backend uses the Agent's configured runtime/model and the user/org runtime credential stored in Powerloom.
 
 Agent identifiers can be UUIDs, full `/ou/path/agent-name` addresses, or bare names with `--ou`.
+
+### Agent/session observability
+
+These commands inspect runtime state. They do not change manifest-backed Agent configuration:
+
+```bash
+weave agent status /dev-org/alfred
+weave agent sessions /dev-org/alfred
+weave agent watch /dev-org/alfred --interval 3
+weave session events <session-id>
+weave session tail <session-id>
+```
+
+Use them to answer "what is this agent doing?", see the latest session status, and tail durable event traces after a WebSocket ticket has expired.
 
 ## Schema as source of truth
 
