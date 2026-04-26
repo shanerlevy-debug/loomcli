@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.powerloom.app/v2/stdlib/type-definition.schema.json",
+  "title": "TypeDefinition (v2 stdlib derivation)",
+  "description": "Declares a named type that the engine accumulates memory around. Each TypeDefinition manifest binds a name to a memory-governance policy: how grammar (how this type composes with others) and lexicon (specific instance content + outcome signals) are tracked, retained, and decayed. v061 ships the authoring surface and the empty grammar/lexicon tables; v062 wires the consolidation pipeline that fills them; v063 lights up concept stabilization on top. Derivation: compose(Entity[type_identity], Policy[memory_governance]).",
+  "type": "object",
+  "x-powerloom-derivation": {
+    "of": ["Entity", "Policy"],
+    "roles": {
+      "Entity": "type_identity",
+      "Policy": "memory_governance"
+    }
+  },
+  "x-powerloom-apply-order": 70,
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "$defs": {
+    "type_kind": {
+      "type": "string",
+      "enum": ["domain", "process", "event", "relation"],
+      "description": "Coarse classification driving default memory-policy values: 'domain' (long-lived concepts, grammar emphasis), 'process' (action templates, procedural emphasis), 'event' (timestamped occurrences, lexicon emphasis), 'relation' (typed edges, both)."
+    },
+    "memory_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How memory accumulates for instances of this type. All fields optional; sensible defaults vary by type_kind.",
+      "properties": {
+        "grammar": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "decay_half_life_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500,
+              "default": 180,
+              "description": "Half-life in days for grammar cell decay. Grammar tracks 'how this type composes' — typically slow decay (months)."
+            }
+          }
+        },
+        "lexicon": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "retention_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500,
+              "default": 60,
+              "description": "Hard retention window for instance rows. Older rows get archived (or distilled into grammar via consolidation)."
+            },
+            "max_rows": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000000,
+              "default": 10000,
+              "description": "Soft cap on rows-per-type-per-scope. Older rows beyond this drop on next consolidation pass even if within retention_days."
+            }
+          }
+        },
+        "reinforcement": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Thresholds that trigger promotion from observation -> reinforced template (procedural memory) or lexicon -> grammar (semantic memory).",
+          "properties": {
+            "promote_after_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 5
+            },
+            "min_outcome_signal": {
+              "type": "number",
+              "minimum": -1.0,
+              "maximum": 1.0,
+              "default": 0.7
+            }
+          }
+        },
+        "concept_stabilization": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "v063+ — concept-stabilization thresholds. Set enabled=true once v063 ships; v061/v062 ignore the block.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "min_branch_diversity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 3,
+              "description": "Number of distinct scopes that must reinforce before a concept is proposed for stabilization (per Chomskian R18)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "apiVersion": { "$ref": "../common.schema.json#/$defs/api_version" },
+    "kind": { "const": "TypeDefinition" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ou_path"],
+      "properties": {
+        "name": {
+          "$ref": "../common.schema.json#/$defs/resource_name",
+          "x-powerloom-immutable": true,
+          "x-powerloom-example": "contract-clause"
+        },
+        "ou_path": {
+          "$ref": "../common.schema.json#/$defs/ou_path",
+          "x-powerloom-ref": { "kind": "OU", "resolve_by": "path" },
+          "x-powerloom-immutable": true
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "type_kind", "applies_to_scope_ref"],
+      "properties": {
+        "display_name": {
+          "$ref": "../common.schema.json#/$defs/display_name",
+          "x-powerloom-example": "ContractClause"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 2048
+        },
+        "type_kind": { "$ref": "#/$defs/type_kind" },
+        "type_namespace": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9][a-z0-9_.-]*[a-z0-9]$",
+          "minLength": 2,
+          "maxLength": 128,
+          "description": "Optional dotted namespace. Defaults to the OU's slug-path when omitted (e.g. an OU at /acme/legal yields namespace 'acme.legal'). Prevents cross-branch type-name collisions.",
+          "default": null
+        },
+        "applies_to_scope_ref": {
+          "$ref": "../common.schema.json#/$defs/scope_ref",
+          "description": "Scope inside which this type is recognized (e.g. 'legal.contracts'). Memory cells key on (type, scope_id) so the same type name can carry different grammar/lexicon in different scopes."
+        },
+        "extends_type_ref": {
+          "oneOf": [
+            { "$ref": "../common.schema.json#/$defs/resource_name" },
+            { "type": "null" }
+          ],
+          "description": "Optional parent TypeDefinition name. Inherited types share grammar (read-up; child cells are deltas) but have independent lexicon. v062's query API surfaces the merged grammar.",
+          "default": null
+        },
+        "memory": {
+          "$ref": "#/$defs/memory_block",
+          "default": {}
+        }
+      }
+    }
+  }
+}
