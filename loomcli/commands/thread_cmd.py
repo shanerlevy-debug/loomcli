@@ -1085,3 +1085,54 @@ def orphans_cmd(
             f"  [cyan]{slug}[/cyan] [dim]({t.get('status','?')}/{t.get('priority','?')})[/dim] "
             f"{t.get('title','')[:80]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# move - cross-project move (Powerloom #164)
+# ---------------------------------------------------------------------------
+
+
+@app.command("move")
+def move_cmd(
+    thread_ref: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug'.")],
+    to: Annotated[str, typer.Option("--to", help="Target project — slug (e.g. 'powerloom-engine') or UUID.")],
+    force: Annotated[bool, typer.Option("--force", help="Apply cleanups (detach milestone/parent/sprints/dependencies that live in the source project) and proceed with the move. Without this flag, a move that would require any cleanup returns 409 with the plan, so you can preview before committing.")] = False,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Move a thread to a different project (with safe cleanup of cross-project references).
+
+    Two-phase: first run without --force to preview what would happen
+    (the engine returns 409 with the cleanup plan in the message);
+    re-run with --force to apply.
+
+    Pairs with Powerloom PR #164. Engine details: services/tracker.move_thread.
+    """
+    with _client_or_exit() as client:
+        thread_uuid = _resolve_thread(client, thread_ref)
+        target_project_uuid = _resolve_project(client, to)
+        body = {"target_project_id": target_project_uuid, "force": force}
+        try:
+            thread = client.post(f"/threads/{thread_uuid}/move", body)
+        except PowerloomApiError as e:
+            if e.status_code == 409 and not force:
+                _console.print(
+                    "[yellow]Move would detach cross-project references.[/yellow]"
+                )
+                _console.print(f"[dim]Engine reply:[/dim] {e}")
+                _console.print(
+                    "[dim]Re-run with --force to apply the cleanup + move.[/dim]"
+                )
+            else:
+                _console.print(f"[red]Move failed:[/red] {e}")
+            raise typer.Exit(1) from None
+
+    if json_output:
+        _output_json(thread)
+        return
+    _console.print("[green]Thread moved.[/green]")
+    _print_thread_summary(thread)
+    _console.print(
+        f"  [dim]new project_id={thread.get('project_id','?')} "
+        f"new sequence_number={thread.get('sequence_number','?')} "
+        f"slug={thread.get('slug','(none)')}[/dim]"
+    )

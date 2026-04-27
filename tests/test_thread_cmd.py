@@ -853,3 +853,96 @@ def test_build_session_attribution_uses_file_fallback(monkeypatch, tmp_path):
     assert payload["client_kind"] == "claude_code"
     # The GET hit /me/agents/<id>
     assert client.get.call_args.args[0] == f"/me/agents/{sp_id}"
+
+
+# ---------------------------------------------------------------------------
+# weave thread move (Powerloom #164 pair)
+# ---------------------------------------------------------------------------
+
+
+def test_move_uuid_to_uuid_no_lookups(mock_client) -> None:
+    """Both args UUID -> no /projects fetch, just POST /threads/<id>/move."""
+    mock_client.post.return_value = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "project_id": "22222222-2222-2222-2222-222222222222",
+        "sequence_number": 5, "slug": "ki-001", "title": "x",
+        "status": "open", "priority": "medium",
+    }
+    result = runner.invoke(
+        app,
+        [
+            "thread", "move",
+            "11111111-1111-1111-1111-111111111111",
+            "--to", "22222222-2222-2222-2222-222222222222",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    args, _ = mock_client.post.call_args
+    assert args[0] == "/threads/11111111-1111-1111-1111-111111111111/move"
+    assert args[1]["target_project_id"] == "22222222-2222-2222-2222-222222222222"
+    assert args[1]["force"] is False
+    assert mock_client.get.call_count == 0
+
+
+def test_move_passes_force_flag(mock_client) -> None:
+    """--force is forwarded to the engine."""
+    mock_client.post.return_value = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "project_id": "22222222-2222-2222-2222-222222222222",
+        "sequence_number": 5, "slug": "ki-001", "title": "x",
+        "status": "open", "priority": "medium",
+    }
+    result = runner.invoke(
+        app,
+        [
+            "thread", "move",
+            "11111111-1111-1111-1111-111111111111",
+            "--to", "22222222-2222-2222-2222-222222222222",
+            "--force",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    args, _ = mock_client.post.call_args
+    assert args[1]["force"] is True
+
+
+def test_move_409_renders_friendly_message(mock_client) -> None:
+    """When force=False and engine returns 409, surface the cleanup hint."""
+    mock_client.post.side_effect = PowerloomApiError(
+        409,
+        "HTTP 409 ... Move would detach ... Re-run with force=true to proceed. Plan: {...}",
+    )
+    result = runner.invoke(
+        app,
+        [
+            "thread", "move",
+            "11111111-1111-1111-1111-111111111111",
+            "--to", "22222222-2222-2222-2222-222222222222",
+        ],
+    )
+    assert result.exit_code == 1
+    out = result.stdout.lower()
+    assert "detach" in out or "force" in out
+
+
+def test_move_with_slug_resolves_thread_and_project(mock_client) -> None:
+    """`weave thread move ki-004 --to powerloom-engine` resolves both via /projects + by-slug."""
+    # Sequence: /projects (for thread resolve), /by-slug (thread), /projects (for project resolve), then POST
+    mock_client.get.side_effect = [
+        [{"id": "p-uuid-pl", "slug": "powerloom"}],
+        {"id": "thread-uuid", "slug": "ki-004"},
+        [{"id": "p-uuid-eng", "slug": "powerloom-engine"}],
+    ]
+    mock_client.post.return_value = {
+        "id": "thread-uuid",
+        "project_id": "p-uuid-eng",
+        "sequence_number": 1, "slug": "ki-004", "title": "x",
+        "status": "open", "priority": "medium",
+    }
+    result = runner.invoke(
+        app, ["thread", "move", "ki-004", "--to", "powerloom-engine"],
+    )
+    assert result.exit_code == 0, result.stdout
+    args, _ = mock_client.post.call_args
+    assert args[0] == "/threads/thread-uuid/move"
+    assert args[1]["target_project_id"] == "p-uuid-eng"
