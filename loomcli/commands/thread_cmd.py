@@ -571,7 +571,40 @@ def reply(
 # ---------------------------------------------------------------------------
 
 
-def _set_status(thread_id: str, status: str, json_output: bool) -> None:
+def _resolve_reason(
+    reason: Optional[str], reason_from_stdin: bool
+) -> Optional[str]:
+    """Pick the reason text from --reason or --reason-from-stdin, with the
+    same xor/required guard as --description / --description-from-stdin in
+    create + reply. Returns None when neither is supplied (no reason flow)."""
+    if reason_from_stdin:
+        if reason:
+            _console.print(
+                "[red]Pick one of --reason / --reason-from-stdin (not both).[/red]"
+            )
+            raise typer.Exit(2)
+        text = sys.stdin.read()
+        if not text.strip():
+            _console.print("[red]--reason-from-stdin received empty input.[/red]")
+            raise typer.Exit(2)
+        return text
+    return reason
+
+
+def _set_status(
+    thread_id: str,
+    status: str,
+    json_output: bool,
+    reason: Optional[str] = None,
+    no_attribution: bool = False,
+) -> None:
+    """Patch the thread's status. When --reason is provided, follow the patch
+    with a reply carrying the rationale — same audit trail you'd get from
+    running 'thread <verb>' + 'thread reply' separately, but in a single
+    command. The two API calls aren't atomic on the engine yet (separate
+    threads can interleave); on a reply failure after a successful patch we
+    still exit 0 with the patched status but print a warning so the user can
+    re-issue the reply manually if they want."""
     with _client_or_exit() as client:
         thread_uuid = _resolve_thread(client, thread_id)
         try:
@@ -579,38 +612,98 @@ def _set_status(thread_id: str, status: str, json_output: bool) -> None:
         except PowerloomApiError as e:
             _console.print(f"[red]Status update failed:[/red] {e}")
             raise typer.Exit(1) from None
+        reply_obj: Optional[dict] = None
+        reply_warning: Optional[str] = None
+        if reason:
+            body: dict = {"content": reason, "reply_type": "comment"}
+            if not no_attribution:
+                attribution = _build_session_attribution(client)
+                if attribution:
+                    body["metadata_json"] = {"session_attribution": attribution}
+            try:
+                reply_obj = client.post(f"/threads/{thread_uuid}/replies", body)
+            except PowerloomApiError as e:
+                reply_warning = (
+                    f"Status set to {status!r} but the reason-reply failed: {e}. "
+                    f"Re-run `weave thread reply {thread_uuid} '<reason>'` to add it."
+                )
+
     if json_output:
-        _output_json(thread)
+        payload: dict = {"thread": thread}
+        if reply_obj is not None:
+            payload["reply"] = reply_obj
+        if reply_warning is not None:
+            payload["warning"] = reply_warning
+        _output_json(payload)
         return
     _console.print(f"[green]Status set to {status}.[/green]")
     _print_thread_summary(thread)
+    if reply_obj is not None:
+        _console.print(f"[dim]Reason posted as reply id={reply_obj.get('id')}.[/dim]")
+    if reply_warning is not None:
+        _console.print(f"[yellow]{reply_warning}[/yellow]")
+
+
+_REASON_HELP = (
+    "Closure / completion rationale — posted as a reply alongside the "
+    "status change so the audit trail carries the 'why', not just the 'what'."
+)
+_REASON_STDIN_HELP = "Read --reason content from stdin (useful for long content)."
+_NO_ATTRIBUTION_HELP = (
+    "Skip session_attribution metadata stamping on the rationale reply "
+    "(only relevant with --reason; mirrors the create / reply flag)."
+)
 
 
 @app.command("done")
 def done(
     thread_id: Annotated[str, typer.Argument()],
     json_output: Annotated[bool, typer.Option("--json")] = False,
+    reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
+    reason_from_stdin: Annotated[
+        bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
+    ] = False,
+    no_attribution: Annotated[
+        bool, typer.Option("--no-attribution", help=_NO_ATTRIBUTION_HELP)
+    ] = False,
 ) -> None:
     """Mark a thread as done — the work shipped."""
-    _set_status(thread_id, "done", json_output)
+    resolved = _resolve_reason(reason, reason_from_stdin)
+    _set_status(thread_id, "done", json_output, resolved, no_attribution)
 
 
 @app.command("close")
 def close(
     thread_id: Annotated[str, typer.Argument()],
     json_output: Annotated[bool, typer.Option("--json")] = False,
+    reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
+    reason_from_stdin: Annotated[
+        bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
+    ] = False,
+    no_attribution: Annotated[
+        bool, typer.Option("--no-attribution", help=_NO_ATTRIBUTION_HELP)
+    ] = False,
 ) -> None:
     """Close a thread — scope abandoned but might still be relevant."""
-    _set_status(thread_id, "closed", json_output)
+    resolved = _resolve_reason(reason, reason_from_stdin)
+    _set_status(thread_id, "closed", json_output, resolved, no_attribution)
 
 
 @app.command("wont-do")
 def wont_do(
     thread_id: Annotated[str, typer.Argument()],
     json_output: Annotated[bool, typer.Option("--json")] = False,
+    reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
+    reason_from_stdin: Annotated[
+        bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
+    ] = False,
+    no_attribution: Annotated[
+        bool, typer.Option("--no-attribution", help=_NO_ATTRIBUTION_HELP)
+    ] = False,
 ) -> None:
     """Mark a thread as wont_do — decided not to ship."""
-    _set_status(thread_id, "wont_do", json_output)
+    resolved = _resolve_reason(reason, reason_from_stdin)
+    _set_status(thread_id, "wont_do", json_output, resolved, no_attribution)
 
 
 # ---------------------------------------------------------------------------

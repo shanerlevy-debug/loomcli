@@ -211,6 +211,118 @@ def test_status_verb_patches_correctly(mock_client, verb, expected_status) -> No
 
 
 # ---------------------------------------------------------------------------
+# status verbs — --reason flag (single atomic close-with-rationale call)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "verb,expected_status",
+    [("done", "done"), ("close", "closed"), ("wont-do", "wont_do")],
+)
+def test_status_verb_reason_flag_posts_reply_after_patch(
+    mock_client, verb, expected_status
+) -> None:
+    """--reason on a status verb should fire the PATCH first, then a POST
+    to /threads/{id}/replies with the rationale as the comment body."""
+    thread_uuid = "11111111-1111-1111-1111-111111111111"
+    mock_client.patch.return_value = _seed_thread(status=expected_status)
+    mock_client.post.return_value = {
+        "id": "rrrrrrrr-rrrr-rrrr-rrrr-rrrrrrrrrrrr",
+        "content": "duplicate of #200",
+        "reply_type": "comment",
+    }
+
+    result = runner.invoke(
+        app,
+        [
+            "thread",
+            verb,
+            thread_uuid,
+            "--reason",
+            "duplicate of #200",
+            "--no-attribution",  # keep test stable across env states
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+    # PATCH first
+    patch_args, _ = mock_client.patch.call_args
+    assert patch_args[0] == f"/threads/{thread_uuid}"
+    assert patch_args[1] == {"status": expected_status}
+
+    # Then POST reply
+    post_args, _ = mock_client.post.call_args
+    assert post_args[0] == f"/threads/{thread_uuid}/replies"
+    body = post_args[1]
+    assert body["content"] == "duplicate of #200"
+    assert body["reply_type"] == "comment"
+    assert "session_attribution" not in body.get("metadata_json", {})  # --no-attribution honored
+
+    # User-facing line confirms the reply
+    assert "Reason posted as reply" in result.stdout
+
+
+def test_done_reason_from_stdin(mock_client) -> None:
+    """--reason-from-stdin should read piped content and forward it as the
+    reply body. Mirrors the create / reply --*-from-stdin pattern."""
+    thread_uuid = "11111111-1111-1111-1111-111111111111"
+    mock_client.patch.return_value = _seed_thread(status="done")
+    mock_client.post.return_value = {"id": "rid"}
+
+    long_reason = "shipped via PR #421\n\nincluded the migration + the UI bits"
+    result = runner.invoke(
+        app,
+        ["thread", "done", thread_uuid, "--reason-from-stdin", "--no-attribution"],
+        input=long_reason,
+    )
+    assert result.exit_code == 0, result.stdout
+    body = mock_client.post.call_args[0][1]
+    assert body["content"] == long_reason
+
+
+def test_reason_xor_with_stdin_flag(mock_client) -> None:
+    """Passing both --reason and --reason-from-stdin is an error (matches
+    the --description / --description-from-stdin contract on create)."""
+    result = runner.invoke(
+        app,
+        ["thread", "done", "11111111-1111-1111-1111-111111111111",
+         "--reason", "x", "--reason-from-stdin"],
+        input="y",
+    )
+    assert result.exit_code == 2
+
+
+def test_status_verb_without_reason_no_extra_post(mock_client) -> None:
+    """No --reason → only the PATCH fires; no replies endpoint is hit."""
+    mock_client.patch.return_value = _seed_thread(status="done")
+    result = runner.invoke(
+        app, ["thread", "done", "11111111-1111-1111-1111-111111111111"]
+    )
+    assert result.exit_code == 0, result.stdout
+    mock_client.post.assert_not_called()
+
+
+def test_reason_reply_failure_does_not_unwind_status(mock_client) -> None:
+    """If the rationale-reply POST fails after the PATCH succeeded, the
+    status change still stands (matching the engine's actual semantics) and
+    the user sees a yellow warning telling them to re-run `thread reply`."""
+    from loomcli.client import PowerloomApiError
+
+    mock_client.patch.return_value = _seed_thread(status="closed")
+    mock_client.post.side_effect = PowerloomApiError(503, "transient")
+
+    result = runner.invoke(
+        app,
+        ["thread", "close", "11111111-1111-1111-1111-111111111111",
+         "--reason", "x", "--no-attribution"],
+    )
+    # exit 0 because the status-change actually went through
+    assert result.exit_code == 0, result.stdout
+    assert "Status set to closed" in result.stdout
+    assert "reason-reply failed" in result.stdout
+
+
+# ---------------------------------------------------------------------------
 # update
 # ---------------------------------------------------------------------------
 
