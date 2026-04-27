@@ -231,14 +231,32 @@ def create(
     start_date: Annotated[Optional[str], typer.Option("--start-date", help="ISO date YYYY-MM-DD.")] = None,
     end_date: Annotated[Optional[str], typer.Option("--end-date", help="ISO date YYYY-MM-DD.")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal", help="Short goal statement (surfaces in headers).")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Nest the sprint under this milestone (UUID, currently UUID-only). Engine validates the milestone belongs to the same project.")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print created sprint as JSON.")] = False,
 ) -> None:
     """Create a sprint in <project>. Slug auto-generates from name when
     omitted (re-uses the same KI-/T1-/v065-/PR-NN pattern detection as
-    thread slugs)."""
+    thread slugs).
+
+    Pass --milestone to nest the sprint under a milestone (Project >
+    Milestone > Sprint hierarchy from migration 0068). Today only UUID
+    is accepted; slug-based addressing for milestones lands in a
+    follow-up.
+    """
     if status not in _SPRINT_STATUSES:
         _console.print(f"[red]Invalid status {status!r}.[/red] One of: {', '.join(_SPRINT_STATUSES)}")
         raise typer.Exit(2)
+
+    # Validate --milestone shape (UUID only for now)
+    if milestone is not None:
+        try:
+            uuid.UUID(milestone)
+        except ValueError:
+            _console.print(
+                "[red]--milestone must be a UUID today[/red] "
+                "(milestone slug-resolution is on the follow-up list)."
+            )
+            raise typer.Exit(2)
 
     body: dict = {"name": name, "status": status}
     if slug is not None:
@@ -251,6 +269,8 @@ def create(
         body["end_date"] = end_date
     if goal is not None:
         body["goal"] = goal
+    if milestone is not None:
+        body["milestone_id"] = milestone
 
     with _client_or_exit() as client:
         project_id = _resolve_project(client, project)
@@ -279,15 +299,28 @@ def create(
 def list_sprints(
     project: Annotated[str, typer.Option("--project", "-p", help="Project slug or UUID.")] = "powerloom",
     status: Annotated[Optional[str], typer.Option("--status", help="Filter by status.")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Filter to sprints nested under this milestone (UUID).")] = None,
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """List sprints in a project."""
+    """List sprints in a project. Optional --milestone filters to sprints
+    nested under that milestone (Project > Milestone > Sprint hierarchy)."""
+    if milestone is not None:
+        try:
+            uuid.UUID(milestone)
+        except ValueError:
+            _console.print(
+                "[red]--milestone must be a UUID today[/red] "
+                "(milestone slug-resolution is on the follow-up list)."
+            )
+            raise typer.Exit(2)
     with _client_or_exit() as client:
         project_id = _resolve_project(client, project)
         params: dict = {"limit": limit}
         if status is not None:
             params["status"] = status
+        if milestone is not None:
+            params["milestone_id"] = milestone
         try:
             rows = client.get(f"/projects/{project_id}/sprints", **params)
         except PowerloomApiError as e:
@@ -392,12 +425,27 @@ def update(
     start_date: Annotated[Optional[str], typer.Option("--start-date")] = None,
     end_date: Annotated[Optional[str], typer.Option("--end-date")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Attach the sprint to a milestone (UUID). Engine validates same-project.")] = None,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
-    """Generic sprint update — set any combination of fields via PATCH."""
+    """Generic sprint update — set any combination of fields via PATCH.
+
+    Pass --milestone <uuid> to attach (or change) the sprint's parent
+    milestone (Project > Milestone > Sprint hierarchy from migration 0068).
+    Engine rejects cross-project milestone refs.
+    """
     if status is not None and status not in _SPRINT_STATUSES:
         _console.print(f"[red]Invalid status {status!r}.[/red] One of: {', '.join(_SPRINT_STATUSES)}")
         raise typer.Exit(2)
+    if milestone is not None:
+        try:
+            uuid.UUID(milestone)
+        except ValueError:
+            _console.print(
+                "[red]--milestone must be a UUID today[/red] "
+                "(milestone slug-resolution is on the follow-up list)."
+            )
+            raise typer.Exit(2)
 
     body: dict = {}
     if name is not None:
@@ -414,6 +462,8 @@ def update(
         body["end_date"] = end_date
     if goal is not None:
         body["goal"] = goal
+    if milestone is not None:
+        body["milestone_id"] = milestone
 
     if not body:
         _console.print("[yellow]No fields to update — pass at least one --field.[/yellow]")

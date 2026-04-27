@@ -394,3 +394,68 @@ def test_show_json_output(mock_client) -> None:
     out = result.output.strip()
     parsed = json.loads(out[out.find("{"):out.rfind("}") + 1])
     assert parsed["slug"] == "v064"
+
+
+# ---------------------------------------------------------------------------
+# Sprint-under-milestone (Powerloom #165 pair, migration 0068)
+# ---------------------------------------------------------------------------
+
+
+MILESTONE_UUID = "33333333-3333-3333-3333-333333333333"
+
+
+def test_create_with_milestone_passes_uuid_in_body(mock_client) -> None:
+    """`weave sprint create --milestone <uuid>` puts milestone_id in POST body."""
+    mock_client.get.side_effect = [
+        [{"id": PROJECT_UUID, "slug": "powerloom"}],
+    ]
+    mock_client.post.return_value = _seed_sprint()
+    result = runner.invoke(
+        app,
+        [
+            "sprint", "create",
+            "--name", "Test sprint",
+            "--milestone", MILESTONE_UUID,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    body = mock_client.post.call_args.args[1]
+    assert body["milestone_id"] == MILESTONE_UUID
+
+
+def test_create_milestone_must_be_uuid(mock_client) -> None:
+    """Non-UUID --milestone exits 2 with a slug-resolution-not-shipped hint."""
+    result = runner.invoke(
+        app,
+        [
+            "sprint", "create",
+            "--name", "Test sprint",
+            "--milestone", "msp",  # slug, not UUID
+        ],
+    )
+    assert result.exit_code == 2
+    assert "uuid" in result.output.lower()
+
+
+def test_list_with_milestone_filter_passes_param(mock_client) -> None:
+    mock_client.get.side_effect = [
+        [{"id": PROJECT_UUID, "slug": "powerloom"}],
+        [],
+    ]
+    result = runner.invoke(
+        app, ["sprint", "list", "--milestone", MILESTONE_UUID],
+    )
+    assert result.exit_code == 0, result.output
+    last_call = mock_client.get.call_args_list[-1]
+    assert last_call.kwargs.get("milestone_id") == MILESTONE_UUID
+
+
+def test_update_with_milestone_attaches(mock_client) -> None:
+    mock_client.patch.return_value = _seed_sprint()
+    result = runner.invoke(
+        app,
+        ["sprint", "update", SPRINT_UUID, "--milestone", MILESTONE_UUID],
+    )
+    assert result.exit_code == 0, result.output
+    body = mock_client.patch.call_args.args[1]
+    assert body == {"milestone_id": MILESTONE_UUID}
