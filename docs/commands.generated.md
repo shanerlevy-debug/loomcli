@@ -9,6 +9,7 @@ Generated from `loomcli.command_registry.COMMANDS`. Do not edit by hand.
 | `weave agent set-model` | configuration | Update an agent model through the Agent PATCH API. |
 | `weave agent status` | observability | Show runtime/model, sync state, and recent work. |
 | `weave agent watch` | observability | Poll an agent status snapshot. |
+| `weave agent-session bootstrap` | coordination | Bootstrap an empty-folder client into a Powerloom project. |
 | `weave agent-session status` | coordination | Show one coordination session and assigned workflow tasks. |
 | `weave agent-session watch` | coordination | Poll one coordination session and assigned workflow tasks. |
 | `weave apply` | manifest | Apply manifest resources. |
