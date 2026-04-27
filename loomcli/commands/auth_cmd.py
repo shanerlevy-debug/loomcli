@@ -5,15 +5,16 @@ Also exposes top-level aliases `weave login` / `weave logout` /
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
+from rich.prompt import Prompt
 from rich.table import Table
 
 from loomcli import auth as auth_api
 from loomcli.client import PowerloomApiError
-from loomcli.config import load_runtime_config
+from loomcli.config import load_runtime_config, update_profile, write_credentials
 
 app = typer.Typer(help="Authenticate against the control plane.")
 _console = Console()
@@ -163,6 +164,53 @@ def logout() -> None:
 def whoami() -> None:
     """Print the signed-in user + their organization."""
     run_whoami()
+
+
+@app.command("configure")
+def configure(
+    profile: Annotated[
+        str,
+        typer.Option("--profile", help="Profile name to configure."),
+    ] = "default",
+    api_url: Annotated[
+        Optional[str],
+        typer.Option("--api-url", help="Powerloom API base URL."),
+    ] = None,
+    pat: Annotated[
+        Optional[str],
+        typer.Option("--pat", help="Personal Access Token."),
+    ] = None,
+    output: Annotated[
+        Optional[str],
+        typer.Option("--output", help="Default output format (table or json)."),
+    ] = None,
+) -> None:
+    """Configure CLI profiles (AWS-style wizard)."""
+    cfg = load_runtime_config()
+    
+    # Use interactive prompts if values aren't provided via flags.
+    if api_url is None:
+        api_url = Prompt.ask("Powerloom API Base URL", default=cfg.api_base_url)
+    
+    if pat is None:
+        pat = Prompt.ask("Personal Access Token (PAT)", password=True)
+    
+    if output is None:
+        output = Prompt.ask("Default output format", choices=["table", "json"], default=cfg.default_output or "table")
+
+    # Update config.toml
+    values = {
+        "api_base_url": api_url,
+        "output": output,
+    }
+    update_profile(profile, values, activate=True)
+    
+    # Update credentials file if PAT was provided
+    if pat:
+        write_credentials(pat)
+        _console.print(f"[green]Credentials saved to profile '{profile}'.[/green]")
+
+    _console.print(f"[green]Profile '{profile}' configured successfully.[/green]")
 
 
 @app.command("mcp-url")

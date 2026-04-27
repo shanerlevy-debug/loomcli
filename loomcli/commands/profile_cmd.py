@@ -107,6 +107,19 @@ def set_profile(
     _console.print(f"[green]Updated profile[/green] {cfg.active_profile}")
 
 
+@app.command("switch")
+def switch_profile(
+    profile: Annotated[
+        str,
+        typer.Argument(help="Profile name to activate."),
+    ],
+) -> None:
+    """Switch the active profile."""
+    # update_profile with empty values but activate=True performs a switch.
+    cfg = update_profile(profile, {}, activate=True)
+    _console.print(f"[green]Switched to profile[/green] {cfg.active_profile}")
+
+
 @app.command("clear")
 def clear_profile(
     profile: Annotated[
