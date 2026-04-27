@@ -46,9 +46,13 @@ def get_command(
         typer.Option("--ou", help="Filter to resources in the given OU path."),
     ] = None,
     output: Annotated[
-        Literal["table", "json"],
+        Optional[str],
         typer.Option("-o", "--output", help="Output format."),
-    ] = "table",
+    ] = None,
+    tree: Annotated[
+        bool,
+        typer.Option("--tree", help="Show OU hierarchy as a tree (OUs only)."),
+    ] = False,
 ) -> None:
     wiring = _LISTABLE.get(kind.lower())
     if wiring is None:
@@ -63,8 +67,28 @@ def get_command(
         _console.print("[yellow]Not signed in.[/yellow]")
         raise typer.Exit(1)
 
+    # Use explicitly provided output format, or fall back to config/env default
+    output_format = output or cfg.default_output or "table"
+
     params: dict[str, str] = {}
     with PowerloomClient(cfg) as client:
+        if tree and kind.lower() not in ("ou", "ous"):
+            _console.print("[red]--tree is only supported for OUs.[/red]")
+            raise typer.Exit(1)
+
+        if tree:
+            try:
+                # OUs have a special tree endpoint
+                data = client.get("/ous/tree")
+                if output_format == "json":
+                    _console.print_json(json.dumps(data))
+                    return
+                _print_ou_tree(data)
+                return
+            except PowerloomApiError as e:
+                _console.print(f"[red]{e}[/red]")
+                raise typer.Exit(1)
+
         if ou:
             resolver = AddressResolver(client)
             ou_id = resolver.try_ou_path_to_id(ou)
@@ -82,7 +106,7 @@ def get_command(
         _console.print(f"[red]Unexpected shape from {list_path}[/red]")
         raise typer.Exit(1)
 
-    if output == "json":
+    if output_format == "json":
         _console.print_json(json.dumps(rows))
         return
 
@@ -92,3 +116,18 @@ def get_command(
     for row in rows:
         table.add_row(*(str(row.get(c, "")) for c in columns))
     _console.print(table)
+
+
+def _print_ou_tree(tree: list[dict[str, Any]]) -> None:
+    from rich.tree import Tree
+
+    def add_children(rich_tree: Tree, nodes: list[dict[str, Any]]) -> None:
+        for node in nodes:
+            branch = rich_tree.add(
+                f"[bold]{node['name']}[/bold] [dim]({node['display_name']})[/dim]"
+            )
+            add_children(branch, node.get("children", []))
+
+    root_tree = Tree("Organization Units")
+    add_children(root_tree, tree)
+    _console.print(root_tree)

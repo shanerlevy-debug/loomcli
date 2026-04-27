@@ -81,18 +81,22 @@ def _current_git_branch() -> Optional[str]:
         return None
 
 
-def _parse_branch(branch_name: str) -> tuple[str, str] | None:
-    """Extract (scope, branch_name) from a session/<scope>-<yyyymmdd> branch.
+def _parse_branch(branch_name: str) -> tuple[str, str]:
+    """Extract (scope, branch_name) from a branch.
 
-    Returns None if the branch doesn't match the convention.
-    The scope returned is the full slug including the date suffix:
-    e.g. 'phase23-service-accounts-20260425'.
+    If it matches session/<scope>-<yyyymmdd>, uses that scope.
+    Otherwise, slugifies the branch name and appends today's date.
     """
     m = _BRANCH_RE.match(branch_name)
-    if not m:
-        return None
-    scope = f"{m.group('scope')}-{m.group('date')}"
-    return scope, branch_name
+    if m:
+        scope = f"{m.group('scope')}-{m.group('date')}"
+        return scope, branch_name
+
+    # Fallback: slugify and append date
+    from datetime import date
+    today = date.today().strftime("%Y%m%d")
+    clean_name = _slugify(branch_name.replace("session/", ""))
+    return f"{clean_name}-{today}", branch_name
 
 
 def _ensure_subprincipal(
@@ -342,6 +346,85 @@ def _ensure_repo(
             dry_run=dry_run,
         )
     return repo_path
+
+
+def get_active_session_for_branch(client: PowerloomClient) -> dict[str, Any] | None:
+    """Helper for other commands (ask, chat, status) to find the session
+    linked to the current git branch. Returns the full session detail
+    dict or None if not in a git repo or no matching session exists.
+    """
+    branch = _current_git_branch()
+    if not branch:
+        return None
+
+    try:
+        # 1. Look for a session matching the branch name exactly
+        resp = client.get("/agent-sessions", status="active", limit=100)
+        sessions = resp.get("sessions", [])
+        for s in sessions:
+            if s.get("branch_name") == branch:
+                # Return the full detail (which contains agent/OU info)
+                return client.get(f"/agent-sessions/{s['id']}")
+
+        # 2. Fallback: slugify the branch name and try to match the scope
+        scope, _ = _parse_branch(branch)
+        for s in sessions:
+            if s.get("session_slug") == scope:
+                return client.get(f"/agent-sessions/{s['id']}")
+    except Exception:
+        pass
+    return None
+
+
+@app.command("init")
+def init_cmd(
+    branch: Annotated[Optional[str], typer.Argument(help="Feature branch name to create. If it exists, we just check it out.")] = None,
+    scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug. Defaults to slugified branch name.")] = None,
+    summary: Annotated[Optional[str], typer.Option("--summary", help="One-line description.")] = None,
+    capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags.")] = None,
+    actor_kind: Annotated[str, typer.Option("--actor-kind", help="auto | gemini_cli | claude_code | etc.")] = "auto",
+    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
+) -> None:
+    """Create a new feature branch and register it as a coordination session."""
+    if not branch:
+        _console.print("[red]Branch name is required.[/red]")
+        raise typer.Exit(1)
+
+    # 1. Create or checkout the branch
+    repo_root = _run(["git", "rev-parse", "--show-toplevel"])
+    if not repo_root:
+        _console.print("[red]Not in a git repository.[/red]")
+        raise typer.Exit(1)
+
+    # Check if branch exists
+    exists_res = subprocess.run(
+        ["git", "rev-parse", "--verify", branch],
+        capture_output=True,
+        text=True,
+    )
+    if exists_res.returncode == 0:
+        _console.print(f"[dim]Branch {branch!r} already exists. Checking it out...[/dim]")
+        _run(["git", "checkout", branch])
+    else:
+        _console.print(f"[green]Creating branch {branch!r}...[/green]")
+        _run(["git", "checkout", "-b", branch])
+
+    # 2. Register the session
+    # Reuse register_cmd logic by calling it or refactoring it.
+    # For simplicity here, we'll just call the registration logic.
+    actor = _normalize_actor_kind(actor_kind)
+    inferred_scope, _ = _parse_branch(branch)
+    final_scope = scope or inferred_scope
+    final_summary = summary or f"Session for {branch}"
+
+    register_cmd(
+        scope=final_scope,
+        summary=final_summary,
+        branch=branch,
+        capabilities=capabilities,
+        actor_kind=actor,
+        json_out=json_out
+    )
 
 
 @app.command("register")
