@@ -37,6 +37,14 @@ _CLIENT_TO_ACTOR = {
     "gemini": "gemini_cli",
     "gemini_cli": "gemini_cli",
     "antigravity": "antigravity",
+    # v0.7.2 — non-dev / non-runtime actor kinds. Engine route accepts
+    # these (see SUPPORTED_AGENT_SESSION_ACTOR_KINDS in
+    # routes/capabilities.py + the agent_sessions CHECK constraint).
+    # Listed identity here so --actor-kind=human / cma / reconciler
+    # passes the CLI validator.
+    "human": "human",
+    "cma": "cma",
+    "reconciler": "reconciler",
 }
 _ACTOR_TO_TOKEN = {
     "claude_code": "claude",
@@ -187,7 +195,8 @@ def _normalize_actor_kind(client_kind: str) -> str:
     if not actor:
         _console.print(
             "[red]Unknown client.[/red] Use auto, codex, codex_cli, "
-            "claude, claude_code, gemini, gemini_cli, or antigravity."
+            "claude, claude_code, gemini, gemini_cli, antigravity, "
+            "human, cma, or reconciler."
         )
         raise typer.Exit(2)
     return actor

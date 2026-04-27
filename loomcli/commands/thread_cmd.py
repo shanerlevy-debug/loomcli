@@ -395,7 +395,11 @@ def _print_thread_table(rows: list[dict]) -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("Status", style="cyan", width=14)
     table.add_column("Pri", width=8)
-    table.add_column("Title", overflow="fold")
+    # Title needs an explicit width so narrow terminals (CI, default
+    # CliRunner width) don't collapse it to zero. ratio=2 gives Title
+    # twice the share of the remaining space vs the other flex
+    # columns.
+    table.add_column("Title", overflow="fold", min_width=20, ratio=2)
     table.add_column("Slug", overflow="fold", width=25)
     table.add_column("Owner", overflow="fold", width=25)
     table.add_column("ID", overflow="fold", width=10)
