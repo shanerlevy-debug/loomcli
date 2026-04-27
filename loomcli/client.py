@@ -36,6 +36,17 @@ class PowerloomApiError(Exception):
         self.method = method
         self.path = path
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert error to a standardized dictionary for agent-friendly output."""
+        return {
+            "status": "error",
+            "code": self.status_code,
+            "message": str(self),
+            "details": self.body,
+            "method": self.method,
+            "path": self.path,
+        }
+
 
 class PowerloomClient:
     def __init__(self, cfg: RuntimeConfig) -> None:

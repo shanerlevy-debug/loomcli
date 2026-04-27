@@ -17,6 +17,7 @@ import typer
 from loomcli import __version__
 from loomcli.commands import agent_cmd
 from loomcli.commands import agent_session_cmd
+from loomcli.commands import batch_cmd
 from loomcli.commands import apply as apply_cmd
 from loomcli.commands import auth_cmd
 from loomcli.commands import describe as describe_cmd
@@ -52,6 +53,14 @@ app = typer.Typer(
 )
 
 
+def is_agent_mode() -> bool:
+    """Check if the CLI is running in AI Agent mode (env detection)."""
+    return any(
+        os.environ.get(var)
+        for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
+    ) or os.environ.get("POWERLOOM_FORMAT") == "json"
+
+
 def _apply_global_options(
     api_url: Optional[str],
     config_dir: Optional[str],
@@ -67,6 +76,17 @@ def _apply_global_options(
         os.environ["POWERLOOM_HOME"] = config_dir
     if justification:
         os.environ["POWERLOOM_APPROVAL_JUSTIFICATION"] = justification
+
+    # Agent Mode Detection: if no output format is specified, default to JSON
+    # if we detect we are running inside an AI agent environment.
+    if not output and not os.environ.get("POWERLOOM_FORMAT"):
+        is_agent = any(
+            os.environ.get(var)
+            for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
+        )
+        if is_agent:
+            output = "json"
+
     if output:
         os.environ["POWERLOOM_FORMAT"] = output
 
@@ -151,6 +171,7 @@ app.command("commands", help="List command metadata for autocomplete and clients
 app.command("doctor", help="Check local auth, server capabilities, and plugin prerequisites.")(doctor_cmd.doctor_command)
 app.command("ask", help="Ask a Powerloom agent and stream the answer.")(agent_cmd.ask_command)
 app.command("chat", help="Start an interactive terminal chat with a Powerloom agent.")(agent_cmd.chat_command)
+app.command("batch", help="Run multiple weave commands sequentially.")(batch_cmd.batch_command)
 app.command("apply", help="Apply a manifest (create/update resources).")(apply_cmd.apply_command)
 app.command("plan", help="Show what apply would do, without making changes.")(plan_cmd.plan_command)
 app.command("destroy", help="Delete the resources in a manifest.")(destroy_cmd.destroy_command)

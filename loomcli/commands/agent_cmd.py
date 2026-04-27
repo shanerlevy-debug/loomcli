@@ -66,14 +66,14 @@ class AgentStreamError(Exception):
 
 def ask_command(
     agent: Annotated[
-        str,
+        Optional[str],
         typer.Argument(
             help=(
                 "Agent UUID, /ou/path/agent-name, or a unique agent name. "
-                "Use --ou when the name is not globally unique."
+                "Optional if an active coordination session is found for the branch."
             )
         ),
-    ],
+    ] = None,
     prompt: Annotated[
         Optional[str],
         typer.Argument(
@@ -108,7 +108,20 @@ def ask_command(
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
-        target = _resolve_agent(client, agent, ou=ou)
+        resolved_agent = agent
+        resolved_ou = ou
+        if not resolved_agent:
+            from loomcli.commands.agent_session_cmd import get_active_session_for_branch
+            active = get_active_session_for_branch(client)
+            if active:
+                # Use the agent bound to this coordination session
+                resolved_agent = active.get("agent_id") or active.get("actor_id")
+                # If it's a sub-principal ID, _resolve_agent handles it as a UUID
+            if not resolved_agent:
+                 _console.print("[red]AGENT argument is required (no active coordination session found for branch).[/red]")
+                 raise typer.Exit(1)
+
+        target = _resolve_agent(client, resolved_agent, ou=resolved_ou)
         result = _invoke_agent(
             client,
             cfg,
@@ -130,11 +143,11 @@ def ask_command(
 
 def chat_command(
     agent: Annotated[
-        str,
+        Optional[str],
         typer.Argument(
             help="Agent UUID, /ou/path/agent-name, or unique agent name."
         ),
-    ],
+    ] = None,
     initial_prompt: Annotated[
         Optional[str],
         typer.Argument(help="Optional first prompt. Omit for interactive chat."),
@@ -148,7 +161,17 @@ def chat_command(
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
-        target = _resolve_agent(client, agent, ou=ou)
+        resolved_agent = agent
+        if not resolved_agent:
+            from loomcli.commands.agent_session_cmd import get_active_session_for_branch
+            active = get_active_session_for_branch(client)
+            if active:
+                resolved_agent = active.get("agent_id") or active.get("actor_id")
+            if not resolved_agent:
+                 _console.print("[red]AGENT argument is required (no active coordination session found for branch).[/red]")
+                 raise typer.Exit(1)
+
+        target = _resolve_agent(client, resolved_agent, ou=ou)
         _console.print(f"[bold]Powerloom chat[/bold] -> {target.label}")
         _console.print("[dim]Type /exit or /quit to leave.[/dim]")
 
@@ -196,9 +219,9 @@ def chat_command(
 @app.command("status")
 def status_command(
     agent: Annotated[
-        str,
+        Optional[str],
         typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
-    ],
+    ] = None,
     ou: Annotated[
         str | None,
         typer.Option("--ou", help="OU path used when AGENT is a bare name."),
@@ -212,7 +235,17 @@ def status_command(
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
-        target = _resolve_agent(client, agent, ou=ou)
+        resolved_agent = agent
+        if not resolved_agent:
+            from loomcli.commands.agent_session_cmd import get_active_session_for_branch
+            active = get_active_session_for_branch(client)
+            if active:
+                resolved_agent = active.get("agent_id") or active.get("actor_id")
+            if not resolved_agent:
+                 _console.print("[red]AGENT argument is required (no active coordination session found for branch).[/red]")
+                 raise typer.Exit(1)
+
+        target = _resolve_agent(client, resolved_agent, ou=ou)
         snapshot = _agent_snapshot(client, target.id, target.row)
     except (AgentResolutionError, PowerloomApiError) as e:
         _console.print(f"[red]Error:[/red] {e}")
@@ -229,9 +262,9 @@ def status_command(
 @app.command("sessions")
 def sessions_command(
     agent: Annotated[
-        str,
+        Optional[str],
         typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
-    ],
+    ] = None,
     ou: Annotated[
         str | None,
         typer.Option("--ou", help="OU path used when AGENT is a bare name."),
@@ -249,7 +282,17 @@ def sessions_command(
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
-        target = _resolve_agent(client, agent, ou=ou)
+        resolved_agent = agent
+        if not resolved_agent:
+            from loomcli.commands.agent_session_cmd import get_active_session_for_branch
+            active = get_active_session_for_branch(client)
+            if active:
+                resolved_agent = active.get("agent_id") or active.get("actor_id")
+            if not resolved_agent:
+                 _console.print("[red]AGENT argument is required (no active coordination session found for branch).[/red]")
+                 raise typer.Exit(1)
+
+        target = _resolve_agent(client, resolved_agent, ou=ou)
         rows = _list_agent_sessions(client, target.id)[:limit]
     except (AgentResolutionError, PowerloomApiError) as e:
         _console.print(f"[red]Error:[/red] {e}")
@@ -260,15 +303,15 @@ def sessions_command(
     if output == "json":
         _console.print_json(json.dumps(rows, default=str))
         return
-    _print_sessions(rows, title=f"{agent} sessions")
+    _print_sessions(rows, title=f"{resolved_agent} sessions")
 
 
 @app.command("config")
 def config_command(
     agent: Annotated[
-        str,
+        Optional[str],
         typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
-    ],
+    ] = None,
     ou: Annotated[
         str | None,
         typer.Option("--ou", help="OU path used when AGENT is a bare name."),
@@ -282,7 +325,17 @@ def config_command(
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
-        target = _resolve_agent(client, agent, ou=ou)
+        resolved_agent = agent
+        if not resolved_agent:
+            from loomcli.commands.agent_session_cmd import get_active_session_for_branch
+            active = get_active_session_for_branch(client)
+            if active:
+                resolved_agent = active.get("agent_id") or active.get("actor_id")
+            if not resolved_agent:
+                 _console.print("[red]AGENT argument is required (no active coordination session found for branch).[/red]")
+                 raise typer.Exit(1)
+
+        target = _resolve_agent(client, resolved_agent, ou=ou)
         row = client.get(f"/agents/{target.id}")
     except (AgentResolutionError, PowerloomApiError) as e:
         _console.print(f"[red]Error:[/red] {e}")
