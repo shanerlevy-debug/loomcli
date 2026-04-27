@@ -46,15 +46,25 @@ from loomcli.commands import sprint_cmd
 
 
 def _configure_stdio() -> None:
-    """Avoid silent Windows failures when Rich/Typer prints Unicode help."""
+    """Force UTF-8 on stdio streams so Windows users don't hit cp1252 +
+    surrogateescape crashes when piping a UTF-8 markdown file into a
+    `--*-from-stdin` flag (or when Rich prints non-ASCII help text).
+
+    stdin uses errors="strict" — we'd rather crash visibly with a friendly
+    remedy printed by main() than silently swap a curly quote for a
+    replacement char and ship corrupt content to the API.
+
+    stdout/stderr use errors="replace" — we never want to crash mid-output
+    just because a code-page-confused terminal can't render a glyph.
+    """
     if os.name != "nt":
         return
-    for stream in (sys.stdout, sys.stderr):
+    for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "replace"), (sys.stderr, "replace")):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
         try:
-            reconfigure(encoding="utf-8", errors="replace")
+            reconfigure(encoding="utf-8", errors=errors)
         except (OSError, ValueError):
             pass
 
@@ -221,9 +231,38 @@ app.command("whoami", help="Show signed-in user (alias for `weave auth whoami`).
 def main() -> None:
     try:
         app()
+    except UnicodeDecodeError as e:
+        # Hit when stdin is decoded as cp1252 / UTF-16 instead of UTF-8.
+        # Common on Windows when PYTHONUTF8 isn't set and a UTF-8 markdown
+        # file is piped into `--description-from-stdin`. _configure_stdio()
+        # forces stdin to UTF-8 above; this catches the residual case where
+        # the input bytes themselves aren't valid UTF-8 (e.g. a UTF-16 BOM).
+        typer.echo(
+            "weave: stdin is not valid UTF-8. Re-export with PYTHONUTF8=1 "
+            "or pipe the content through 'iconv -t utf-8' first.\n"
+            f"  decoder detail: {e!s}",
+            err=True,
+        )
+        raise typer.Exit(1) from e
     except UnicodeEncodeError as e:
-        detail = str(e).encode("ascii", "backslashreplace").decode("ascii")
-        typer.echo(f"Output encoding error: {detail}", err=True)
+        # Hit when a string the CLI built contains lone surrogate codepoints
+        # (e.g. the platform stdin reader inserted them via surrogateescape
+        # before _configure_stdio() ran). Same root cause as UnicodeDecodeError
+        # for the user; the remedy is identical.
+        msg = str(e)
+        looks_like_stdin = "surrogates not allowed" in msg or "\\udc" in msg
+        if looks_like_stdin:
+            typer.echo(
+                "weave: input contains lone surrogate codepoints, which usually "
+                "means stdin was decoded as cp1252 / UTF-16 instead of UTF-8.\n"
+                "  Fix: re-export with PYTHONUTF8=1 (and PYTHONIOENCODING=utf-8 "
+                "for older Pythons), or pipe input through 'iconv -t utf-8'.\n"
+                f"  encoder detail: {msg}",
+                err=True,
+            )
+        else:
+            detail = msg.encode("ascii", "backslashreplace").decode("ascii")
+            typer.echo(f"Output encoding error: {detail}", err=True)
         raise typer.Exit(1) from e
 
 
