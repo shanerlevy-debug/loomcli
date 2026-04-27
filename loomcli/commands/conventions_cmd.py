@@ -48,9 +48,10 @@ The auto-sync block format (in CLAUDE.md / AGENTS.md / GEMINI.md):
 from __future__ import annotations
 
 import json as _json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
 import typer
 from rich.console import Console
@@ -103,6 +104,100 @@ def _read_cached_scope() -> Optional[str]:
         return s if isinstance(s, str) and s else None
     except (OSError, _json.JSONDecodeError):
         return None
+
+
+def _autodetect_scope_from_user() -> Optional[str]:
+    """v0.7.3 — fallback when no --scope and no cache: ask /me for the
+    active user's home OU and walk the OU tree to build the dotted
+    path. Returns None on any auth/network/data failure (caller falls
+    through to the next detection path)."""
+    try:
+        cfg = load_runtime_config()
+        if cfg.access_token is None:
+            return None
+        client = PowerloomClient(cfg)
+        with client:
+            me = client.get("/me")
+            home_ou_id = me.get("home_ou_id")
+            if not home_ou_id:
+                return None
+            # Walk the tree by following parent_id from home OU upward.
+            tree = client.get("/ous/tree")
+            chain = _path_to_ou(tree, home_ou_id)
+            if chain:
+                return ".".join(chain)
+    except Exception:
+        # Any failure — auth, network, missing endpoint — falls through.
+        return None
+    return None
+
+
+def _path_to_ou(tree: Any, target_id: str, *, prefix: Optional[list[str]] = None) -> Optional[list[str]]:
+    """Recursive walk to find the dotted-path slug to `target_id`."""
+    if isinstance(tree, list):
+        for node in tree:
+            found = _path_to_ou(node, target_id, prefix=prefix)
+            if found:
+                return found
+        return None
+    if not isinstance(tree, dict):
+        return None
+    name = tree.get("name") or tree.get("slug")
+    if not name:
+        return None
+    here = (prefix or []) + [name]
+    if str(tree.get("id")) == str(target_id):
+        return here
+    for child in tree.get("children") or []:
+        found = _path_to_ou(child, target_id, prefix=here)
+        if found:
+            return found
+    return None
+
+
+def _autodetect_scope_from_git_remote() -> Optional[str]:
+    """v0.7.3 — last-resort fallback: read `git remote get-url origin`
+    and look for a Powerloom project whose github_repo_url matches.
+    The project's OU (via tracker_projects.ou_id and the OU tree)
+    becomes the scope. Returns None on any failure."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        if result.returncode != 0:
+            return None
+        remote = result.stdout.strip()
+        if not remote:
+            return None
+        cfg = load_runtime_config()
+        if cfg.access_token is None:
+            return None
+        client = PowerloomClient(cfg)
+        with client:
+            projects = client.get("/projects", status="active")
+            # Engine returns a list directly (not a dict); guard either way.
+            project_list = projects if isinstance(projects, list) else (projects.get("projects") or [])
+            match = None
+            normalized_remote = remote.rstrip("/").removesuffix(".git").lower()
+            for p in project_list:
+                url = p.get("github_repo_url")
+                if not url:
+                    continue
+                if url.rstrip("/").removesuffix(".git").lower() == normalized_remote:
+                    match = p
+                    break
+            if not match or not match.get("ou_id"):
+                return None
+            tree = client.get("/ous/tree")
+            chain = _path_to_ou(tree, match["ou_id"])
+            if chain:
+                return ".".join(chain)
+    except Exception:
+        return None
+    return None
 
 
 def _write_cached_scope(scope: str) -> None:
@@ -321,16 +416,33 @@ def sync(
 ) -> None:
     """Fetch OU-scoped conventions from Powerloom and sync into the
     workspace's project-rules file(s). Idempotent — re-runs replace the
-    autosync block, leaving hand-edits outside the block intact."""
+    autosync block, leaving hand-edits outside the block intact.
+
+    Scope detection (priority order, v0.7.3+):
+      1. Explicit --scope flag
+      2. Cached scope from the last successful sync in this config dir
+      3. Active sub-principal's home OU (via /me)
+      4. git remote get-url origin → match against project github_repo_url
+
+    Drops the SessionStart-hook requirement of hardcoding --scope: the
+    .claude/settings.json hook can now be just `weave conventions sync
+    --runtime claude_code --quiet` and the CLI will figure out the OU.
+    """
     if scope is None:
         scope = _read_cached_scope()
-        if scope is None:
-            _console.print(
-                "[red]No --scope provided and no cached scope from a prior sync.[/red]\n"
-                "[dim]Pass --scope <dotted-path>, e.g. "
-                "`bespoke-technology.powerloom.engineering`.[/dim]"
-            )
-            raise typer.Exit(2)
+    if scope is None:
+        scope = _autodetect_scope_from_user()
+    if scope is None:
+        scope = _autodetect_scope_from_git_remote()
+    if scope is None:
+        _console.print(
+            "[red]Could not determine OU scope.[/red]\n"
+            "[dim]Tried (in order): --scope flag, cached scope from last sync, "
+            "active sub-principal home OU, git remote → project lookup.\n"
+            "Pass --scope <dotted-path> explicitly, e.g. "
+            "`bespoke-technology.powerloom.engineering`.[/dim]"
+        )
+        raise typer.Exit(2)
 
     workdir = (workdir or Path(".")).resolve()
 
