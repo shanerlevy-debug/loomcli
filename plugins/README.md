@@ -21,7 +21,7 @@ All plugins should route agent invocation through `weave ask` or `weave chat`, n
 weave plugin doctor
 
 # Claude Code
-weave plugin instructions claude-code
+weave plugin install claude-code --execute
 
 # Codex
 weave plugin install codex --execute
@@ -30,6 +30,6 @@ weave plugin install codex --execute
 weave plugin install gemini --execute
 ```
 
-`weave plugin instructions <client>` prints the expected command using the plugin assets bundled in the pip-installed `loomcli` package. `weave plugin install <client>` is a dry run by default; pass `--execute` after reviewing the printed command.
+`weave plugin install <client>` is a dry run by default; pass `--execute` after reviewing the printed command. For Claude Code, run it from the project root or pass `--project-dir <path>`. `weave plugin instructions <client>` prints the expected command and exported plugin path using the assets bundled in the pip-installed `loomcli` package.
 
 If Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.

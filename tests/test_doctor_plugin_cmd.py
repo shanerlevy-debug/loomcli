@@ -58,6 +58,14 @@ def test_plugin_instructions_prints_codex_marketplace_path():
     assert "powerloom-weave" in result.stdout
 
 
+def test_plugin_instructions_prints_claude_code_standard_install():
+    result = runner.invoke(app, ["plugin", "instructions", "claude-code"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "weave plugin install claude-code --execute" in result.stdout
+    assert "--project-dir" in result.stdout
+
+
 def test_plugin_path_exports_codex_marketplace(tmp_path, monkeypatch):
     monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
 
@@ -70,11 +78,53 @@ def test_plugin_path_exports_codex_marketplace(tmp_path, monkeypatch):
     assert "plugins" in payload["path"]
 
 
+def test_plugin_path_honors_plugin_home_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("POWERLOOM_HOME", raising=False)
+    monkeypatch.setenv("POWERLOOM_PLUGIN_HOME", str(tmp_path / "plugin-home"))
+
+    result = runner.invoke(app, ["plugin", "path", "codex", "--json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["path"].startswith(str(tmp_path / "plugin-home"))
+
+
 def test_plugin_install_defaults_to_dry_run():
     result = runner.invoke(app, ["plugin", "install", "gemini"])
 
     assert result.exit_code == 0, result.stdout
     assert "gemini extensions install" in result.stdout
+    assert "Dry run" in result.stdout
+
+
+@patch("loomcli.commands.plugin_cmd.plugin_path")
+def test_plugin_install_single_client_exports_only_requested(mock_plugin_path, tmp_path):
+    mock_plugin_path.return_value = tmp_path / "codex"
+
+    result = runner.invoke(app, ["plugin", "install", "codex"])
+
+    assert result.exit_code == 0, result.stdout
+    mock_plugin_path.assert_called_once_with("codex")
+    assert "codex plugin marketplace add" in result.stdout
+
+
+def test_plugin_install_claude_code_accepts_project_dir(tmp_path):
+    project_dir = tmp_path / "project"
+    result = runner.invoke(
+        app,
+        [
+            "plugin",
+            "install",
+            "claude-code",
+            "--project-dir",
+            str(project_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "weave setup-claude-code" in result.stdout
+    assert "--project-dir" in result.stdout
+    assert str(project_dir) in result.stdout.replace("\n", "")
     assert "Dry run" in result.stdout
 
 
@@ -92,6 +142,98 @@ def test_plugin_install_execute_missing_binary_actionable(_mock_which):
     assert "gemini-cli" in result.stdout.lower()
     # Should suggest re-running once installed.
     assert "weave plugin install gemini --execute" in result.stdout
+
+
+@patch("loomcli.commands.plugin_cmd.subprocess.run")
+@patch("loomcli.commands.plugin_cmd._codex_marketplace_source", return_value=None)
+@patch(
+    "loomcli.commands.plugin_cmd.shutil.which",
+    return_value=r"C:\Users\white\AppData\Roaming\npm\codex.CMD",
+)
+def test_plugin_install_execute_uses_resolved_windows_shim(
+    mock_which,
+    _mock_source,
+    mock_run,
+    tmp_path,
+    monkeypatch,
+):
+    """On Windows, npm-installed CLIs are often .CMD shims.
+
+    `subprocess.run(["codex", ...])` can fail with WinError 2 even when
+    `shutil.which("codex")` found codex.CMD. Execute the resolved path.
+    """
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
+
+    result = runner.invoke(app, ["plugin", "install", "codex", "--execute"])
+
+    assert result.exit_code == 0, result.stdout
+    mock_which.assert_called_with("codex")
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0][0].endswith("codex.CMD")
+    assert mock_run.call_args.args[0][1:4] == [
+        "plugin",
+        "marketplace",
+        "add",
+    ]
+
+
+@patch("loomcli.commands.plugin_cmd.subprocess.run")
+@patch(
+    "loomcli.commands.plugin_cmd.shutil.which",
+    return_value=r"C:\Users\white\AppData\Roaming\npm\codex.CMD",
+)
+def test_plugin_install_codex_replaces_existing_marketplace(
+    _mock_which,
+    mock_run,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
+    with patch(
+        "loomcli.commands.plugin_cmd._codex_marketplace_source",
+        return_value=r"\\?\D:\PowerLoom\old\plugins\codex",
+    ):
+        result = runner.invoke(app, ["plugin", "install", "codex", "--execute"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Replacing existing Codex marketplace" in result.stdout
+    calls = [call.args[0] for call in mock_run.call_args_list]
+    assert calls[0] == [
+        r"C:\Users\white\AppData\Roaming\npm\codex.CMD",
+        "plugin",
+        "marketplace",
+        "remove",
+        "powerloom",
+    ]
+    assert calls[1][0] == r"C:\Users\white\AppData\Roaming\npm\codex.CMD"
+    assert calls[1][1:4] == ["plugin", "marketplace", "add"]
+
+
+@patch("loomcli.commands.plugin_cmd.subprocess.run")
+@patch(
+    "loomcli.commands.plugin_cmd.shutil.which",
+    return_value=r"C:\Users\white\AppData\Roaming\npm\codex.CMD",
+)
+def test_plugin_install_codex_noops_when_marketplace_source_matches(
+    _mock_which,
+    mock_run,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
+    # Path uses the current __version__ — read it dynamically so this
+    # test doesn't drift on every release bump.
+    from loomcli import __version__
+    expected_path = tmp_path / "pl-home" / "plugins" / __version__ / "codex"
+    with patch(
+        "loomcli.commands.plugin_cmd._codex_marketplace_source",
+        return_value=f"\\\\?\\{expected_path}",
+    ):
+        result = runner.invoke(app, ["plugin", "install", "codex", "--execute"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "already points at the exported path" in result.stdout
+    mock_run.assert_not_called()
 
 
 @patch("loomcli.commands.plugin_cmd.shutil.which", return_value="C:\\bin\\tool.exe")

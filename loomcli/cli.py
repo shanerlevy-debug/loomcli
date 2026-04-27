@@ -27,6 +27,7 @@ from loomcli.commands import get as get_cmd
 from loomcli.commands import import_ as import_cmd
 from loomcli.commands import import_project_cmd
 from loomcli.commands import plan as plan_cmd
+from loomcli.commands import project_cmd
 from loomcli.commands import workflow_cmd
 from loomcli.commands import antigravity_worker_cmd
 from loomcli.commands import skill_cmd
@@ -46,15 +47,25 @@ from loomcli.commands import sprint_cmd
 
 
 def _configure_stdio() -> None:
-    """Avoid silent Windows failures when Rich/Typer prints Unicode help."""
+    """Force UTF-8 on stdio streams so Windows users don't hit cp1252 +
+    surrogateescape crashes when piping a UTF-8 markdown file into a
+    `--*-from-stdin` flag (or when Rich prints non-ASCII help text).
+
+    stdin uses errors="strict" — we'd rather crash visibly with a friendly
+    remedy printed by main() than silently swap a curly quote for a
+    replacement char and ship corrupt content to the API.
+
+    stdout/stderr use errors="replace" — we never want to crash mid-output
+    just because a code-page-confused terminal can't render a glyph.
+    """
     if os.name != "nt":
         return
-    for stream in (sys.stdout, sys.stderr):
+    for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "replace"), (sys.stderr, "replace")):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
         try:
-            reconfigure(encoding="utf-8", errors="replace")
+            reconfigure(encoding="utf-8", errors=errors)
         except (OSError, ValueError):
             pass
 
@@ -72,12 +83,49 @@ app = typer.Typer(
 )
 
 
+_AGENT_ENV_VARS = ("CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE")
+
+
+def _detect_auto_json_reason() -> Optional[str]:
+    """Return a short human-readable reason if we should default --output=json,
+    or None if the user is at an interactive TTY and the table renderer is fine.
+
+    Three triggers, any one of them flips the default:
+      1. An agent-marker env var is set (CC, Gemini, Codex, generic AGENT_MODE).
+      2. POWERLOOM_ACTIVE_SUBPRINCIPAL_ID is set — the SessionStart hook + the
+         CC plugin populate this for any registered agent session, regardless
+         of which agent runtime is running. More reliable than (1) since
+         hook propagation doesn't always carry env into the parent shell;
+         the agent-session register flow writes a per-scope cache file that
+         the CLI reads without needing CLAUDE_CODE in the environment.
+      3. stdout is not a TTY (output is being piped or captured). Any
+         consumer parsing weave's output is going to want JSON; falling back
+         to the table renderer in that case produces the one-char-per-row
+         column-collapse bug that ate ~6KB of unreadable output during the
+         2026-04-27 dogfood pass.
+    """
+    for var in _AGENT_ENV_VARS:
+        if os.environ.get(var):
+            return f"agent env {var}"
+    if os.environ.get("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "").strip():
+        return "registered sub-principal"
+    try:
+        if not sys.stdout.isatty():
+            return "non-TTY stdout"
+    except (AttributeError, ValueError):
+        # Wrapped streams under pytest capture or odd CI runners can raise.
+        # Don't crash here — just leave the default unchanged.
+        pass
+    return None
+
+
 def is_agent_mode() -> bool:
-    """Check if the CLI is running in AI Agent mode (env detection)."""
-    return any(
-        os.environ.get(var)
-        for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
-    ) or os.environ.get("POWERLOOM_FORMAT") == "json"
+    """Check if the CLI is running in AI Agent mode (env detection).
+
+    Kept for any external caller; the auto-JSON path uses
+    _detect_auto_json_reason() directly so it can also surface the "why".
+    """
+    return _detect_auto_json_reason() is not None or os.environ.get("POWERLOOM_FORMAT") == "json"
 
 
 def _apply_global_options(
@@ -96,15 +144,23 @@ def _apply_global_options(
     if justification:
         os.environ["POWERLOOM_APPROVAL_JUSTIFICATION"] = justification
 
-    # Agent Mode Detection: if no output format is specified, default to JSON
-    # if we detect we are running inside an AI agent environment.
+    # Agent Mode / Non-TTY Detection: if no explicit format was passed and the
+    # env doesn't already pin one, switch to JSON when stdout isn't a TTY or
+    # an agent-session marker is present. Surface a stderr note so the human
+    # supervising the agent (or anyone running in CI) isn't surprised; suppress
+    # it when the auto-detected format is the default the env already wants.
     if not output and not os.environ.get("POWERLOOM_FORMAT"):
-        is_agent = any(
-            os.environ.get(var)
-            for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
-        )
-        if is_agent:
+        reason = _detect_auto_json_reason()
+        if reason:
             output = "json"
+            quiet = os.environ.get("POWERLOOM_QUIET_AUTO_JSON", "").strip()
+            if not quiet:
+                typer.echo(
+                    f"weave: output format auto-set to json ({reason}). "
+                    f"Pass -o table or set POWERLOOM_FORMAT=table to override; "
+                    f"set POWERLOOM_QUIET_AUTO_JSON=1 to silence this notice.",
+                    err=True,
+                )
 
     if output:
         os.environ["POWERLOOM_FORMAT"] = output
@@ -175,6 +231,7 @@ app.add_typer(agent_cmd.app, name="agent", help="Inspect agents and manage ident
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")
+app.add_typer(project_cmd.app, name="project", help="Inspect tracker projects (ls / show).")
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
 app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
 app.add_typer(skill_cmd.app, name="skill", help="Manage Skill archives (upload + activate versions).")
@@ -221,9 +278,38 @@ app.command("whoami", help="Show signed-in user (alias for `weave auth whoami`).
 def main() -> None:
     try:
         app()
+    except UnicodeDecodeError as e:
+        # Hit when stdin is decoded as cp1252 / UTF-16 instead of UTF-8.
+        # Common on Windows when PYTHONUTF8 isn't set and a UTF-8 markdown
+        # file is piped into `--description-from-stdin`. _configure_stdio()
+        # forces stdin to UTF-8 above; this catches the residual case where
+        # the input bytes themselves aren't valid UTF-8 (e.g. a UTF-16 BOM).
+        typer.echo(
+            "weave: stdin is not valid UTF-8. Re-export with PYTHONUTF8=1 "
+            "or pipe the content through 'iconv -t utf-8' first.\n"
+            f"  decoder detail: {e!s}",
+            err=True,
+        )
+        raise typer.Exit(1) from e
     except UnicodeEncodeError as e:
-        detail = str(e).encode("ascii", "backslashreplace").decode("ascii")
-        typer.echo(f"Output encoding error: {detail}", err=True)
+        # Hit when a string the CLI built contains lone surrogate codepoints
+        # (e.g. the platform stdin reader inserted them via surrogateescape
+        # before _configure_stdio() ran). Same root cause as UnicodeDecodeError
+        # for the user; the remedy is identical.
+        msg = str(e)
+        looks_like_stdin = "surrogates not allowed" in msg or "\\udc" in msg
+        if looks_like_stdin:
+            typer.echo(
+                "weave: input contains lone surrogate codepoints, which usually "
+                "means stdin was decoded as cp1252 / UTF-16 instead of UTF-8.\n"
+                "  Fix: re-export with PYTHONUTF8=1 (and PYTHONIOENCODING=utf-8 "
+                "for older Pythons), or pipe input through 'iconv -t utf-8'.\n"
+                f"  encoder detail: {msg}",
+                err=True,
+            )
+        else:
+            detail = msg.encode("ascii", "backslashreplace").decode("ascii")
+            typer.echo(f"Output encoding error: {detail}", err=True)
         raise typer.Exit(1) from e
 
 

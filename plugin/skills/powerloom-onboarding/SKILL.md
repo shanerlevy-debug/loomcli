@@ -21,11 +21,12 @@ weave login
 weave whoami               # confirm identity
 
 # 3. Load your runtime's plugin (one of these)
-weave plugin instructions claude-code                                # Claude Code
+weave plugin install claude-code --execute                           # Claude Code
 weave plugin install codex --execute                                 # Codex CLI
 weave plugin install gemini --execute                                # Gemini CLI
 
 # Or let weave print the exact exported path/command:
+weave plugin instructions claude-code
 weave plugin instructions codex
 weave plugin instructions gemini
 
@@ -150,8 +151,10 @@ The CLI works without any plugin. The plugins add slash-commands, skills (like t
 ### Claude Code
 
 ```bash
-weave plugin instructions claude-code
+weave plugin install claude-code --execute
 ```
+
+Run this from the project root, or pass `--project-dir <path-to-powerloom-checkout>` if you are elsewhere. `weave plugin instructions claude-code` prints the exported plugin directory to pass to `claude --plugin-dir <path>` when you need to launch Claude Code with the local plugin assets explicitly.
 
 Slash commands appear under `/powerloom-home:weave-*` (login, status, ask, chat, plan, apply, manifest, agent-status, session-tail, thread, diagnose). The `weave-tracker`, `weave-interpreter`, and `powerloom-onboarding` skills auto-load when relevant.
 

@@ -6,6 +6,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -25,20 +26,25 @@ _console = Console()
 
 
 def _client_specs() -> dict[str, dict[str, Any]]:
-    claude_path = plugin_path("claude-code")
-    codex_path = plugin_path("codex")
-    gemini_path = plugin_path("gemini")
-    return {
-        "claude-code": {
+    return {client: _client_spec(client) for client in CLIENT_NAMES}
+
+
+def _client_spec(client: str) -> dict[str, Any]:
+    if client == "claude-code":
+        claude_path = plugin_path("claude-code")
+        return {
             "binary": "claude",
             "path": claude_path,
             "instructions": [
-                "weave setup-claude-code --project <path-to-powerloom-checkout>",
+                "weave plugin install claude-code --execute --project-dir <path-to-powerloom-checkout>",
+                "or: weave setup-claude-code --project-dir <path-to-powerloom-checkout>",
                 f"claude --plugin-dir {claude_path}",
             ],
             "install": ["weave", "setup-claude-code"],
-        },
-        "codex": {
+        }
+    if client == "codex":
+        codex_path = plugin_path("codex")
+        return {
             "binary": "codex",
             "path": codex_path,
             "instructions": [
@@ -46,8 +52,10 @@ def _client_specs() -> dict[str, dict[str, Any]]:
                 "Enable powerloom-weave@powerloom in Codex if it is not auto-enabled.",
             ],
             "install": ["codex", "plugin", "marketplace", "add", str(codex_path)],
-        },
-        "gemini": {
+        }
+    if client == "gemini":
+        gemini_path = plugin_path("gemini")
+        return {
             "binary": "gemini",
             "path": gemini_path,
             "instructions": [
@@ -62,8 +70,9 @@ def _client_specs() -> dict[str, dict[str, Any]]:
                 "--consent",
                 "--skip-settings",
             ],
-        },
-        "antigravity": {
+        }
+    if client == "antigravity":
+        return {
             "binary": None,
             "path": plugin_path("antigravity"),
             "instructions": [
@@ -74,23 +83,23 @@ def _client_specs() -> dict[str, dict[str, Any]]:
                 "Restart Antigravity so it reloads MCP config.",
             ],
             "install": None,
-        },
-    }
+        }
+    expected = ", ".join(CLIENT_NAMES)
+    raise PluginAssetError(f"unknown client {client!r}; expected one of: {expected}")
 
 
 def _spec_or_exit(client: str) -> dict[str, Any]:
-    try:
-        specs = _client_specs()
-    except PluginAssetError as e:
-        _console.print(f"[red]Plugin assets unavailable:[/red] {e}")
-        raise typer.Exit(1) from e
-    if client not in specs:
+    if client not in CLIENT_NAMES:
         _console.print(
             f"[red]Unknown client {client!r}.[/red] "
             f"Expected one of: {', '.join(CLIENT_NAMES)}"
         )
         raise typer.Exit(2)
-    return specs[client]
+    try:
+        return _client_spec(client)
+    except PluginAssetError as e:
+        _console.print(f"[red]Plugin assets unavailable:[/red] {e}")
+        raise typer.Exit(1) from e
 
 
 @app.command("doctor")
@@ -107,7 +116,7 @@ def doctor_cmd(
 ) -> None:
     """Check local plugin files and client binaries."""
     try:
-        specs = _client_specs()
+        specs = {client: _client_spec(client)} if client else _client_specs()
         asset_error = None
     except PluginAssetError as e:
         specs = {}
@@ -246,10 +255,30 @@ def install_cmd(
         bool,
         typer.Option("--execute", help="Actually run the install command. Default prints it only."),
     ] = False,
+    project_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--project-dir",
+            help=(
+                "Claude Code project root to configure. Defaults to the current "
+                "directory. Ignored by clients that install into their own config."
+            ),
+        ),
+    ] = None,
+    use_env_substitution: Annotated[
+        bool,
+        typer.Option(
+            "--use-env-substitution",
+            help=(
+                "Claude Code only: write Bearer ${POWERLOOM_MCP_TOKEN} instead "
+                "of inlining the token in .mcp.json."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Install or print the install command for one client plugin."""
     spec = _spec_or_exit(client)
-    command = spec.get("install")
+    command = _install_command(client, spec, project_dir, use_env_substitution)
     if not command:
         _console.print("[yellow]This client needs manual setup.[/yellow]")
         for line in spec["instructions"]:
@@ -266,7 +295,8 @@ def install_cmd(
     # subprocess failure as "[WinError 2] The system cannot find the file
     # specified" with no hint about which file or why.
     binary = command[0] if command else None
-    if binary and shutil.which(binary) is None:
+    resolved_binary = shutil.which(binary) if binary else None
+    if binary and resolved_binary is None:
         _console.print(
             f"[red]Install failed:[/red] {binary!r} is not on PATH."
         )
@@ -279,8 +309,16 @@ def install_cmd(
         )
         raise typer.Exit(1)
 
+    run_command = (
+        [resolved_binary, *command[1:]]
+        if resolved_binary is not None
+        else command
+    )
+    if client == "codex" and resolved_binary is not None:
+        if not _prepare_codex_marketplace_install(resolved_binary, Path(command[-1])):
+            return
     try:
-        subprocess.run(command, check=True)
+        subprocess.run(run_command, check=True)
     except FileNotFoundError as e:
         # Shouldn't reach here with the pre-flight above, but keep the
         # safety net in case the binary disappears between which() and run().
@@ -308,3 +346,76 @@ def _format_command(command: list[str]) -> str:
     if os.name == "nt":
         return subprocess.list2cmdline(command)
     return shlex.join(command)
+
+
+def _install_command(
+    client: str,
+    spec: dict[str, Any],
+    project_dir: Path | None,
+    use_env_substitution: bool,
+) -> list[str] | None:
+    command = spec.get("install")
+    if command is None:
+        return None
+
+    command = list(command)
+    if client == "claude-code":
+        if project_dir is not None:
+            command.extend(["--project-dir", str(project_dir)])
+        if use_env_substitution:
+            command.append("--use-env-substitution")
+    return command
+
+
+def _prepare_codex_marketplace_install(codex_executable: str, marketplace_path: Path) -> bool:
+    existing = _codex_marketplace_source()
+    if not existing:
+        return True
+    if _same_local_source(existing, str(marketplace_path)):
+        _console.print(
+            "[green]Codex marketplace 'powerloom' already points at the exported path.[/green]"
+        )
+        return False
+
+    _console.print(
+        "[yellow]Replacing existing Codex marketplace 'powerloom' from a different source.[/yellow]"
+    )
+    try:
+        subprocess.run(
+            [codex_executable, "plugin", "marketplace", "remove", "powerloom"],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        _console.print(
+            f"[red]Install failed:[/red] could not remove existing Codex marketplace "
+            f"'powerloom' (exit {e.returncode})."
+        )
+        raise typer.Exit(1) from e
+    return True
+
+
+def _codex_marketplace_source() -> str | None:
+    path = Path.home() / ".codex" / "config.toml"
+    if not path.exists():
+        return None
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    marketplaces = data.get("marketplaces") or {}
+    if not isinstance(marketplaces, dict):
+        return None
+    powerloom = marketplaces.get("powerloom") or {}
+    if not isinstance(powerloom, dict):
+        return None
+    source = powerloom.get("source")
+    return str(source) if source else None
+
+
+def _same_local_source(left: str, right: str) -> bool:
+    return _normalize_local_source(left) == _normalize_local_source(right)
+
+
+def _normalize_local_source(value: str) -> str:
+    value = value.removeprefix("\\\\?\\")
+    return os.path.normcase(os.path.normpath(value))
