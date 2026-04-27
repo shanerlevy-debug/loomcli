@@ -7,6 +7,18 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.6.9 — 2026-04-27 (CLI)
+
+**Agent UX & Workflow Ergonomics.** Significant improvements for AI agents and developer workflows.
+
+### Added
+- **Agent Mode Detection**: Auto-detects AI agents (`GEMINI_CLI`, `CLAUDE_CODE`, etc.) and defaults output to JSON.
+- **Contextual Defaults**: Agent commands (`status`, `ask`, `chat`, etc.) now automatically use the agent/OU linked to the current git branch's active coordination session.
+- **Hierarchical OU Discovery**: `weave get ous --tree` provides a visual and JSON-standardized tree of the organization unit hierarchy.
+- **Batch Command**: `weave batch` allows sequential execution of multiple weave commands in a single process, improving cross-shell compatibility.
+- **Workflow Ergonomics**: `weave agent-session init <branch>` handles branch creation and registration in one step; `--from-branch` now supports flexible branch names.
+- **Agent-Friendly Errors**: Standardized JSON error objects via `PowerloomApiError.to_dict()` when in Agent Mode.
+
 
 ## v0.6.8 — 2026-04-27 (CLI)
 
