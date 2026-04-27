@@ -221,7 +221,10 @@ def test_plugin_install_codex_noops_when_marketplace_source_matches(
     monkeypatch,
 ):
     monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
-    expected_path = tmp_path / "pl-home" / "plugins" / "0.7.3" / "codex"
+    # Path uses the current __version__ — read it dynamically so this
+    # test doesn't drift on every release bump.
+    from loomcli import __version__
+    expected_path = tmp_path / "pl-home" / "plugins" / __version__ / "codex"
     with patch(
         "loomcli.commands.plugin_cmd._codex_marketplace_source",
         return_value=f"\\\\?\\{expected_path}",
