@@ -26,17 +26,12 @@ Run a full Powerloom control plane locally, inside Claude Code. Declarative agen
 
 ## Install
 
-### From this repo (development install)
-
-```powershell
-# Windows
-claude --plugin-dir D:\path\to\loomcli\plugin
-```
-
 ```bash
-# macOS / Linux
-claude --plugin-dir /path/to/loomcli/plugin
+pip install -U loomcli
+weave plugin instructions claude-code
 ```
+
+`weave plugin instructions claude-code` prints the exported plugin path from the pip-installed `loomcli` package. Pass that path to Claude Code with `claude --plugin-dir <printed-path>`.
 
 ### From marketplace (once shipped)
 

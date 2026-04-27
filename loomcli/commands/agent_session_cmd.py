@@ -297,8 +297,8 @@ def _check_client_plugin(actor_kind: str) -> None:
     if state.get("config_path"):
         _console.print(f"  config: {state['config_path']}")
     _console.print(
-        "  Run: codex plugin marketplace add C:\\path\\to\\loomcli\\plugins\\codex "
-        "and enable powerloom-weave@powerloom."
+        "  Run: weave plugin install codex --execute, then enable "
+        "powerloom-weave@powerloom if Codex does not enable it automatically."
     )
 
 
@@ -449,18 +449,20 @@ def register_cmd(
     if from_branch:
         git_branch = _current_git_branch()
         if not git_branch:
+            cwd = Path.cwd()
             _console.print(
-                "[red]--from-branch: could not determine the current git branch.[/red]"
+                "[red]--from-branch: could not determine the current git branch.[/red]\n"
+                f"  cwd: {cwd}\n"
+                "  Run from inside a git checkout, or pass --scope and --branch explicitly."
             )
             raise typer.Exit(1)
-        parsed = _parse_branch(git_branch)
-        if not parsed:
+        if not _BRANCH_RE.match(git_branch):
             _console.print(
                 f"[red]--from-branch: branch {git_branch!r} does not match "
                 f"session/<scope>-<yyyymmdd> convention.[/red]"
             )
             raise typer.Exit(1)
-        inferred_scope, inferred_branch = parsed
+        inferred_scope, inferred_branch = _parse_branch(git_branch)
         scope = scope or inferred_scope
         branch = branch or inferred_branch
         summary = summary or f"Claude Code session on {inferred_scope}"
@@ -479,9 +481,19 @@ def register_cmd(
         try:
             resp = client.get("/agent-sessions", status="active", limit=100)
             existing = resp.get("sessions", [])
-            if any(s.get("session_slug") == scope for s in existing):
+            active = next((s for s in existing if s.get("session_slug") == scope), None)
+            if active:
+                if json_out:
+                    typer.echo(
+                        json.dumps(
+                            {"status": "already_active", "session": active},
+                            indent=2,
+                            default=str,
+                        )
+                    )
+                    return
                 _console.print(
-                    f"[dim]Session {scope!r} already active — skipping registration.[/dim]"
+                    f"[dim]Session {scope!r} already active; skipping registration.[/dim]"
                 )
                 return
         except PowerloomApiError:
@@ -503,6 +515,20 @@ def register_cmd(
     try:
         resp = client.post("/agent-sessions", body)
     except PowerloomApiError as e:
+        if e.status_code == 409 and json_out:
+            typer.echo(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "error": str(e),
+                        "status_code": e.status_code,
+                        "body": e.body,
+                    },
+                    indent=2,
+                    default=str,
+                )
+            )
+            raise typer.Exit(1) from e
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 

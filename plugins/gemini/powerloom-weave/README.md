@@ -21,25 +21,21 @@ Gemini CLI extension for operating the Powerloom `weave` CLI.
   - `/weave:my-work`
   - `/weave:pluck-thread`
 
-## Development Install
+## Install
 
 Recommended local install:
 
 ```bash
-gemini extensions validate /path/to/loomcli/plugins/gemini/powerloom-weave
-gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+pip install -U loomcli
+weave plugin install gemini --execute
 ```
 
-On this checkout:
+If you need to inspect the exported extension path:
 
-```powershell
-$env:GEMINI_CLI_NO_RELAUNCH = "true"
-gemini extensions validate D:\powerloom\loomcli\plugins\gemini\powerloom-weave
-gemini extensions install D:\powerloom\loomcli\plugins\gemini\powerloom-weave --consent --skip-settings
-gemini extensions enable powerloom-weave
+```bash
+weave plugin instructions gemini
+weave plugin doctor gemini
 ```
-
-From a loomcli checkout, `weave plugin instructions gemini` prints the exact extension path and `weave plugin doctor gemini` checks that the package exists and Gemini CLI is on PATH.
 
 Use `gemini extensions link <path> --consent` only when you specifically want live edits reflected immediately. On Windows, `install` is safer because it copies the manifest and command files into `~/.gemini/extensions/powerloom-weave`.
 
@@ -48,7 +44,7 @@ Restart Gemini CLI or reload commands after installing.
 The extension expects `weave` to be installed:
 
 ```bash
-pip install -e /path/to/loomcli
+pip install -U loomcli
 weave --version
 ```
 

@@ -6,7 +6,7 @@ tabular output by default, `-o yaml` emits a manifest fragment.
 from __future__ import annotations
 
 import json
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 import typer
 from rich.console import Console

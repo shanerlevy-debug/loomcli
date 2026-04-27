@@ -6,6 +6,7 @@ produces reasonable output. No network — we mock PowerloomClient.
 """
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -238,6 +239,37 @@ def test_register_if_not_active_skips_when_already_registered():
     # POST should NOT have been called
     mock_client.post.assert_not_called()
     assert "already active" in result.output.lower() or "skipping" in result.output.lower()
+
+
+def test_register_if_not_active_json_reports_existing_session():
+    """--if-not-active --json gives hooks a machine-readable no-op result."""
+    active_sessions = {
+        "sessions": [
+            {
+                "id": "session-1",
+                "session_slug": "phase23-service-accounts-20260425",
+                "status": "active",
+            }
+        ]
+    }
+    with patch("loomcli.commands.agent_session_cmd.PowerloomClient") as mock_cls:
+        mock_client = _mock_client_for_register(mock_cls, ls_resp=active_sessions)
+        result = runner.invoke(
+            app,
+            [
+                "agent-session", "register",
+                "--scope", "phase23-service-accounts-20260425",
+                "--summary", "test session",
+                "--if-not-active",
+                "--json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_client.post.assert_not_called()
+    payload = json.loads(result.output)
+    assert payload["status"] == "already_active"
+    assert payload["session"]["id"] == "session-1"
 
 
 def test_register_if_not_active_proceeds_when_not_registered():

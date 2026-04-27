@@ -21,16 +21,13 @@ weave login
 weave whoami               # confirm identity
 
 # 3. Load your runtime's plugin (one of these)
-claude --plugin-dir /path/to/loomcli/plugin                          # Claude Code
-codex plugin marketplace add /path/to/loomcli/plugins/codex          # Codex CLI
-gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+weave plugin instructions claude-code                                # Claude Code
+weave plugin install codex --execute                                 # Codex CLI
+weave plugin install gemini --execute                                # Gemini CLI
 
-# Or let weave print the exact command for your checkout:
+# Or let weave print the exact exported path/command:
 weave plugin instructions codex
 weave plugin instructions gemini
-
-# PowerShell: replace placeholders with real paths. Do not type angle-bracket
-# placeholders like <loomcli>; PowerShell treats < as redirection.
 
 # 4. File your first thread for the work this session is about to do
 weave thread create --project powerloom \
@@ -70,7 +67,9 @@ weave --version
 For local development against an unreleased loomcli (e.g. you cloned the repo to test a new feature):
 
 ```bash
-pip install -e /path/to/loomcli
+git clone https://github.com/shanerlevy-debug/loomcli
+cd loomcli
+pip install -e .
 ```
 
 Python 3.11+ is required.
@@ -151,11 +150,7 @@ The CLI works without any plugin. The plugins add slash-commands, skills (like t
 ### Claude Code
 
 ```bash
-# from a clone of the loomcli repo
-claude --plugin-dir /path/to/loomcli/plugin
-
-# or, once the plugin is published to a marketplace
-claude plugin install powerloom-home@<marketplace-name>
+weave plugin instructions claude-code
 ```
 
 Slash commands appear under `/powerloom-home:weave-*` (login, status, ask, chat, plan, apply, manifest, agent-status, session-tail, thread, diagnose). The `weave-tracker`, `weave-interpreter`, and `powerloom-onboarding` skills auto-load when relevant.
@@ -163,24 +158,17 @@ Slash commands appear under `/powerloom-home:weave-*` (login, status, ask, chat,
 ### Codex CLI
 
 ```bash
-codex plugin marketplace add /path/to/loomcli/plugins/codex
-
-# From a loomcli checkout, this prints the correct local path:
-weave plugin instructions codex
+weave plugin install codex --execute
 ```
 
-Point Codex at `plugins/codex`, the marketplace root, not `plugins/codex/powerloom-weave`. The skill files (`weave-tracker`, `weave-interpreter`, `powerloom-onboarding`) live under `plugins/codex/powerloom-weave/skills/` and are loaded by Codex when their descriptions match the user's request. The plugin manifest is at `plugins/codex/powerloom-weave/.codex-plugin/plugin.json`; marketplace metadata is at `plugins/codex/.agents/plugins/marketplace.json`.
+`weave plugin install codex --execute` exports the bundled Codex marketplace assets from the pip-installed `loomcli` package and points Codex at the exported marketplace root. Run `weave plugin instructions codex` to print the exact path.
 
 After adding the marketplace, enable `powerloom-weave@powerloom` in Codex if it is not auto-enabled.
 
 ### Gemini CLI
 
 ```bash
-gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
-gemini extensions enable powerloom-weave
-
-# From a loomcli checkout, this prints the correct local path:
-weave plugin instructions gemini
+weave plugin install gemini --execute
 ```
 
 Restart Gemini CLI or reload commands after installing. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension is auto-merged into your project's Gemini context — that's where the tracker workflow + provider-agnostic invocation rules come in.

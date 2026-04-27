@@ -20,6 +20,28 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 - **Agent-Friendly Errors**: Standardized JSON error objects via `PowerloomApiError.to_dict()` when in Agent Mode.
 
 
+## v0.6.9 — 2026-04-27 (CLI)
+
+**Bundled plugin assets export.** Pip-installed `loomcli` no longer requires a git clone of this repo to wire Claude Code / Codex / Gemini / Antigravity plugins — assets ship inside the wheel and export to a stable per-version directory under `<config_dir>/plugins/<version>/` on first use.
+
+### New commands / behavior
+
+- **`weave plugin path <client> [--json]`** — prints the exported plugin path for a given client (`claude-code`, `codex`, `gemini`, `antigravity`). Triggers asset export on first call.
+- **`weave plugin install <client> --execute`** — now resolves the bundled-asset path and shells out to the client's native install command. Dry-run (no `--execute`) prints a copy-pasteable form instead, formatted with `subprocess.list2cmdline` on Windows / `shlex.join` on POSIX so no shell escaping needed.
+- **`weave plugin doctor`** JSON output now includes `export_root` (top-level config-dir/plugins/<version>) and per-client `install_command` fields so `weave doctor`-style scripting can chain into plugin doctor without re-running install.
+- **`weave doctor`** picks up: `python.executable`, `python.version`, `stdio.encoding` (helpful on Windows where cp932/cp1252 break rich rendering), and `plugin.export_root`.
+- **`weave agent-session register --from-branch`** — error path now prints `cwd:` so the user sees which directory `loomcli` thought it was in. `--if-not-active` honors `--json`: emits `{"status": "already_active", "session": {…}}` instead of swallowing the bail-out so callers can detect re-runs.
+
+### Capabilities pin
+
+- Bumped to match Powerloom's recommended version field (`recommended_loomcli_version`). Engine PR `Powerloom#171` updates that string from `0.6.8` → `0.6.9` so existing consumers get the upgrade nudge through `weave whoami` / capability checks.
+
+### Tests
+
+- 27 new + updated covering plugin asset export (`test_doctor_plugin_cmd.py`) and `register --from-branch --json` branches (`test_agent_session_cli.py`)
+- Full suite still green; no test count delta tracking in this release
+
+
 ## v0.6.8 — 2026-04-27 (CLI)
 
 **Conventions sync.** Surfaces OU-scoped Powerloom conventions (engine v064 / `/memory/semantic/conventions/*`) into the project-rules file the runtime reads at session start.
