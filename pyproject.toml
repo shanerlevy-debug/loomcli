@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "loomcli"
-version = "0.6.7"
+version = "0.6.8"
 description = "Weave — the Powerloom CLI. Declarative manifests (apply/plan/destroy) + resource inspection, validated against the authoritative JSON Schema published in this repo."
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -73,7 +73,7 @@ Platform = "https://github.com/shanerlevy-debug/Powerloom"
 Changelog = "https://github.com/shanerlevy-debug/loomcli/blob/main/CHANGELOG.md"
 
 [project.scripts]
-weave = "loomcli.cli:app"
+weave = "loomcli.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["loomcli"]
@@ -85,6 +85,16 @@ packages = ["loomcli"]
 [tool.hatch.build.targets.wheel.force-include]
 "schema/v1" = "loomcli/_bundled_schema/v1"
 "schema/v2" = "loomcli/_bundled_schema/v2"
+"plugin/.claude-plugin" = "loomcli/_bundled_plugins/claude-code/.claude-plugin"
+"plugin/commands" = "loomcli/_bundled_plugins/claude-code/commands"
+"plugin/hooks" = "loomcli/_bundled_plugins/claude-code/hooks"
+"plugin/mcp-server/powerloom_home/__init__.py" = "loomcli/_bundled_plugins/claude-code/mcp-server/powerloom_home/__init__.py"
+"plugin/mcp-server/powerloom_home/__main__.py" = "loomcli/_bundled_plugins/claude-code/mcp-server/powerloom_home/__main__.py"
+"plugin/mcp-server/powerloom_home/db.py" = "loomcli/_bundled_plugins/claude-code/mcp-server/powerloom_home/db.py"
+"plugin/skills" = "loomcli/_bundled_plugins/claude-code/skills"
+"plugin/README.md" = "loomcli/_bundled_plugins/claude-code/README.md"
+"plugins/codex" = "loomcli/_bundled_plugins/codex"
+"plugins/gemini" = "loomcli/_bundled_plugins/gemini"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
