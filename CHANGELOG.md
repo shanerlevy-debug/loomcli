@@ -7,6 +7,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.2 — 2026-04-28 (CLI)
+
+**Agent-session registration for non-developers.** The `register` command no longer assumes a git checkout. Three explicit scope-detection paths, friendlier errors, and a new interactive `start` command for users who don't have (or want) a branch dependency.
+
+### What changed
+
+- **`weave agent-session register --workspace-id <id>`** — new path for hosted clients (Antigravity, mobile, in-browser sessions) that don't have a local git checkout. Workspace id becomes the scope (slugified + date-suffixed).
+- **`weave agent-session register --scope <slug>`** — explicit path. `--summary` now auto-generates from `--scope` if omitted, so a single `--scope` flag is enough.
+- **`weave agent-session start`** — new interactive command for PMs / ops / non-dev users. Prompts for a scope + summary, defaults `--actor-kind=human`, never touches git.
+- **Smarter error messages** — when no scope-detection input is supplied, the error suggests the right path based on cwd context (cwd-is-git → `--from-branch`; cwd-is-not-git → `--scope` / `--workspace-id` / `start`).
+- **`--from-branch` non-session-branch behavior** — instead of hard-erroring on branches that don't match `session/<scope>-<yyyymmdd>`, the CLI now slugifies the branch name and appends today's date with a warning, so devs working off oddly-named feature branches aren't blocked.
+
+### Pairs with
+
+- Powerloom thread `a9091bbc` (de-couple agent-session registration) and `51174e34` (attach GitHub repo info to projects when agents connect).
+- Engine route `/agent-sessions` already accepts nullable `branch_name`; this release closes the CLI-side gap.
+
+### Tests
+
+- 24/24 in `test_agent_session_cli.py` (3 new: `--scope` alone, `--workspace-id`, bare-`register` smart-error)
+- 1 new for `start` interactive prompt path
+
+
 ## v0.7.1 — 2026-04-27 (CLI)
 
 **Plugin install error UX.** `weave plugin install <client> --execute` now pre-flight-checks that the client binary (`gemini` / `codex` / `claude`) is on `PATH` before subprocess-ing into it. When the binary is missing, the error message points the user at the install URL instead of surfacing a bare `[WinError 2] The system cannot find the file specified`.

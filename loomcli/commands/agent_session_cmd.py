@@ -427,52 +427,173 @@ def init_cmd(
     )
 
 
+@app.command("start")
+def start_cmd(
+    scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug. If omitted, you'll be prompted.")] = None,
+    summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. If omitted, you'll be prompted.")] = None,
+    actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "human",
+    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
+) -> None:
+    """Friendly interactive shortcut for `register`. No git required.
+
+    Prompts for a scope slug + summary if not supplied. Defaults
+    `--actor-kind=human` since this command is aimed at PMs / ops /
+    non-developer users who want to coordinate work without touching
+    a git checkout. Hosted clients should prefer
+    `register --workspace-id <id>`; devs should prefer
+    `register --from-branch`.
+
+    Equivalent to `register --scope <slug> --summary <text>` once the
+    prompts are answered.
+    """
+    if not scope:
+        scope_input = typer.prompt(
+            "Session scope (short slug, e.g. `triage-2026-04-28`)",
+            default="",
+        ).strip()
+        if not scope_input:
+            _console.print("[red]Scope is required to coordinate work.[/red]")
+            raise typer.Exit(1)
+        scope = scope_input
+    if not summary:
+        summary_input = typer.prompt(
+            "One-line summary of what you'll do (or press Enter for default)",
+            default=f"{actor_kind} session: {scope}",
+        ).strip()
+        summary = summary_input or f"{actor_kind} session: {scope}"
+
+    # Delegate to register_cmd with explicit args. No --from-branch and
+    # no git introspection — this command is for users who don't have
+    # (or want) a branch dependency.
+    register_cmd(
+        scope=scope,
+        summary=summary,
+        branch=None,
+        workspace_id=None,
+        capabilities=None,
+        cross_cutting=False,
+        migration=False,
+        version=None,
+        actor_kind=actor_kind,
+        actor_id=None,
+        from_branch=False,
+        if_not_active=False,
+        json_out=json_out,
+    )
+
+
 @app.command("register")
 def register_cmd(
-    scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch is set.")] = None,
-    summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. Required unless --from-branch is set (which uses the branch name as a fallback).")] = None,
-    branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name.")] = None,
+    scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch or --workspace-id is set.")] = None,
+    summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. Auto-generated from scope if omitted.")] = None,
+    branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name. Optional; non-dev sessions can omit it.")] = None,
+    workspace_id: Annotated[Optional[str], typer.Option("--workspace-id", help="Hosted-client workspace identifier (Antigravity, mobile, etc.). Used as scope when --scope is not given. No git checkout required.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags (e.g. 'ui,docs,python')")] = None,
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
     version: Annotated[Optional[str], typer.Option("--version", help="Target version, e.g. v030")] = None,
     actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "claude_code",
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email)")] = None,
-    from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (must match session/<scope>-<yyyymmdd>).")] = False,
+    from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (best for devs in a session/<scope>-<yyyymmdd> branch).")] = False,
     if_not_active: Annotated[bool, typer.Option("--if-not-active", help="No-op (exit 0) if a session with the same scope is already active. Safe for SessionStart hooks.")] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
-    """Register a new active agent session. Returns session id, work-chain
-    event hash, and any overlap warnings."""
+    """Register a new active agent session.
+
+    Three scope-detection paths (priority order):
+      1. --from-branch  — devs in a git checkout. Branch must match
+         `session/<scope>-<yyyymmdd>` (or any branch; will be slugified).
+      2. --workspace-id — hosted clients (Antigravity, mobile) that
+         don't have a git checkout. Workspace id becomes the scope.
+      3. --scope        — explicit. No git or workspace required.
+                          Suitable for PMs, ops, CMA, and any agent
+                          that just needs to coordinate work without
+                          a branch.
+
+    `--summary` is optional; auto-generated from the scope when missing.
+    `--branch` is optional everywhere — non-dev sessions can omit it.
+
+    Returns session id, work-chain event hash, and any overlap warnings.
+    """
+
+    # ---- Resolve scope from one of the three input paths ----
 
     # --from-branch: resolve scope + branch from git
     if from_branch:
         git_branch = _current_git_branch()
         if not git_branch:
             cwd = Path.cwd()
+            in_git = (cwd / ".git").exists() or any(
+                (p / ".git").exists() for p in cwd.parents
+            )
+            hint = (
+                "  No git checkout detected at this cwd. Try one of:\n"
+                "    weave agent-session register --scope <slug> --summary <text>\n"
+                "    weave agent-session register --workspace-id <id>  (hosted clients)\n"
+                "    weave agent-session start                          (interactive)\n"
+            ) if not in_git else (
+                "  In a git repo but no current branch — checkout a branch first, "
+                "or pass --scope explicitly.\n"
+            )
             _console.print(
                 "[red]--from-branch: could not determine the current git branch.[/red]\n"
-                f"  cwd: {cwd}\n"
-                "  Run from inside a git checkout, or pass --scope and --branch explicitly."
+                f"  cwd: {cwd}\n" + hint
             )
             raise typer.Exit(1)
         if not _BRANCH_RE.match(git_branch):
             _console.print(
                 f"[red]--from-branch: branch {git_branch!r} does not match "
-                f"session/<scope>-<yyyymmdd> convention.[/red]"
+                f"session/<scope>-<yyyymmdd> convention.[/red]\n"
+                "  The branch will still be slugified into a usable scope, "
+                "but you may want to rename it for cleaner audit trails."
             )
-            raise typer.Exit(1)
+            # Fall through to the slugify-fallback path in _parse_branch.
         inferred_scope, inferred_branch = _parse_branch(git_branch)
         scope = scope or inferred_scope
         branch = branch or inferred_branch
-        summary = summary or f"Claude Code session on {inferred_scope}"
+        summary = summary or f"{actor_kind} session on {inferred_scope}"
 
-    # Validate required fields (may still be None if --from-branch wasn't set)
+    # --workspace-id: derive scope from a hosted-client workspace id.
+    # Hosted clients (Antigravity, mobile) don't have a git checkout but
+    # do have a stable workspace identifier. Use that as the scope so
+    # multiple sessions in the same workspace coordinate cleanly.
+    if not scope and workspace_id:
+        today = date.today().strftime("%Y%m%d")
+        # Slugify the workspace id (it may be a UUID or arbitrary text).
+        scope = f"{_slugify(workspace_id)}-{today}"
+        summary = summary or f"{actor_kind} session on workspace {workspace_id}"
+
+    # Auto-generate summary from scope when --scope was supplied alone.
+    if scope and not summary:
+        summary = f"{actor_kind} session: {scope}"
+
+    # Validate — at least one path produced a scope.
     if not scope:
-        _console.print("[red]--scope is required (or use --from-branch).[/red]")
+        cwd = Path.cwd()
+        in_git = (cwd / ".git").exists() or any(
+            (p / ".git").exists() for p in cwd.parents
+        )
+        if in_git:
+            suggestion = "  Inside a git checkout — try `--from-branch` to infer scope from your current branch."
+        else:
+            suggestion = (
+                "  No git checkout here. Try one of:\n"
+                "    weave agent-session register --scope <slug> --summary <text>\n"
+                "    weave agent-session register --workspace-id <id>\n"
+                "    weave agent-session start  (interactive prompt)"
+            )
+        _console.print(
+            "[red]A scope is required. Pick one of:[/red]\n"
+            "  --from-branch (infer from git)\n"
+            "  --workspace-id <id> (hosted clients)\n"
+            "  --scope <slug> (explicit)\n"
+            f"\n[dim]{suggestion}[/dim]"
+        )
         raise typer.Exit(1)
     if not summary:
-        _console.print("[red]--summary is required (or use --from-branch).[/red]")
+        # This should be unreachable since we auto-generate above, but
+        # keep the guard for safety.
+        _console.print("[red]--summary is required.[/red]")
         raise typer.Exit(1)
 
     # --if-not-active: check for an existing active session with this scope

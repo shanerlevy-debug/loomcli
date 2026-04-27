@@ -303,12 +303,77 @@ def test_register_missing_scope_without_from_branch_errors():
     assert result.exit_code != 0
 
 
-def test_register_missing_summary_without_from_branch_errors():
-    """Omitting --summary without --from-branch exits non-zero."""
-    result = runner.invoke(
-        app, ["agent-session", "register", "--scope", "my-scope-20260426"]
+def test_register_with_scope_alone_auto_generates_summary():
+    """v0.7.x: --scope alone is enough — summary auto-generates."""
+    with patch("loomcli.commands.agent_session_cmd.PowerloomClient") as mock_cls:
+        _mock_client_for_register(mock_cls)
+        result = runner.invoke(
+            app,
+            [
+                "agent-session", "register",
+                "--scope", "my-scope-20260428",
+                "--actor-kind", "human",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+
+
+def test_register_with_workspace_id_no_git_required(monkeypatch):
+    """v0.7.x: hosted clients (Antigravity, mobile) pass --workspace-id;
+    no git checkout needed."""
+    # Make sure the no-git path is taken regardless of cwd.
+    monkeypatch.setattr(
+        "loomcli.commands.agent_session_cmd._current_git_branch",
+        lambda: None,
     )
+    with patch("loomcli.commands.agent_session_cmd.PowerloomClient") as mock_cls:
+        mock_client = _mock_client_for_register(mock_cls)
+        result = runner.invoke(
+            app,
+            [
+                "agent-session", "register",
+                "--workspace-id", "wkspc-abc-123",
+                "--actor-kind", "antigravity",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    # The first POST is to /agent-sessions; second (if any) is to /me/agents.
+    first_post = mock_client.post.call_args_list[0]
+    args = first_post.args
+    assert args[0] == "/agent-sessions"
+    posted = args[1]
+    # Slug derived from the workspace id (slugified + date suffix).
+    assert "wkspc-abc-123" in posted["session_slug"]
+    assert posted["actor_kind"] == "antigravity"
+
+
+def test_register_missing_everything_suggests_paths():
+    """v0.7.x: bare register prints all three valid paths."""
+    result = runner.invoke(app, ["agent-session", "register"])
     assert result.exit_code != 0
+    out = result.output.lower()
+    assert "from-branch" in out
+    assert "workspace-id" in out
+    assert "scope" in out
+
+
+def test_start_command_prompts_and_registers():
+    """`weave agent-session start` is the friendly non-dev path."""
+    with patch("loomcli.commands.agent_session_cmd.PowerloomClient") as mock_cls:
+        mock_client = _mock_client_for_register(mock_cls)
+        result = runner.invoke(
+            app,
+            ["agent-session", "start"],
+            input="triage-2026-04-28\n\n",  # scope, then enter to accept default summary
+        )
+    assert result.exit_code == 0, result.output
+    first_post = mock_client.post.call_args_list[0]
+    args = first_post.args
+    assert args[0] == "/agent-sessions"
+    posted = args[1]
+    assert posted["session_slug"] == "triage-2026-04-28"
+    assert posted["actor_kind"] == "human"
+    assert posted["branch_name"] is None
 
 
 @patch("loomcli.commands.agent_session_cmd._check_client_plugin")
