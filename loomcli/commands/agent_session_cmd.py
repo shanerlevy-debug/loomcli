@@ -538,6 +538,8 @@ def register_cmd(
 
     actor_kind = _normalize_actor_kind(actor_kind)
 
+    actor_kind = _normalize_actor_kind(actor_kind)
+
     # --from-branch: resolve scope + branch from git
     if from_branch:
         git_branch = _current_git_branch()
