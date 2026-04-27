@@ -1002,7 +1002,7 @@ def tree(
 
 @app.command("sprint-tree")
 def sprint_tree_cmd(
-    sprint_id: Annotated[str, typer.Argument(help="Sprint UUID. (Slug-form CLI for sprints lands in a follow-up.)")],
+    sprint_id: Annotated[str, typer.Argument(help="Sprint reference: UUID, slug (e.g. 'v064'), or 'project:slug'.")],
     max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=50)] = 10,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
@@ -1011,20 +1011,19 @@ def sprint_tree_cmd(
     A "top-level" thread in a sprint is one whose parent isn't also in
     the sprint — so a flat sprint of 5 unrelated threads renders as 5
     single-node trees.
+
+    Sprint addressing accepts UUID, `project:slug`, or bare slug — the
+    same forms `weave sprint show` accepts.
     """
-    # Validate UUID shape (sprint slug-resolution lands later)
-    try:
-        uuid.UUID(sprint_id)
-    except ValueError:
-        _console.print(
-            "[red]Sprint argument must be a UUID[/red] "
-            "(slug-form for sprints is on the W1.5 follow-up list)."
-        )
-        raise typer.Exit(2)
+    # Lazy import — sprint_cmd registers the same /by-slug resolver so
+    # we re-use it here. Top-level import would create a cycle since
+    # sprint_cmd doesn't import thread_cmd.
+    from loomcli.commands.sprint_cmd import _resolve_sprint as _sprint_resolver
 
     with _client_or_exit() as client:
+        sprint_uuid = _sprint_resolver(client, sprint_id)
         try:
-            data = client.get(f"/sprints/{sprint_id}/tree", max_depth=max_depth)
+            data = client.get(f"/sprints/{sprint_uuid}/tree", max_depth=max_depth)
         except PowerloomApiError as e:
             _console.print(f"[red]Sprint tree fetch failed:[/red] {e}")
             raise typer.Exit(1) from None

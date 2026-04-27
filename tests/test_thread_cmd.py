@@ -696,10 +696,40 @@ def test_thread_tree_max_depth_passed_to_api(mock_client) -> None:
     assert call.kwargs.get("max_depth") == 3
 
 
-def test_sprint_tree_rejects_non_uuid(mock_client) -> None:
-    """Sprint slug-resolution isn't shipped yet — non-UUID args exit 2."""
-    result = runner.invoke(app, ["thread", "sprint-tree", "not-a-uuid"])
+def test_sprint_tree_rejects_invalid_slug(mock_client) -> None:
+    """Slug shape validated client-side — uppercase/spaces → exit 2."""
+    result = runner.invoke(app, ["thread", "sprint-tree", "BAD SLUG"])
     assert result.exit_code == 2
+
+
+def test_sprint_tree_resolves_bare_slug(mock_client) -> None:
+    """`weave thread sprint-tree v064` → /projects → /by-slug → /sprints/<uuid>/tree.
+
+    sprint-tree's lazy import of sprint_cmd._resolve_sprint reuses the
+    thread_cmd client passed in, so all 3 GETs land on `mock_client`.
+    """
+    sprint_uuid = "99999999-9999-9999-9999-999999999999"
+    sprint_obj = {"id": sprint_uuid, "slug": "v064"}
+    payload = {
+        "sprint": {
+            "id": sprint_uuid, "name": "v064 cleanup",
+            "slug": "v064", "status": "active",
+            "project_id": "p1",
+            "created_at": "2026-04-26T00:00:00Z",
+            "updated_at": "2026-04-26T00:00:00Z",
+        },
+        "trees": [],
+    }
+    mock_client.get.side_effect = [
+        [{"id": "p1", "slug": "powerloom"}],   # _resolve_project
+        sprint_obj,                            # by-slug lookup
+        payload,                               # /sprints/<uuid>/tree
+    ]
+    result = runner.invoke(app, ["thread", "sprint-tree", "v064"])
+    assert result.exit_code == 0, result.stdout
+    paths = [c.args[0] for c in mock_client.get.call_args_list]
+    assert any(f"/sprints/{sprint_uuid}/tree" in p for p in paths)
+    assert "v064 cleanup" in result.stdout
 
 
 def test_sprint_tree_renders_top_level(mock_client) -> None:
