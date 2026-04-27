@@ -77,6 +77,76 @@ def _parse_branch(branch_name: str) -> tuple[str, str] | None:
     return scope, branch_name
 
 
+def _ensure_subprincipal(
+    client: PowerloomClient,
+    *,
+    scope: str,
+    actor_kind: str,
+) -> Optional[str]:
+    """Find-or-create a sub-principal for this (actor_kind, scope) and
+    cache its UUID in `<config_dir>/active-subprincipal-<scope>.txt`.
+
+    The auto-stamp path in `loomcli.commands.thread_cmd` reads
+    `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` from env first; the per-scope
+    file is the fallback for the common case where the SessionStart
+    hook can't propagate env to the parent shell. Together they make
+    every `weave thread create / reply / pluck` carry attribution
+    without any human action.
+
+    Naming: `<actor_kind>:<scope>` — e.g. `claude_code:phase23-service-accounts-20260425`.
+    Stable across re-runs. The find-by-name pass is a linear GET /me/agents
+    scan; fine for the small per-user sub-principal counts expected.
+
+    Returns the sub-principal UUID on success, None on best-effort
+    failure (network, permissions). Failures are non-fatal — the calling
+    `register` command should continue normally; attribution stamping
+    just stays disabled for this session.
+    """
+    from loomcli.config import active_subprincipal_file
+
+    desired_name = f"{actor_kind}:{scope}"
+    try:
+        existing = client.get("/me/agents")
+    except PowerloomApiError:
+        return None
+    items = existing if isinstance(existing, list) else (existing.get("items") or [])
+    sub_id: Optional[str] = None
+    for sp in items:
+        if isinstance(sp, dict) and sp.get("name") == desired_name:
+            sub_id = sp.get("id")
+            break
+    if sub_id is None:
+        try:
+            created = client.post(
+                "/me/agents",
+                {
+                    "name": desired_name,
+                    "client_kind": actor_kind,
+                    "description": (
+                        f"Auto-registered by `weave agent-session register` for "
+                        f"branch session/{scope}. Used by thread_cmd to stamp "
+                        f"session_attribution on tracker actions."
+                    ),
+                },
+            )
+        except PowerloomApiError:
+            return None
+        sub_id = created.get("id") or (created.get("subprincipal") or {}).get("id")
+    if sub_id is None:
+        return None
+
+    # Write the per-scope cache file. Best-effort — if the dir doesn't
+    # exist, create it; if the write fails (read-only fs, etc.),
+    # silently degrade so the env-var path still works.
+    try:
+        path = active_subprincipal_file(scope)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(sub_id), encoding="utf-8")
+    except OSError:
+        pass
+    return sub_id
+
+
 @app.command("register")
 def register_cmd(
     scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch is set.")] = None,
@@ -156,7 +226,20 @@ def register_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
+    # Find-or-create the per-session sub-principal AFTER the agent-session
+    # POST succeeds (so we don't create orphaned sub-principals when the
+    # session POST fails for an unrelated reason). Best-effort — if the
+    # /me/agents call fails, registration still succeeds; attribution
+    # stamping just stays disabled for this session and can be re-tried
+    # on the next register.
+    sub_id = _ensure_subprincipal(client, scope=scope, actor_kind=actor_kind)
+
     if json_out:
+        # Surface the sub-principal id in JSON output for tooling
+        # (e.g. SessionStart hooks that want to log the binding).
+        if sub_id is not None:
+            resp = dict(resp)
+            resp["subprincipal_id"] = sub_id
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -166,6 +249,16 @@ def register_cmd(
     _console.print(f"  work-chain event hash: {resp['work_chain_event_hash']}")
     _console.print(f"  version claimed: {sess.get('version_claimed') or '(none)'}")
     _console.print(f"  capabilities: {sess.get('capabilities') or []}")
+    if sub_id is not None:
+        _console.print(
+            f"  sub-principal: [cyan]{actor_kind}:{scope}[/cyan] "
+            f"[dim](id={sub_id[:8]}…, cached for thread_cmd auto-stamp)[/dim]"
+        )
+    else:
+        _console.print(
+            "  [yellow]sub-principal: not bound (find-or-create failed; "
+            "session_attribution will be empty until the next register).[/yellow]"
+        )
     warnings = resp.get("overlap_warnings", [])
     if warnings:
         _console.print("[yellow]Overlap warnings:[/yellow]")
