@@ -235,8 +235,11 @@ def test_sync_uses_cached_scope_when_omitted(mock_client, tmp_path) -> None:
     )
     assert r2.exit_code == 0, r2.output
     assert mock_client.get.call_count == 2
+    # v0.7.0: --scope passes through as ou_path to /effective. Dotted
+    # `x.y.z` becomes `/x/y/z` (the engine resolves the dotted path).
     for call in mock_client.get.call_args_list:
-        assert call.kwargs.get("scope_ref") == "x.y.z"
+        assert call.args[0] == "/memory/semantic/conventions/effective"
+        assert call.kwargs.get("ou_path") == "/x/y/z"
 
 
 def test_sync_no_scope_no_cache_exits_2(mock_client, tmp_path) -> None:

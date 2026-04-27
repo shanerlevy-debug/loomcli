@@ -123,18 +123,44 @@ def _client_or_exit() -> PowerloomClient:
 
 
 def _fetch_conventions(client: PowerloomClient, scope: str) -> list[dict]:
-    """Hit /memory/semantic/conventions/match and return the raw list.
+    """Hit /memory/semantic/conventions/effective and return the cascaded
+    list. Falls back to /match for older engines (pre-cascading).
 
-    Engine match semantics (per services/conventions.py:match_active_conventions):
-    exact match on applies_to_scope_ref, OR ancestor (scope is a dotted
-    descendant of the convention's primary scope), OR same on
-    additional_scope_refs[]. Archived rows excluded. Sorted deterministically.
+    v0.7.0: cascading-aware. Treats `scope` as a dotted OU path (e.g.
+    `bespoke-technology.powerloom`), resolves it server-side via the
+    OU tree, and returns the folded effective set with org-level +
+    OU-ancestors + leaf-OU all merged. Each row carries an
+    `inheritance_chain` so the rendered block can label which OU each
+    rule came from.
+
+    Pre-v0.7.0 engines (no /effective endpoint, returns 404) trigger a
+    fallback to the legacy /match call so an upgraded CLI doesn't break
+    an older deployment.
     """
+    # `scope` historically was an applies_to_scope_ref (dotted action
+    # scope). With cascading, the more useful interpretation is "OU
+    # path of the agent's home OU" — same string shape, different axis.
+    # Try /effective first (cascading); if the endpoint isn't there,
+    # fall back to /match for back-compat.
+    ou_path = scope if scope.startswith("/") else "/" + scope.replace(".", "/")
     try:
-        rows = client.get(f"/memory/semantic/conventions/match", scope_ref=scope)
+        rows = client.get(
+            "/memory/semantic/conventions/effective",
+            ou_path=ou_path,
+        )
     except PowerloomApiError as e:
-        _console.print(f"[red]Convention fetch failed:[/red] {e}")
-        raise typer.Exit(1) from None
+        if e.status_code == 404 or e.status_code == 405:
+            # Older engine — fall back to /match.
+            try:
+                rows = client.get(
+                    "/memory/semantic/conventions/match", scope_ref=scope
+                )
+            except PowerloomApiError as e2:
+                _console.print(f"[red]Convention fetch failed:[/red] {e2}")
+                raise typer.Exit(1) from None
+        else:
+            _console.print(f"[red]Convention fetch failed:[/red] {e}")
+            raise typer.Exit(1) from None
     return rows if isinstance(rows, list) else (rows.get("items") or [])
 
 
@@ -170,8 +196,18 @@ def _render_block(scope: str, conventions: list[dict]) -> str:
         body = c.get("body") or {}
         summary = body.get("summary") or c.get("body_summary") or ""
         items = body.get("items") or c.get("body_items") or []
+        # v0.7.0 cascading: /effective returns source_scope + inheritance_chain.
+        # Surface the inheritance trail so agents reading CLAUDE.md know
+        # which OU level a given rule came from.
+        source_scope = c.get("source_scope")
+        chain = c.get("inheritance_chain") or []
+        inherited = bool(c.get("inherited"))
 
-        lines.append(f"### {display}  *(`{mode}`, name=`{name}`)*")
+        scope_tag = f"`{source_scope}`" if source_scope else ""
+        suffix = f" · inherited" if inherited else ""
+        lines.append(
+            f"### {display}  *(`{mode}`, name=`{name}`{(' · ' + scope_tag) if scope_tag else ''}{suffix})*"
+        )
         lines.append("")
         if summary:
             lines.append(summary.strip())
@@ -182,6 +218,21 @@ def _render_block(scope: str, conventions: list[dict]) -> str:
             lines.append(f"- {item.strip()}")
         if items:
             lines.append("")
+        if inherited and chain:
+            chain_labels = []
+            for lvl in chain:
+                lvl_scope = lvl.get("scope")
+                if lvl_scope == "org":
+                    chain_labels.append("org")
+                elif lvl_scope == "ou":
+                    chain_labels.append(f"ou:{lvl.get('ou_name') or lvl.get('ou_id')}")
+                elif lvl_scope == "project":
+                    chain_labels.append(f"project:{lvl.get('project_id')}")
+            if chain_labels:
+                lines.append(
+                    f"_Inheritance: {' → '.join(chain_labels)}_"
+                )
+                lines.append("")
     return "\n".join(lines)
 
 

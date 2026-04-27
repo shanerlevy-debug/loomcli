@@ -7,6 +7,28 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.0 — 2026-04-27 (CLI)
+
+**Cascading conventions.** `weave conventions sync` now fetches the **effective** convention set for the agent's OU — folding org-wide policy, every OU ancestor, the leaf OU, and (in future) project-scoped conventions into a single rule list with child-wins-with-deny semantics. Org admins can author once at the root and have every descendant session pick it up automatically.
+
+### What changed
+
+- **`weave conventions sync --scope <ou-path>`** — `--scope` is now an OU dotted path (e.g. `bespoke-technology.powerloom` or `/dev-org/engineering`) and the CLI calls the new `/memory/semantic/conventions/effective?ou_path=…` endpoint. Older engines that don't have `/effective` (Powerloom < 2026-04-27) get a transparent fallback to the legacy `/match` route, so an upgraded CLI doesn't break an older deployment.
+- **Marker block now shows inheritance.** Each rendered convention carries a source-scope tag (`org`, `ou`, `project`) and, when inherited from above, a `_Inheritance: org → ou:engineering → ou:powerloom_` trail so agents reading `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` know which level authored each rule.
+- **Body items folded.** When a child OU restates a parent's bullet, the parent's contribution is dropped and the child's text takes its position. A child convention with `deny_parent: true` truncates the chain entirely above it.
+
+### Pairs with
+
+- **Powerloom migration 0070** — adds `scope` (`'org'|'ou'|'project'`), nullable `ou_id`, `project_id` FK, `deny_parent` boolean. Backwards-compat default of `scope='ou'` so existing rows keep working.
+- **`/memory/semantic/conventions/effective`** endpoint — cascading resolver. Walks `ou_closure` from the leaf upward, applies child-wins-with-deny, returns folded rows with `inheritance_chain` for UI/CLI rendering.
+- **`recommended_loomcli_version`** bumped to `0.7.0` in the engine's capabilities response.
+
+### Tests
+
+- Existing 28 convention tests pass on the new schema.
+- 14 new tests in `test_memory_conventions_cascading.py` (engine side) covering org-level create, scope guards, parent/child cascade, deny_parent truncation, archive exclusion, inheritance-chain shape.
+
+
 ## v0.6.9 — 2026-04-27 (CLI)
 
 **Pip-install ergonomics + agent UX.** Combines two independently-landed feature blocks under one release: bundled plugin assets ship inside the wheel (no more git-clone-of-loomcli prerequisite for any client), and the agent surface picks up auto-detection + contextual defaults + a batch runner.
