@@ -8,6 +8,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 ## Unreleased
 
 
+## v0.6.8 — 2026-04-27 (CLI)
+
+**Conventions sync.** Surfaces OU-scoped Powerloom conventions (engine v064 / `/memory/semantic/conventions/*`) into the project-rules file the runtime reads at session start.
+
+### New commands
+
+- **`weave conventions sync --scope <dotted-path> [--runtime claude_code|codex_cli|gemini_cli|antigravity|all] [--workdir DIR] [--dry-run] [--quiet]`** — Fetch conventions matching the OU scope-ref + write them to CLAUDE.md / AGENTS.md / GEMINI.md inside an HTML-comment marker block. Re-syncs replace the block; hand-edits outside survive. Caches the last-used scope so subsequent runs (e.g. SessionStart hook) don't need `--scope`.
+- **`weave conventions show --scope <dotted-path>`** — Read-only preview of what would sync.
+- **`weave conventions list [--status active|archived]`** — Cross-OU view of every convention visible to your org.
+
+### Pairs with
+
+- **Powerloom PR #169** — adds `weave conventions sync --scope bespoke-technology.powerloom --runtime claude_code --quiet` to `.claude/settings.json` SessionStart hook so every Claude Code session opening the Powerloom repo gets the latest conventions auto-merged.
+- The convention authoring/management UI is filed as a follow-up thread (`ui-convention-authoring-management-page` in powerloom-ui).
+- Project-scope conventions (today OU-only) is filed as a follow-up (`conventions-project-scope-extension` in powerloom-engine).
+- Scope auto-detection (drop the hardcoded `--scope` from the hook) is filed as a low-priority follow-up.
+
+### Tests
+
+- 15 new in `test_conventions_cmd.py` covering: discovery, show (table + empty), sync (create / replace / append / dry-run / all-runtimes / cached-scope / no-scope-no-cache / invalid-runtime / quiet / corrupted-half-marker), list (table + status filter)
+- Full suite: **702 passed** (was 684 in v0.6.7)
+
+
 ## v0.6.7 — 2026-04-27 (CLI)
 
 **AX improvements + first-class agent management.** Surfaces Gemini's PR #41 work + the v067 follow-ups that landed since v0.6.6.
