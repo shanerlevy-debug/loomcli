@@ -440,20 +440,21 @@ def init_cmd(
 def start_cmd(
     scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug. If omitted, you'll be prompted.")] = None,
     summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. If omitted, you'll be prompted.")] = None,
+    friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Display name (e.g. 'Shane CC laptop'). If omitted, you'll be prompted with the scope slug as default.")] = None,
     actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "human",
     json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Friendly interactive shortcut for `register`. No git required.
 
-    Prompts for a scope slug + summary if not supplied. Defaults
-    `--actor-kind=human` since this command is aimed at PMs / ops /
-    non-developer users who want to coordinate work without touching
-    a git checkout. Hosted clients should prefer
+    Prompts for a scope slug + summary + friendly name if not supplied.
+    Defaults `--actor-kind=human` since this command is aimed at PMs /
+    ops / non-developer users who want to coordinate work without
+    touching a git checkout. Hosted clients should prefer
     `register --workspace-id <id>`; devs should prefer
-    `register --from-branch`.
+    `register --from-branch --friendly-name 'My Laptop CC'`.
 
-    Equivalent to `register --scope <slug> --summary <text>` once the
-    prompts are answered.
+    Equivalent to `register --scope <slug> --summary <text>
+    --friendly-name <name>` once the prompts are answered.
     """
     if not scope:
         scope_input = typer.prompt(
@@ -470,6 +471,12 @@ def start_cmd(
             default=f"{actor_kind} session: {scope}",
         ).strip()
         summary = summary_input or f"{actor_kind} session: {scope}"
+    if not friendly_name:
+        friendly_input = typer.prompt(
+            "Friendly name for this session (e.g. 'My laptop CC')",
+            default=scope,
+        ).strip()
+        friendly_name = friendly_input or scope
 
     # Delegate to register_cmd with explicit args. No --from-branch and
     # no git introspection — this command is for users who don't have
@@ -479,6 +486,7 @@ def start_cmd(
         summary=summary,
         branch=None,
         workspace_id=None,
+        friendly_name=friendly_name,
         capabilities=None,
         cross_cutting=False,
         migration=False,
@@ -497,6 +505,7 @@ def register_cmd(
     summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. Auto-generated from scope if omitted.")] = None,
     branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name. Optional; non-dev sessions can omit it.")] = None,
     workspace_id: Annotated[Optional[str], typer.Option("--workspace-id", help="Hosted-client workspace identifier (Antigravity, mobile, etc.). Used as scope when --scope is not given. No git checkout required.")] = None,
+    friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Human-readable display name for this session (e.g. 'Shane CC laptop'). Optional; UI falls through to scope slug when missing. v0.7.5+.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags (e.g. 'ui,docs,python')")] = None,
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
@@ -643,6 +652,8 @@ def register_cmd(
         "actor_kind": actor_kind,
         "actor_id": actor_id,
     }
+    if friendly_name:
+        body["friendly_name"] = friendly_name
     client = _client()
     try:
         resp = client.post("/agent-sessions", body)
