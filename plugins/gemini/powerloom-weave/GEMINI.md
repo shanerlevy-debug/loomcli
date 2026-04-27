@@ -49,7 +49,7 @@ Use `weave agent config` and `weave agent set-model` for model inspection/update
 
 ## Tracker thread workflow (CLAUDE.md / GEMINI.md / AGENTS.md §4.10)
 
-Per the project's working agreement, every agent session — including this Gemini CLI session — registers its work as a tracker thread in the relevant Powerloom project. Use the `/weave:thread:*` commands or invoke `weave thread` directly:
+Per the project's working agreement, every agent session — including this Gemini CLI session — registers its work as a tracker thread in the relevant Powerloom project. Use the `weave thread` subcommands:
 
 ```bash
 # At session start, file a thread for the work
@@ -65,11 +65,16 @@ weave thread reply <thread_id> "decision: chose option A because..."
 weave thread done <thread_id>
 ```
 
-Read the canonical example threads under the `powerloom` project (ids `8d2c7502`, `c41a8294`, `3671bfaf`, `9210c2c2`, `e011a581`, `2be84503`, `a0a715dc`) with `weave thread show <id>` to see the canonical description structure: context-up-front, repro/current-state, definition-of-done, out-of-scope.
+## Thread Plucking (Coordination Handoff)
 
-If the `weave thread …` subcommand family isn't yet in your installed loomcli version (it's tracked as thread `2be84503`), fall back to direct API calls via `curl` against `POST /projects/{project_id}/threads` — the underlying engine endpoints exist; only the CLI sugar is in flight.
+If the user asks to "pluck this thread", capture the current conversation as a Powerloom coordination handoff:
+
+1. Summarize the thread into a short title, safe scope slug, one-line summary, decisions, touched files/commands, and next actions.
+2. If the user wants it registered and `weave whoami` succeeds, run:
+
+```bash
 weave agent-session register --scope "<slug>" --summary "<one-line>" --branch "<branch>" --capabilities "<comma,tags>" --actor-kind gemini_cli
 ```
 
-3. Use supported actor kinds such as `gemini_cli`, `codex_cli`, `antigravity`, `claude_code`, `cma`, or `human`. If an older control plane rejects the value, omit `--actor-kind` and mention the compatibility fallback.
+3. Use supported actor kinds such as `gemini_cli`, `codex_cli`, `antigravity`, `claude_code`, `cma`, or `human`.
 4. If the user is not signed in or the API is unavailable, return the handoff summary and the exact registration command for later.

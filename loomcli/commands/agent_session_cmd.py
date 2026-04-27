@@ -37,6 +37,14 @@ _CLIENT_TO_ACTOR = {
     "gemini": "gemini_cli",
     "gemini_cli": "gemini_cli",
     "antigravity": "antigravity",
+    # v0.7.2 — non-dev / non-runtime actor kinds. Engine route accepts
+    # these (see SUPPORTED_AGENT_SESSION_ACTOR_KINDS in
+    # routes/capabilities.py + the agent_sessions CHECK constraint).
+    # Listed identity here so --actor-kind=human / cma / reconciler
+    # passes the CLI validator.
+    "human": "human",
+    "cma": "cma",
+    "reconciler": "reconciler",
 }
 _ACTOR_TO_TOKEN = {
     "claude_code": "claude",
@@ -176,10 +184,10 @@ def _slugify(value: str) -> str:
 
 def _normalize_actor_kind(client_kind: str) -> str:
     if client_kind == "auto":
-        if os.environ.get("CODEX_SANDBOX") or shutil.which("codex"):
-            return "codex_cli"
         if os.environ.get("GEMINI_CLI") or shutil.which("gemini"):
             return "gemini_cli"
+        if os.environ.get("CODEX_SANDBOX") or shutil.which("codex"):
+            return "codex_cli"
         if shutil.which("claude"):
             return "claude_code"
         return "codex_cli"
@@ -187,7 +195,8 @@ def _normalize_actor_kind(client_kind: str) -> str:
     if not actor:
         _console.print(
             "[red]Unknown client.[/red] Use auto, codex, codex_cli, "
-            "claude, claude_code, gemini, gemini_cli, or antigravity."
+            "claude, claude_code, gemini, gemini_cli, antigravity, "
+            "human, cma, or reconciler."
         )
         raise typer.Exit(2)
     return actor
@@ -492,7 +501,7 @@ def register_cmd(
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
     version: Annotated[Optional[str], typer.Option("--version", help="Target version, e.g. v030")] = None,
-    actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "claude_code",
+    actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "auto",
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email)")] = None,
     from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (best for devs in a session/<scope>-<yyyymmdd> branch).")] = False,
     if_not_active: Annotated[bool, typer.Option("--if-not-active", help="No-op (exit 0) if a session with the same scope is already active. Safe for SessionStart hooks.")] = False,
@@ -517,6 +526,8 @@ def register_cmd(
     """
 
     # ---- Resolve scope from one of the three input paths ----
+
+    actor_kind = _normalize_actor_kind(actor_kind)
 
     # --from-branch: resolve scope + branch from git
     if from_branch:

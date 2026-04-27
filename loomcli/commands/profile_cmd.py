@@ -76,6 +76,10 @@ def set_profile(
         str | None,
         typer.Option("--default-agent", help="Default agent address."),
     ] = None,
+    default_project: Annotated[
+        str | None,
+        typer.Option("--default-project", help="Default project slug (e.g. 'powerloom-ui')."),
+    ] = None,
     default_runtime: Annotated[
         str | None,
         typer.Option("--default-runtime", help="Default runtime for new agents."),
@@ -95,6 +99,7 @@ def set_profile(
         "default_org": default_org,
         "default_ou": default_ou,
         "default_agent": default_agent,
+        "default_project": default_project,
         "default_runtime": default_runtime,
         "default_model": default_model,
         "output": output,
@@ -130,6 +135,7 @@ def clear_profile(
     default_org: Annotated[bool, typer.Option("--default-org")] = False,
     default_ou: Annotated[bool, typer.Option("--default-ou")] = False,
     default_agent: Annotated[bool, typer.Option("--default-agent")] = False,
+    default_project: Annotated[bool, typer.Option("--default-project")] = False,
     default_runtime: Annotated[bool, typer.Option("--default-runtime")] = False,
     default_model: Annotated[bool, typer.Option("--default-model")] = False,
     output: Annotated[bool, typer.Option("--output")] = False,
@@ -151,6 +157,8 @@ def clear_profile(
             fields.append("default_ou")
         if default_agent:
             fields.append("default_agent")
+        if default_project:
+            fields.append("default_project")
         if default_runtime:
             fields.append("default_runtime")
         if default_model:

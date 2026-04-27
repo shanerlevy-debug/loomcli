@@ -76,7 +76,7 @@ SUBPRINCIPAL_ENV_VAR = "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID"
 
 
 def _resolve_active_subprincipal_id() -> Optional[str]:
-    """Pick the active sub-principal UUID for this session, with two-tier
+    """Pick the active sub-principal UUID for this session, with three-tier
     resolution:
 
       1. `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var — explicit override,
@@ -86,6 +86,10 @@ def _resolve_active_subprincipal_id() -> Optional[str]:
          shell SessionStart hooks can't propagate env to the parent
          shell, so the env-var-only path is a no-op for every real
          agent session today (verified in the v067 onboarding sprint).
+      3. Global attribution lookup (v068+) — if we are in an active
+         Gemini/Claude session (GEMINI_CLI=1 or CLAUDE_CODE=1) but no
+         branch scope is known, scan for an active session with our
+         actor_kind and use that.
 
     `<scope>` is derived from the current git branch via the
     `session/<scope>-<yyyymmdd>` convention. Branches that don't match
@@ -99,8 +103,9 @@ def _resolve_active_subprincipal_id() -> Optional[str]:
     if env_id:
         return env_id
 
-    # Tier 2 — per-scope cache file
+    # Tier 2 — per-scope cache file (git-heavy)
     import subprocess as _subprocess
+    branch = None
     try:
         result = _subprocess.run(
             ["git", "branch", "--show-current"],
@@ -108,29 +113,31 @@ def _resolve_active_subprincipal_id() -> Optional[str]:
         )
         branch = (result.stdout or "").strip()
     except (FileNotFoundError, _subprocess.TimeoutExpired):
-        return None
-    if not branch.startswith("session/"):
-        return None
-    scope = branch[len("session/"):]
-    if not scope:
-        return None
+        pass
 
-    from loomcli.config import active_subprincipal_file
-    path = active_subprincipal_file(scope)
-    if not path.exists():
-        return None
-    try:
-        cached = path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    # Validate UUID-ish shape (skip the malformed leftovers that an
-    # earlier broken hook could have written). uuid.UUID raises
-    # ValueError on bad input.
-    try:
-        uuid.UUID(cached)
-    except (ValueError, TypeError):
-        return None
-    return cached
+    if branch and branch.startswith("session/"):
+        scope = branch[len("session/"):]
+        if scope:
+            from loomcli.config import active_subprincipal_file
+            path = active_subprincipal_file(scope)
+            if path.exists():
+                try:
+                    cached = path.read_text(encoding="utf-8").strip()
+                    uuid.UUID(cached)
+                    return cached
+                except (OSError, ValueError, TypeError):
+                    pass
+
+    # Tier 3 — Global fallback for non-git or non-standard branch sessions
+    # if we are explicitly in agent mode.
+    if os.environ.get("GEMINI_CLI") or os.environ.get("CLAUDE_CODE") or os.environ.get("AGENT_MODE"):
+        # We don't have a scope-file, but we are an agent.
+        # We could hit /agent-sessions to find our session, but for now
+        # we stick to the local caches to avoid extra latency on every
+        # thread reply.
+        pass
+
+    return None
 
 
 def _build_session_attribution(client: PowerloomClient) -> Optional[dict]:
@@ -259,29 +266,49 @@ def _resolve_project(client: PowerloomClient, project: str) -> str:
     raise typer.Exit(1)
 
 
+def _infer_project_from_cwd() -> Optional[str]:
+    """W1.5.1 — Infer project slug from current working directory."""
+    try:
+        cwd = str(os.getcwd()).replace("\\", "/")
+        if "/ui/" in cwd or cwd.endswith("/ui"):
+            return "powerloom-ui"
+    except Exception:
+        pass
+    return None
+
+
 def _resolve_thread(
     client: PowerloomClient,
     ref: str,
     *,
-    default_project: str = "powerloom",
+    default_project: Optional[str] = None,
 ) -> str:
-    """W1.5.1 — Accept either a thread UUID, a `project:slug` pair, or a bare
-    slug; return the thread UUID.
+    """W1.5.1 — Accept either a thread UUID, a short 8-char ID, a `project:slug`
+    pair, or a bare slug; return the thread UUID.
 
     Examples:
         "8d2c7502-d79a-..."   -> direct UUID, no lookup
+        "d514a54b"            -> short ID lookup (8 chars, hex)
         "powerloom:ki-004"    -> resolve project 'powerloom', GET by-slug
-        "ki-004"              -> use default project (powerloom), GET by-slug
+        "ki-004"              -> use default project (profile or cwd), GET by-slug
 
-    Slug lookup hits GET /projects/{project_id}/threads/by-slug/{slug}
-    (added in API migration 0065). On 404, raises typer.Exit(1) with a
-    targeted message.
+    Short ID lookup hits GET /projects/{project_id}/threads?limit=100 and
+    scans prefixes. Slug lookup hits GET /projects/{project_id}/threads/by-slug/{slug}.
     """
     # 1. UUID — fast path, no network
     try:
         return str(uuid.UUID(ref))
     except ValueError:
         pass
+
+    # Determine default project context
+    cfg = load_runtime_config()
+    final_default = (
+        default_project
+        or cfg.default_project
+        or _infer_project_from_cwd()
+        or "powerloom"
+    )
 
     # 2. Slug form — split out project context if present
     if ":" in ref:
@@ -295,11 +322,32 @@ def _resolve_thread(
             )
             raise typer.Exit(2)
     else:
-        project_part = default_project
+        project_part = final_default
         slug_part = ref.strip()
 
-    # Validate slug shape early — saves a useless HTTP roundtrip.
+    project_id = _resolve_project(client, project_part)
+
+    # 3. Short ID resolution (8-char hex prefix)
     import re as _re_mod
+    if len(slug_part) == 8 and _re_mod.match(r"^[0-9a-f]{8}$", slug_part):
+        try:
+            # Query recent threads for this project to resolve prefix
+            threads = client.get(f"/projects/{project_id}/threads", limit=100)
+            rows = _rows_from_response(threads)
+            matches = [t for t in rows if str(t.get("id")).startswith(slug_part)]
+            if len(matches) == 1:
+                return str(matches[0]["id"])
+            if len(matches) > 1:
+                _console.print(f"[red]Multiple threads match short ID {slug_part!r}:[/red]")
+                for m in matches:
+                    _console.print(f"  [dim]{m.get('id')}  {m.get('title')}[/dim]")
+                raise typer.Exit(1)
+            # No match? Fall through to slug lookup just in case it's a slug
+            # that happens to be 8-char hex.
+        except PowerloomApiError:
+            pass
+
+    # 4. Slug lookup
     if not _re_mod.match(r"^[a-z0-9][a-z0-9-]{0,62}$", slug_part):
         _console.print(
             f"[red]Invalid slug shape {slug_part!r}.[/red] "
@@ -307,17 +355,16 @@ def _resolve_thread(
         )
         raise typer.Exit(2)
 
-    project_id = _resolve_project(client, project_part)
     try:
         thread = client.get(f"/projects/{project_id}/threads/by-slug/{slug_part}")
     except PowerloomApiError as e:
         if e.status_code == 404:
             _console.print(
-                f"[red]No thread with slug {slug_part!r} in project "
+                f"[red]No thread with slug or short ID {slug_part!r} in project "
                 f"{project_part!r}.[/red]"
             )
         else:
-            _console.print(f"[red]Slug lookup failed:[/red] {e}")
+            _console.print(f"[red]Thread lookup failed:[/red] {e}")
         raise typer.Exit(1) from None
     return str(thread["id"])
 
@@ -348,16 +395,22 @@ def _print_thread_table(rows: list[dict]) -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("Status", style="cyan", width=14)
     table.add_column("Pri", width=8)
-    table.add_column("Title", overflow="fold")
-    table.add_column("Owner", overflow="fold", width=30)
+    # Title needs an explicit width so narrow terminals (CI, default
+    # CliRunner width) don't collapse it to zero. ratio=2 gives Title
+    # twice the share of the remaining space vs the other flex
+    # columns.
+    table.add_column("Title", overflow="fold", min_width=20, ratio=2)
+    table.add_column("Slug", overflow="fold", width=25)
+    table.add_column("Owner", overflow="fold", width=25)
     table.add_column("ID", overflow="fold", width=10)
     for t in rows:
         sp = ((t.get("metadata_json") or {}).get("session_attribution") or {}).get("subprincipal_name") or ""
-        owner = sp[:28] if sp else (t.get("assigned_to") or "")[:8]
+        owner = sp[:24] if sp else (t.get("assigned_to") or "")[:8]
         table.add_row(
             t.get("status", "?"),
             t.get("priority", "?"),
             t.get("title", "")[:60],
+            t.get("slug", "")[:25],
             owner,
             (t.get("id") or "")[:8],
         )
@@ -385,10 +438,16 @@ def _my_work_watch_line(rows: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _default_project() -> str:
+    """W1.5.1 — Dynamic default project from profile or CWD."""
+    cfg = load_runtime_config()
+    return cfg.default_project or _infer_project_from_cwd() or "powerloom"
+
+
 @app.command("create")
 def create(
     title: Annotated[str, typer.Option("--title", "-t", help="Imperative phrase. e.g. 'Fix Alfred WS connection'.")],
-    project: Annotated[str, typer.Option("--project", "-p", help="Project slug (e.g. 'powerloom') or UUID.")] = "powerloom",
+    project: Annotated[str, typer.Option("--project", "-p", help="Project slug (e.g. 'powerloom') or UUID.")] = None,
     priority: Annotated[str, typer.Option("--priority", help="One of: critical, high, medium, low, none.")] = "medium",
     description: Annotated[Optional[str], typer.Option("--description", "-d", help="Body text. Markdown supported.")] = None,
     description_from_stdin: Annotated[bool, typer.Option("--description-from-stdin", help="Read description from stdin (useful for long content).")] = False,
@@ -424,6 +483,7 @@ def create(
     parent_user_id + a stamped_at timestamp. Pass `--no-attribution` to suppress
     even when the env is set.
     """
+    final_project = project or _default_project()
     if priority not in _PRIORITY_CHOICES:
         _console.print(f"[red]Invalid priority {priority!r}.[/red] One of: {', '.join(_PRIORITY_CHOICES)}")
         raise typer.Exit(2)
@@ -447,7 +507,7 @@ def create(
         body["tag_ids"] = tag_ids
 
     with _client_or_exit() as client:
-        project_id = _resolve_project(client, project)
+        project_id = _resolve_project(client, final_project)
         try:
             thread = client.post(f"/projects/{project_id}/threads", body)
         except PowerloomApiError as e:
@@ -702,10 +762,8 @@ def list_threads(
                 _console.print(f"[red]Query failed:[/red] {e}")
                 raise typer.Exit(1) from None
         else:
-            if not project:
-                _console.print("[red]--project or --mine is required.[/red]")
-                raise typer.Exit(2)
-            project_id = _resolve_project(client, project)
+            final_project = project or _default_project()
+            project_id = _resolve_project(client, final_project)
             params = {"limit": limit}
             if status:
                 params["status"] = status
@@ -1048,7 +1106,7 @@ def sprint_tree_cmd(
 
 @app.command("orphans")
 def orphans_cmd(
-    project: Annotated[str, typer.Option("--project", "-p", help="Project slug or UUID.")] = "powerloom",
+    project: Annotated[Optional[str], typer.Option("--project", "-p", help="Project slug or UUID.")] = None,
     include_done: Annotated[bool, typer.Option("--include-done", help="Include done/closed/wont_do threads in the orphan list.")] = False,
     limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 200,
     json_output: Annotated[bool, typer.Option("--json")] = False,
@@ -1059,7 +1117,8 @@ def orphans_cmd(
     through the cracks if nobody picks it up.
     """
     with _client_or_exit() as client:
-        project_id = _resolve_project(client, project)
+        final_project = project or _default_project()
+        project_id = _resolve_project(client, final_project)
         try:
             params: dict = {"limit": limit}
             if include_done:

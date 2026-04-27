@@ -73,6 +73,7 @@ class ProfileConfig:
     default_org: str | None = None
     default_ou: str | None = None
     default_agent: str | None = None
+    default_project: str | None = None
     default_runtime: str | None = None
     default_model: str | None = None
     output: str | None = None
@@ -111,6 +112,7 @@ class RuntimeConfig:
     default_org: str | None = None
     default_ou: str | None = None
     default_agent: str | None = None
+    default_project: str | None = None
     default_runtime: str | None = None
     default_model: str | None = None
     default_output: str | None = None
@@ -140,6 +142,7 @@ def load_runtime_config() -> RuntimeConfig:
         default_org=profile.default_org,
         default_ou=profile.default_ou,
         default_agent=profile.default_agent,
+        default_project=profile.default_project,
         default_runtime=profile.default_runtime,
         default_model=profile.default_model,
         default_output=profile.output,
@@ -151,6 +154,7 @@ PROFILE_FIELDS = (
     "default_org",
     "default_ou",
     "default_agent",
+    "default_project",
     "default_runtime",
     "default_model",
     "output",

@@ -263,10 +263,19 @@ def test_list_mine_uses_my_work_endpoint(mock_client) -> None:
     assert "B" in result.stdout
 
 
-def test_list_project_required_without_mine(mock_client) -> None:
+def test_list_falls_back_to_default_project_without_mine(mock_client) -> None:
+    """v0.7.x (PR #49) — bare `thread list` no longer requires --project.
+    Falls back to the configured default_project (or CWD-inferred slug,
+    or 'powerloom' as a last resort). Ensures the command doesn't bail
+    on missing flags when there's a sensible default."""
+    mock_client.get.side_effect = [
+        # First call: resolve 'powerloom' via /projects.
+        [{"id": "p1", "slug": "powerloom"}],
+        # Second call: list threads under project p1.
+        [_seed_thread(title="A")],
+    ]
     result = runner.invoke(app, ["thread", "list"])
-    assert result.exit_code == 2
-    assert "--project" in result.stdout or "--mine" in result.stdout
+    assert result.exit_code == 0, result.stdout
 
 
 def test_list_renders_subprincipal_in_owner_column(mock_client) -> None:
