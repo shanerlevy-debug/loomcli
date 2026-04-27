@@ -9,37 +9,34 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## v0.6.9 — 2026-04-27 (CLI)
 
-**Agent UX & Workflow Ergonomics.** Significant improvements for AI agents and developer workflows.
+**Pip-install ergonomics + agent UX.** Combines two independently-landed feature blocks under one release: bundled plugin assets ship inside the wheel (no more git-clone-of-loomcli prerequisite for any client), and the agent surface picks up auto-detection + contextual defaults + a batch runner.
 
-### Added
-- **Agent Mode Detection**: Auto-detects AI agents (`GEMINI_CLI`, `CLAUDE_CODE`, etc.) and defaults output to JSON.
-- **Contextual Defaults**: Agent commands (`status`, `ask`, `chat`, etc.) now automatically use the agent/OU linked to the current git branch's active coordination session.
-- **Hierarchical OU Discovery**: `weave get ous --tree` provides a visual and JSON-standardized tree of the organization unit hierarchy.
-- **Batch Command**: `weave batch` allows sequential execution of multiple weave commands in a single process, improving cross-shell compatibility.
-- **Workflow Ergonomics**: `weave agent-session init <branch>` handles branch creation and registration in one step; `--from-branch` now supports flexible branch names.
-- **Agent-Friendly Errors**: Standardized JSON error objects via `PowerloomApiError.to_dict()` when in Agent Mode.
+### Bundled plugin assets
 
-
-## v0.6.9 — 2026-04-27 (CLI)
-
-**Bundled plugin assets export.** Pip-installed `loomcli` no longer requires a git clone of this repo to wire Claude Code / Codex / Gemini / Antigravity plugins — assets ship inside the wheel and export to a stable per-version directory under `<config_dir>/plugins/<version>/` on first use.
-
-### New commands / behavior
-
-- **`weave plugin path <client> [--json]`** — prints the exported plugin path for a given client (`claude-code`, `codex`, `gemini`, `antigravity`). Triggers asset export on first call.
+- **`weave plugin path <client> [--json]`** — prints the exported plugin path for a given client (`claude-code`, `codex`, `gemini`, `antigravity`). Triggers asset export on first call to `<config_dir>/plugins/<version>/`.
 - **`weave plugin install <client> --execute`** — now resolves the bundled-asset path and shells out to the client's native install command. Dry-run (no `--execute`) prints a copy-pasteable form instead, formatted with `subprocess.list2cmdline` on Windows / `shlex.join` on POSIX so no shell escaping needed.
-- **`weave plugin doctor`** JSON output now includes `export_root` (top-level config-dir/plugins/<version>) and per-client `install_command` fields so `weave doctor`-style scripting can chain into plugin doctor without re-running install.
+- **`weave plugin doctor`** JSON output now includes `export_root` and per-client `install_command` fields so scripting can chain into plugin doctor without re-running install.
 - **`weave doctor`** picks up: `python.executable`, `python.version`, `stdio.encoding` (helpful on Windows where cp932/cp1252 break rich rendering), and `plugin.export_root`.
+
+### Agent UX & workflow ergonomics
+
+- **Agent Mode detection**: auto-detects AI agents (`GEMINI_CLI`, `CLAUDE_CODE`, etc.) and defaults output to JSON.
+- **Contextual defaults**: agent commands (`status`, `ask`, `chat`, etc.) now use the agent/OU linked to the current git branch's active coordination session.
+- **Hierarchical OU discovery**: `weave get ous --tree` provides a visual and JSON-standardized tree of the organization unit hierarchy.
+- **Batch command**: `weave batch` allows sequential execution of multiple weave commands in a single process, improving cross-shell compatibility.
+- **Workflow ergonomics**: `weave agent-session init <branch>` handles branch creation and registration in one step; `--from-branch` now supports flexible branch names.
+- **Agent-friendly errors**: standardized JSON error objects via `PowerloomApiError.to_dict()` when in Agent Mode.
 - **`weave agent-session register --from-branch`** — error path now prints `cwd:` so the user sees which directory `loomcli` thought it was in. `--if-not-active` honors `--json`: emits `{"status": "already_active", "session": {…}}` instead of swallowing the bail-out so callers can detect re-runs.
 
 ### Capabilities pin
 
-- Bumped to match Powerloom's recommended version field (`recommended_loomcli_version`). Engine PR `Powerloom#171` updates that string from `0.6.8` → `0.6.9` so existing consumers get the upgrade nudge through `weave whoami` / capability checks.
+- Engine PR `Powerloom#171` updates `recommended_loomcli_version` from `0.6.8` → `0.6.9` so existing consumers get the upgrade nudge through `weave whoami` / capability checks.
 
 ### Tests
 
-- 27 new + updated covering plugin asset export (`test_doctor_plugin_cmd.py`) and `register --from-branch --json` branches (`test_agent_session_cli.py`)
-- Full suite still green; no test count delta tracking in this release
+- 27 new + updated for plugin asset export (`test_doctor_plugin_cmd.py`) and `register --from-branch --json` branches (`test_agent_session_cli.py`)
+- Plus the agent-mode + batch coverage from the init-loomcli-20260427 branch
+- Full suite still green
 
 
 ## v0.6.8 — 2026-04-27 (CLI)
