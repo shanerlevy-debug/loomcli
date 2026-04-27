@@ -10,6 +10,7 @@ Global options:
 from __future__ import annotations
 
 import os
+import sys
 from typing import Annotated, Optional
 
 import typer
@@ -32,6 +33,7 @@ from loomcli.commands import audit_cmd
 from loomcli.commands import approval_cmd
 from loomcli.commands import commands_cmd
 from loomcli.commands import compose_cmd
+from loomcli.commands import conventions_cmd
 from loomcli.commands import doctor_cmd
 from loomcli.commands import migrate_cmd
 from loomcli.commands import plugin_cmd
@@ -40,6 +42,23 @@ from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
 from loomcli.commands import setup_cmd
 from loomcli.commands import sprint_cmd
+
+
+def _configure_stdio() -> None:
+    """Avoid silent Windows failures when Rich/Typer prints Unicode help."""
+    if os.name != "nt":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
+_configure_stdio()
 
 
 app = typer.Typer(
@@ -145,6 +164,7 @@ app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v
 app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1->v2).")
 app.add_typer(plugin_cmd.app, name="plugin", help="Inspect and install Powerloom client plugins.")
 app.add_typer(sprint_cmd.app, name="sprint", help="Manage tracker sprints (create / list / show / update / activate / complete / archive / add-thread / remove-thread / threads).")
+app.add_typer(conventions_cmd.app, name="conventions", help="Sync OU-scoped Powerloom conventions into CLAUDE.md / AGENTS.md / GEMINI.md (sync / show / list).")
 app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles and defaults.")
 app.add_typer(setup_cmd.app, name="setup-claude-code", help="Wire the Powerloom MCP plugin into a Claude Code project (idempotent).")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
@@ -177,5 +197,14 @@ app.command("whoami", help="Show signed-in user (alias for `weave auth whoami`).
 )
 
 
+def main() -> None:
+    try:
+        app()
+    except UnicodeEncodeError as e:
+        detail = str(e).encode("ascii", "backslashreplace").decode("ascii")
+        typer.echo(f"Output encoding error: {detail}", err=True)
+        raise typer.Exit(1) from e
+
+
 if __name__ == "__main__":
-    app()
+    main()
