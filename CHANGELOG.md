@@ -7,6 +7,19 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.6 — 2026-04-28 (CLI)
+
+**`weave thread search <query>`** — global cross-project thread search. Pairs with the new search bar on the console UI's `/projects` page.
+
+```
+weave thread search connie
+weave thread search "fix flaky"
+weave thread search agent-onboarding --limit 10
+```
+
+Closes powerloom thread `2dbbefde`. Same engine endpoint (`GET /threads/search`); case-insensitive substring on title + description + slug, org-scoped.
+
+
 ## v0.7.5 — 2026-04-28 (CLI)
 
 **Friendly name for agent sessions.** Demo-day ask from Shane: when registering an agent session, give it a human-readable display name distinct from the machine slug.

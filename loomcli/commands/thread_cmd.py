@@ -829,6 +829,58 @@ def my_work(
 
 
 # ---------------------------------------------------------------------------
+# search
+# ---------------------------------------------------------------------------
+
+
+@app.command("search")
+def search(
+    query: Annotated[str, typer.Argument(help="Substring to match against title, description, or slug.")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Global thread search across every project in your org.
+
+    Closes powerloom thread `2dbbefde`. Pairs with the search bar on
+    the /projects page in the console UI. Same engine endpoint
+    (`GET /threads/search`); same case-insensitive substring match
+    on title / description / slug.
+
+    Examples:
+      weave thread search connie
+      weave thread search "fix flaky"
+      weave thread search agent-onboarding --limit 10
+    """
+    with _client_or_exit() as client:
+        try:
+            rows = client.get(
+                "/threads/search",
+                q=query,
+                limit=limit,
+            )
+        except PowerloomApiError as e:
+            _console.print(f"[red]Search failed:[/red] {e}")
+            raise typer.Exit(1) from None
+
+    rows = _rows_from_response(rows)
+    if json_output:
+        _output_json(rows)
+        return
+
+    if not rows:
+        _console.print(
+            f"[dim]No threads matched {query!r}. "
+            f"Try a different keyword or `weave thread list --mine`.[/dim]"
+        )
+        return
+
+    _console.print(
+        f"[dim]{len(rows)} thread(s) matching {query!r} across all projects.[/dim]"
+    )
+    _print_thread_table(rows)
+
+
+# ---------------------------------------------------------------------------
 # show
 # ---------------------------------------------------------------------------
 
