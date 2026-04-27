@@ -278,6 +278,25 @@ def test_list_falls_back_to_default_project_without_mine(mock_client) -> None:
     assert result.exit_code == 0, result.stdout
 
 
+def test_search_calls_threads_search_with_query(mock_client) -> None:
+    """v0.7.6 — `weave thread search <query>` hits /threads/search."""
+    mock_client.get.side_effect = None
+    mock_client.get.return_value = [_seed_thread(title="connie typo")]
+    result = runner.invoke(app, ["thread", "search", "connie"])
+    assert result.exit_code == 0, result.stdout
+    args, kwargs = mock_client.get.call_args
+    assert args[0] == "/threads/search"
+    assert kwargs.get("q") == "connie"
+
+
+def test_search_no_results_prints_friendly_message(mock_client) -> None:
+    mock_client.get.side_effect = None
+    mock_client.get.return_value = []
+    result = runner.invoke(app, ["thread", "search", "asdfqwerty"])
+    assert result.exit_code == 0
+    assert "No threads matched" in result.stdout or "no threads" in result.stdout.lower()
+
+
 def test_list_renders_subprincipal_in_owner_column(mock_client) -> None:
     """When metadata_json.session_attribution.subprincipal_name is present, it
     surfaces in the Owner column instead of the raw user UUID prefix."""
