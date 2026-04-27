@@ -1,27 +1,31 @@
-"""Agentic CLI commands: `weave ask` and `weave chat`.
+"""Agentic CLI commands: `weave ask`, `weave chat`, and `weave agent ...`.
 
-These commands deliberately do not call Anthropic/OpenAI/Gemini APIs
-directly. They invoke a Powerloom Agent through the control plane; the
-server chooses the runtime/model from the Agent row and uses the
-user/org's configured runtime credential.
+These commands invoke a Powerloom Agent through the control plane or
+manage agent identities (sub-principals).
 """
 from __future__ import annotations
 
 import json
 import sys
+import time
 import uuid
 from dataclasses import dataclass
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import typer
 from rich.console import Console
 from rich.prompt import Prompt
+from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.config import RuntimeConfig, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 
+
+app = typer.Typer(no_args_is_help=True, help="Inspect agents and manage identities.")
+sub_app = typer.Typer(no_args_is_help=True, help="Manage user sub-principal identities.")
+app.add_typer(sub_app, name="sub-principal")
 
 _console = Console()
 
@@ -31,6 +35,8 @@ _TERMINAL_EVENT_TYPES = {
     "powerloom.session_ended",
     "powerloom.session_already_ended",
 }
+
+_ACTIVE_SESSION_STATUSES = {"pending", "running", "idle_end_turn"}
 
 
 @dataclass
@@ -53,6 +59,10 @@ class AgentResolutionError(Exception):
 class AgentStreamError(Exception):
     pass
 
+
+# ---------------------------------------------------------------------------
+# Top-level commands (ask, chat)
+# ---------------------------------------------------------------------------
 
 def ask_command(
     agent: Annotated[
@@ -93,12 +103,7 @@ def ask_command(
         typer.Option("--json", help="Print invoke response JSON and skip streaming."),
     ] = False,
 ) -> None:
-    """Ask one Powerloom agent a single question and stream the answer.
-
-    Provider/model selection stays server-side: the target Agent's
-    runtime_type + model determine which provider is used, and the
-    control plane reads the matching user/org runtime credential.
-    """
+    """Ask one Powerloom agent a single question and stream the answer."""
     user_prompt = _read_prompt(prompt)
     cfg = _require_config()
     client = PowerloomClient(cfg)
@@ -139,12 +144,7 @@ def chat_command(
         typer.Option("--ou", help="OU path used when AGENT is a bare name."),
     ] = None,
 ) -> None:
-    """Start a lightweight terminal chat with a Powerloom agent.
-
-    Each turn is a Powerloom Session. The previous session is passed as
-    parent_session_id so the backend can link turn state while still
-    letting provider/model choice remain an Agent configuration concern.
-    """
+    """Start a lightweight terminal chat with a Powerloom agent."""
     cfg = _require_config()
     client = PowerloomClient(cfg)
     try:
@@ -188,6 +188,266 @@ def chat_command(
     finally:
         client.close()
 
+
+# ---------------------------------------------------------------------------
+# Agent Observability (migrated from agent_observe_cmd)
+# ---------------------------------------------------------------------------
+
+@app.command("status")
+def status_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """Show an agent snapshot: runtime/model, sync state, and sessions."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        snapshot = _agent_snapshot(client, target.id, target.row)
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(snapshot, default=str))
+        return
+    _print_status(snapshot)
+
+
+@app.command("sessions")
+def sessions_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", min=1, max=100, help="Maximum rows to print."),
+    ] = 10,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """List recent sessions for one agent."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        rows = _list_agent_sessions(client, target.id)[:limit]
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(rows, default=str))
+        return
+    _print_sessions(rows, title=f"{agent} sessions")
+
+
+@app.command("config")
+def config_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """Show provider/runtime and model configuration for one agent."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        row = client.get(f"/agents/{target.id}")
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(row, default=str))
+        return
+
+    table = Table(title="Agent config", show_header=True)
+    table.add_column("Field")
+    table.add_column("Value")
+    for key in (
+        "id",
+        "name",
+        "display_name",
+        "runtime_type",
+        "model",
+        "agent_kind",
+        "ou_id",
+    ):
+        table.add_row(key, str(row.get(key) or ""))
+    _console.print(table)
+
+
+@app.command("set-model")
+def set_model_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    model: Annotated[
+        str,
+        typer.Option("--model", help="New model value for the Agent row."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    output: Annotated[
+        Literal["table", "json"],
+        typer.Option("-o", "--output", help="Output format."),
+    ] = "table",
+) -> None:
+    """Update an agent's model using the Agent PATCH API."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        row = client.patch(f"/agents/{target.id}", {"model": model})
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+    if output == "json":
+        _console.print_json(json.dumps(row, default=str))
+        return
+    _console.print(
+        f"[green]Updated model[/green] {row.get('name') or target.id} "
+        f"-> [bold]{row.get('model', model)}[/bold]"
+    )
+
+
+@app.command("watch")
+def watch_command(
+    agent: Annotated[
+        str,
+        typer.Argument(help="Agent UUID, /ou/path/agent-name, or unique name."),
+    ],
+    ou: Annotated[
+        str | None,
+        typer.Option("--ou", help="OU path used when AGENT is a bare name."),
+    ] = None,
+    interval: Annotated[
+        float,
+        typer.Option("--interval", min=1.0, help="Polling interval in seconds."),
+    ] = 3.0,
+    once: Annotated[
+        bool,
+        typer.Option("--once", help="Print one snapshot and exit."),
+    ] = False,
+) -> None:
+    """Poll an agent status snapshot until interrupted."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        target = _resolve_agent(client, agent, ou=ou)
+        while True:
+            snapshot = _agent_snapshot(client, target.id, target.row)
+            _console.print(_watch_line(snapshot))
+            if once:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        typer.echo()
+    except (AgentResolutionError, PowerloomApiError) as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
+# Sub-Principal Management
+# ---------------------------------------------------------------------------
+
+@sub_app.command("mint")
+def subprincipal_mint_command(
+    name: Annotated[
+        str,
+        typer.Option("--name", help="Friendly name for the agent (e.g. 'Shane-CC')."),
+    ],
+    description: Annotated[
+        Optional[str],
+        typer.Option("--description", help="Optional description of this agent."),
+    ] = None,
+    client_kind: Annotated[
+        str,
+        typer.Option("--client-kind", help="Source tool: claude_code, gemini_cli, etc."),
+    ] = "gemini_cli",
+    expires_in_days: Annotated[
+        int,
+        typer.Option("--expires-in", help="Token TTL in days."),
+    ] = 90,
+) -> None:
+    """Register a new agent sub-principal and mint its first token."""
+    cfg = _require_config()
+    client = PowerloomClient(cfg)
+    try:
+        # Use existing /me/agents POST route
+        payload = {
+            "name": name,
+            "description": description,
+            "client_kind": client_kind,
+        }
+        res = client.post("/me/agents", payload)
+        
+        _console.print()
+        _console.print(f"[green]Agent sub-principal '{name}' created.[/green]")
+        _console.print(f"  [dim]id:[/dim] {res.get('id')}")
+        _console.print(f"  [dim]principal_id:[/dim] {res.get('principal_id')}")
+        
+        key = res.get("first_key", {})
+        _console.print()
+        _console.print(f"[bold yellow]Initial Token (shown once 遯ｶ繝ｻcopy now):[/bold yellow]")
+        _console.print(f"  {key.get('raw_token')}")
+        _console.print()
+        _console.print(
+            "[dim]Use this value in your agent's configuration or "
+            "with `weave login --pat <token>`.[/dim]"
+        )
+    except PowerloomApiError as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
+# Internal Helpers
+# ---------------------------------------------------------------------------
 
 def _require_config() -> RuntimeConfig:
     cfg = load_runtime_config()
@@ -406,3 +666,123 @@ def _agent_label(row: dict[str, Any] | None) -> str:
 def _title_from_prompt(prompt: str) -> str:
     single_line = " ".join(prompt.split())
     return single_line[:80] or "weave ask"
+
+
+def _agent_snapshot(
+    client: PowerloomClient,
+    agent_id: str,
+    row_hint: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    agent = row_hint or {}
+    try:
+        agent = client.get(f"/agents/{agent_id}")
+    except PowerloomApiError as e:
+        if e.status_code == 404 and row_hint:
+            agent = row_hint
+        else:
+            raise
+
+    try:
+        sync_status = client.get(f"/agents/{agent_id}/sync-status")
+    except PowerloomApiError as e:
+        if e.status_code == 404:
+            sync_status = None
+        else:
+            raise
+
+    sessions = _list_agent_sessions(client, agent_id)
+    active = [
+        s for s in sessions
+        if str(s.get("status", "")).lower() in _ACTIVE_SESSION_STATUSES
+    ]
+    latest = sessions[0] if sessions else None
+    return {
+        "agent": agent,
+        "label": _agent_label(agent),
+        "sync_status": sync_status,
+        "active_sessions": active,
+        "latest_session": latest,
+        "recent_sessions": sessions[:10],
+    }
+
+
+def _list_agent_sessions(
+    client: PowerloomClient, agent_id: str
+) -> list[dict[str, Any]]:
+    rows = client.get("/sessions", agent_id=agent_id)
+    if not isinstance(rows, list):
+        return []
+    return sorted(
+        [r for r in rows if isinstance(r, dict)],
+        key=lambda r: str(r.get("started_at", "")),
+        reverse=True,
+    )
+
+
+def _print_status(snapshot: dict[str, Any]) -> None:
+    agent = snapshot["agent"]
+    latest = snapshot["latest_session"] or {}
+    sync = snapshot["sync_status"] or {}
+
+    table = Table(title="Agent status", show_header=True)
+    table.add_column("Field")
+    table.add_column("Value")
+    table.add_row("Agent", snapshot["label"])
+    table.add_row("ID", str(agent.get("id", "")))
+    table.add_row("Runtime", str(agent.get("runtime_type", "")))
+    table.add_row("Model", str(agent.get("model", "")))
+    table.add_row("Sync", _sync_label(sync))
+    table.add_row("Active sessions", str(len(snapshot["active_sessions"])))
+    table.add_row("Latest session", _session_label(latest))
+    if latest.get("last_error"):
+        table.add_row("Last error", str(latest["last_error"]))
+    _console.print(table)
+
+
+def _print_sessions(rows: list[dict[str, Any]], *, title: str) -> None:
+    table = Table(title=title, show_header=True)
+    for col in ("id", "status", "mode", "title", "events", "tools", "started_at"):
+        table.add_column(col)
+    for row in rows:
+        table.add_row(
+            str(row.get("id", "")),
+            str(row.get("status", "")),
+            str(row.get("mode", "")),
+            str(row.get("title") or ""),
+            str(row.get("event_count", "")),
+            str(row.get("mcp_tool_use_count", "")),
+            str(row.get("started_at", "")),
+        )
+    _console.print(table)
+
+
+def _watch_line(snapshot: dict[str, Any]) -> str:
+    latest = snapshot["latest_session"] or {}
+    active_count = len(snapshot["active_sessions"])
+    latest_label = _session_label(latest)
+    return (
+        f"{snapshot['label']} | active={active_count} | latest={latest_label} | "
+        f"sync={_sync_label(snapshot['sync_status'] or {})}"
+    )
+
+
+def _session_label(row: dict[str, Any]) -> str:
+    if not row:
+        return "none"
+    title = row.get("title") or row.get("prompt") or row.get("id")
+    return (
+        f"{row.get('status', 'unknown')} "
+        f"events={row.get('event_count', 0)} "
+        f"{str(title)[:80]}"
+    )
+
+
+def _sync_label(sync: dict[str, Any]) -> str:
+    if not sync:
+        return "unknown"
+    for key in ("status", "sync_status", "state"):
+        if sync.get(key):
+            return str(sync[key])
+    if sync.get("runtime_resource_id"):
+        return "synced"
+    return "unknown"

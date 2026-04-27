@@ -613,6 +613,52 @@ def bootstrap_cmd(
             _console.print(f"  [yellow]overlap:[/yellow] {warning}")
 
 
+@app.command("update")
+def update_cmd(
+    session_id: Annotated[str, typer.Argument(help="Session ID (UUID)")],
+    summary: Annotated[Optional[str], typer.Option("--summary", help="Updated one-line scope description.")] = None,
+    branch: Annotated[Optional[str], typer.Option("--branch", help="Updated feature branch name.")] = None,
+    capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Updated comma-separated capability tags.")] = None,
+    cross_cutting: Annotated[Optional[bool], typer.Option("--cross-cutting/--no-cross-cutting", help="Update cross-cutting status.")] = None,
+    migration: Annotated[Optional[bool], typer.Option("--migration/--no-migration", help="Update migration status.")] = None,
+    version: Annotated[Optional[str], typer.Option("--version", help="Update target version.")] = None,
+    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
+) -> None:
+    """Update metadata for an active agent session."""
+    body: dict[str, Any] = {}
+    if summary is not None:
+        body["scope_summary"] = summary
+    if branch is not None:
+        body["branch_name"] = branch
+    if capabilities is not None:
+        body["capabilities"] = [c.strip() for c in capabilities.split(",") if c.strip()]
+    if cross_cutting is not None:
+        body["cross_cutting"] = cross_cutting
+    if migration is not None:
+        body["touches_migration"] = migration
+    if version is not None:
+        body["version_claimed"] = version
+
+    if not body:
+        _console.print("[yellow]No updates provided.[/yellow]")
+        return
+
+    client = _client()
+    try:
+        resp = client.patch(f"/agent-sessions/{session_id}", body)
+    except PowerloomApiError as e:
+        _console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+
+    if json_out:
+        typer.echo(json.dumps(resp, indent=2, default=str))
+        return
+
+    sess = resp["session"]
+    _console.print(f"[green]Updated[/green] session [bold]{sess['session_slug']}[/bold]")
+    _console.print(f"  work-chain event hash: {resp['work_chain_event_hash']}")
+
+
 @app.command("end")
 def end_cmd(
     session_id: Annotated[str, typer.Argument(help="Session ID (UUID)")],

@@ -16,7 +16,6 @@ import typer
 
 from loomcli import __version__
 from loomcli.commands import agent_cmd
-from loomcli.commands import agent_observe_cmd
 from loomcli.commands import agent_session_cmd
 from loomcli.commands import apply as apply_cmd
 from loomcli.commands import auth_cmd
@@ -41,7 +40,6 @@ from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
 from loomcli.commands import setup_cmd
 from loomcli.commands import sprint_cmd
-from loomcli.commands import thread_cmd
 
 
 app = typer.Typer(
@@ -58,6 +56,7 @@ def _apply_global_options(
     api_url: Optional[str],
     config_dir: Optional[str],
     justification: Optional[str],
+    output: Optional[str],
 ) -> None:
     """Mutate process env before subcommand runs. Typer doesn't have
     first-class "run before subcommand" hooks; setting env here is
@@ -68,6 +67,8 @@ def _apply_global_options(
         os.environ["POWERLOOM_HOME"] = config_dir
     if justification:
         os.environ["POWERLOOM_APPROVAL_JUSTIFICATION"] = justification
+    if output:
+        os.environ["POWERLOOM_FORMAT"] = output
 
 
 @app.callback(invoke_without_command=True)
@@ -103,6 +104,15 @@ def _root(
             ),
         ),
     ] = None,
+    output: Annotated[
+        Optional[str],
+        typer.Option(
+            "-o",
+            "--output",
+            envvar="POWERLOOM_FORMAT",
+            help="Output format: 'table' or 'json'.",
+        ),
+    ] = None,
     version: Annotated[
         bool,
         typer.Option("--version", help="Print version and exit."),
@@ -111,7 +121,7 @@ def _root(
     if version:
         typer.echo(__version__)
         raise typer.Exit()
-    _apply_global_options(api_url, config_dir, justification)
+    _apply_global_options(api_url, config_dir, justification, output)
     if ctx.invoked_subcommand is None:
         # No subcommand given and no --version: show help + exit non-zero.
         # Matches `no_args_is_help=True` behavior we want for everything
@@ -122,7 +132,7 @@ def _root(
 
 # Register subcommands.
 app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami / PAT management.")
-app.add_typer(agent_observe_cmd.app, name="agent", help="Inspect agents and live work.")
+app.add_typer(agent_cmd.app, name="agent", help="Inspect agents and manage identities.")
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")
@@ -132,10 +142,9 @@ app.add_typer(skill_cmd.app, name="skill", help="Manage Skill archives (upload +
 app.add_typer(audit_cmd.app, name="audit", help="Query the Powerloom audit log.", invoke_without_command=True)
 app.add_typer(approval_cmd.app, name="approval", help="Inspect + decide on approval requests (list/get/approve/reject/cancel/bulk-cancel).")
 app.add_typer(compose_cmd.app, name="compose", help="Author, lint, and inspect v2.0.0 Compose kinds (scaffold/lint/show).")
-app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1→v2).")
+app.add_typer(migrate_cmd.app, name="migrate", help="Upgrade manifests between schema versions (v1->v2).")
 app.add_typer(plugin_cmd.app, name="plugin", help="Inspect and install Powerloom client plugins.")
-app.add_typer(thread_cmd.app, name="thread", help="Manage tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md §4.10.")
-app.add_typer(sprint_cmd.app, name="sprint", help="Manage tracker sprints (W1.5.2 — create / list / show / update / activate / complete / archive / add-thread / remove-thread / threads).")
+app.add_typer(sprint_cmd.app, name="sprint", help="Manage tracker sprints (create / list / show / update / activate / complete / archive / add-thread / remove-thread / threads).")
 app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles and defaults.")
 app.add_typer(setup_cmd.app, name="setup-claude-code", help="Wire the Powerloom MCP plugin into a Claude Code project (idempotent).")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
