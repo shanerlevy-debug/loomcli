@@ -222,6 +222,23 @@ def path_cmd(
     typer.echo(str(path))
 
 
+_INSTALL_HINTS: dict[str, str] = {
+    "gemini": (
+        "Install the Gemini CLI first: "
+        "https://github.com/google-gemini/gemini-cli "
+        "(npm: `npm install -g @google/gemini-cli`)."
+    ),
+    "codex": (
+        "Install the OpenAI Codex CLI first: "
+        "https://github.com/openai/codex"
+    ),
+    "claude": (
+        "Install Claude Code first: "
+        "https://docs.anthropic.com/en/docs/claude-code/quickstart"
+    ),
+}
+
+
 @app.command("install")
 def install_cmd(
     client: Annotated[str, typer.Argument(help="Client name.")],
@@ -243,10 +260,39 @@ def install_cmd(
     if not execute:
         _console.print("[dim]Dry run. Re-run with --execute to run it.[/dim]")
         return
+
+    # v0.7.x — pre-flight check that the client binary is on PATH so the
+    # error message is actionable. Without this, Windows surfaces the
+    # subprocess failure as "[WinError 2] The system cannot find the file
+    # specified" with no hint about which file or why.
+    binary = command[0] if command else None
+    if binary and shutil.which(binary) is None:
+        _console.print(
+            f"[red]Install failed:[/red] {binary!r} is not on PATH."
+        )
+        hint = _INSTALL_HINTS.get(binary)
+        if hint:
+            _console.print(f"  {hint}")
+        _console.print(
+            "  Once installed, re-run "
+            f"[bold]weave plugin install {client} --execute[/bold]."
+        )
+        raise typer.Exit(1)
+
     try:
         subprocess.run(command, check=True)
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        _console.print(f"[red]Install failed:[/red] {e}")
+    except FileNotFoundError as e:
+        # Shouldn't reach here with the pre-flight above, but keep the
+        # safety net in case the binary disappears between which() and run().
+        _console.print(
+            f"[red]Install failed:[/red] could not exec {binary!r} ({e}). "
+            "Is it on PATH?"
+        )
+        raise typer.Exit(1) from e
+    except subprocess.CalledProcessError as e:
+        _console.print(
+            f"[red]Install failed:[/red] {binary!r} exited {e.returncode}."
+        )
         raise typer.Exit(1) from e
 
 

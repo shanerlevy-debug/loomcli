@@ -7,6 +7,29 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.1 — 2026-04-27 (CLI)
+
+**Plugin install error UX.** `weave plugin install <client> --execute` now pre-flight-checks that the client binary (`gemini` / `codex` / `claude`) is on `PATH` before subprocess-ing into it. When the binary is missing, the error message points the user at the install URL instead of surfacing a bare `[WinError 2] The system cannot find the file specified`.
+
+Reproducer that prompted the fix:
+```
+PS> weave plugin install gemini --execute
+gemini extensions install C:\Users\…\plugins\0.7.0\gemini\powerloom-weave --consent --skip-settings
+Install failed: [WinError 2] The system cannot find the file specified
+```
+
+After:
+```
+PS> weave plugin install gemini --execute
+gemini extensions install C:\Users\…\plugins\0.7.0\gemini\powerloom-weave --consent --skip-settings
+Install failed: 'gemini' is not on PATH.
+  Install the Gemini CLI first: https://github.com/google-gemini/gemini-cli (npm: `npm install -g @google/gemini-cli`).
+  Once installed, re-run weave plugin install gemini --execute.
+```
+
+Same pre-flight applies to `codex` and `claude` install commands.
+
+
 ## v0.7.0 — 2026-04-27 (CLI)
 
 **Cascading conventions.** `weave conventions sync` now fetches the **effective** convention set for the agent's OU — folding org-wide policy, every OU ancestor, the leaf OU, and (in future) project-scoped conventions into a single rule list with child-wins-with-deny semantics. Org admins can author once at the root and have every descendant session pick it up automatically.

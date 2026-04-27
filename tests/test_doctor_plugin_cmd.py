@@ -78,6 +78,22 @@ def test_plugin_install_defaults_to_dry_run():
     assert "Dry run" in result.stdout
 
 
+@patch("loomcli.commands.plugin_cmd.shutil.which", return_value=None)
+def test_plugin_install_execute_missing_binary_actionable(_mock_which):
+    """When `gemini` (or other client binary) isn't on PATH and the user
+    runs --execute, surface a friendly error pointing at the install URL
+    instead of the bare WinError 2 / FileNotFoundError surface.
+    """
+    result = runner.invoke(app, ["plugin", "install", "gemini", "--execute"])
+
+    assert result.exit_code == 1
+    assert "not on PATH" in result.stdout
+    # Hint should mention the install URL.
+    assert "gemini-cli" in result.stdout.lower()
+    # Should suggest re-running once installed.
+    assert "weave plugin install gemini --execute" in result.stdout
+
+
 @patch("loomcli.commands.plugin_cmd.shutil.which", return_value="C:\\bin\\tool.exe")
 def test_plugin_doctor_lists_clients(_mock_which):
     result = runner.invoke(app, ["plugin", "doctor"])
