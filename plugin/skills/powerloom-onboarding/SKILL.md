@@ -29,6 +29,9 @@ gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --cons
 weave plugin instructions codex
 weave plugin instructions gemini
 
+# PowerShell: replace placeholders with real paths. Do not type angle-bracket
+# placeholders like <loomcli>; PowerShell treats < as redirection.
+
 # 4. File your first thread for the work this session is about to do
 weave thread create --project powerloom \
   --title "<imperative phrase>" --priority high \
