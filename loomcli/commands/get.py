@@ -36,6 +36,8 @@ _LISTABLE = {
     "mcp-deployments": ("/mcp-deployments", ["name", "template_kind", "status"]),
     "session": ("/sessions", ["id", "status", "event_count"]),
     "sessions": ("/sessions", ["id", "status", "event_count"]),
+    "project": ("/projects", ["slug", "name", "id", "status"]),
+    "projects": ("/projects", ["slug", "name", "id", "status"]),
 }
 
 

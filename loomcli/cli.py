@@ -27,6 +27,7 @@ from loomcli.commands import get as get_cmd
 from loomcli.commands import import_ as import_cmd
 from loomcli.commands import import_project_cmd
 from loomcli.commands import plan as plan_cmd
+from loomcli.commands import project_cmd
 from loomcli.commands import workflow_cmd
 from loomcli.commands import antigravity_worker_cmd
 from loomcli.commands import skill_cmd
@@ -230,6 +231,7 @@ app.add_typer(agent_cmd.app, name="agent", help="Inspect agents and manage ident
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")
+app.add_typer(project_cmd.app, name="project", help="Inspect tracker projects (ls / show).")
 app.add_typer(workflow_cmd.app, name="workflow", help="Workflow definitions + runs (Phase 14).")
 app.add_typer(antigravity_worker_cmd.app, name="antigravity-worker", help="Daemon to dispatch tasks to local Antigravity IDE.")
 app.add_typer(skill_cmd.app, name="skill", help="Manage Skill archives (upload + activate versions).")
