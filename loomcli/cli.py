@@ -82,12 +82,49 @@ app = typer.Typer(
 )
 
 
+_AGENT_ENV_VARS = ("CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE")
+
+
+def _detect_auto_json_reason() -> Optional[str]:
+    """Return a short human-readable reason if we should default --output=json,
+    or None if the user is at an interactive TTY and the table renderer is fine.
+
+    Three triggers, any one of them flips the default:
+      1. An agent-marker env var is set (CC, Gemini, Codex, generic AGENT_MODE).
+      2. POWERLOOM_ACTIVE_SUBPRINCIPAL_ID is set — the SessionStart hook + the
+         CC plugin populate this for any registered agent session, regardless
+         of which agent runtime is running. More reliable than (1) since
+         hook propagation doesn't always carry env into the parent shell;
+         the agent-session register flow writes a per-scope cache file that
+         the CLI reads without needing CLAUDE_CODE in the environment.
+      3. stdout is not a TTY (output is being piped or captured). Any
+         consumer parsing weave's output is going to want JSON; falling back
+         to the table renderer in that case produces the one-char-per-row
+         column-collapse bug that ate ~6KB of unreadable output during the
+         2026-04-27 dogfood pass.
+    """
+    for var in _AGENT_ENV_VARS:
+        if os.environ.get(var):
+            return f"agent env {var}"
+    if os.environ.get("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "").strip():
+        return "registered sub-principal"
+    try:
+        if not sys.stdout.isatty():
+            return "non-TTY stdout"
+    except (AttributeError, ValueError):
+        # Wrapped streams under pytest capture or odd CI runners can raise.
+        # Don't crash here — just leave the default unchanged.
+        pass
+    return None
+
+
 def is_agent_mode() -> bool:
-    """Check if the CLI is running in AI Agent mode (env detection)."""
-    return any(
-        os.environ.get(var)
-        for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
-    ) or os.environ.get("POWERLOOM_FORMAT") == "json"
+    """Check if the CLI is running in AI Agent mode (env detection).
+
+    Kept for any external caller; the auto-JSON path uses
+    _detect_auto_json_reason() directly so it can also surface the "why".
+    """
+    return _detect_auto_json_reason() is not None or os.environ.get("POWERLOOM_FORMAT") == "json"
 
 
 def _apply_global_options(
@@ -106,15 +143,23 @@ def _apply_global_options(
     if justification:
         os.environ["POWERLOOM_APPROVAL_JUSTIFICATION"] = justification
 
-    # Agent Mode Detection: if no output format is specified, default to JSON
-    # if we detect we are running inside an AI agent environment.
+    # Agent Mode / Non-TTY Detection: if no explicit format was passed and the
+    # env doesn't already pin one, switch to JSON when stdout isn't a TTY or
+    # an agent-session marker is present. Surface a stderr note so the human
+    # supervising the agent (or anyone running in CI) isn't surprised; suppress
+    # it when the auto-detected format is the default the env already wants.
     if not output and not os.environ.get("POWERLOOM_FORMAT"):
-        is_agent = any(
-            os.environ.get(var)
-            for var in ["CLAUDE_CODE", "GEMINI_CLI", "CODEX_SANDBOX", "AGENT_MODE"]
-        )
-        if is_agent:
+        reason = _detect_auto_json_reason()
+        if reason:
             output = "json"
+            quiet = os.environ.get("POWERLOOM_QUIET_AUTO_JSON", "").strip()
+            if not quiet:
+                typer.echo(
+                    f"weave: output format auto-set to json ({reason}). "
+                    f"Pass -o table or set POWERLOOM_FORMAT=table to override; "
+                    f"set POWERLOOM_QUIET_AUTO_JSON=1 to silence this notice.",
+                    err=True,
+                )
 
     if output:
         os.environ["POWERLOOM_FORMAT"] = output
