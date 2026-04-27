@@ -7,6 +7,23 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.4 — 2026-04-28 (CLI)
+
+**Thread management UX (PR #49 by sister agent).** Closes powerloom thread `0040b2b3`.
+
+### What changed
+
+- **`Slug` column** in `weave thread list` output. Threads are easier to identify at a glance + reference in subsequent commands.
+- **Short 8-char ID resolution** for `pluck` / `done` / `show` / `update` / `reply` — paste the leading 8 chars of an id, the CLI resolves it. (Equivalent to `git log --abbrev-commit`.)
+- **Profile `default_project`** — set once via `weave profile set default_project <slug>` and bare commands like `weave thread list` use it without `--project`.
+- **CWD-based project detection** — repo paths matching `ui/`, `loomcli/`, etc. resolve to `powerloom-ui`, `loomcli` projects automatically.
+- **`bare thread list`** now falls back to default project (was: hard-required `--project` or `--mine`).
+
+### Compat
+
+- `_CLIENT_TO_ACTOR` map widened to accept `human` / `cma` / `reconciler` actor kinds (added in v0.7.2 for non-dev paths but missed in #49's actor-kind validator).
+
+
 ## v0.7.3 — 2026-04-28 (CLI)
 
 **`weave conventions sync` auto-detects OU scope.** Closes powerloom thread `53b781c8`. The SessionStart hook in `.claude/settings.json` no longer needs a hardcoded `--scope` argument — the CLI walks four detection paths in order until one resolves.
