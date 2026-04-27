@@ -165,7 +165,7 @@ def test_extract_text_from_common_event_shapes():
     )
 
 
-@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.PowerloomClient")
 @patch("loomcli.commands.agent_cmd.load_runtime_config")
 def test_agent_status_shows_runtime_and_latest_session(
     mock_load_cfg,
@@ -211,7 +211,7 @@ def test_agent_status_shows_runtime_and_latest_session(
     assert "running" in result.stdout
 
 
-@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.PowerloomClient")
 @patch("loomcli.commands.agent_cmd.load_runtime_config")
 def test_agent_config_shows_provider_and_model(
     mock_load_cfg,
@@ -238,7 +238,7 @@ def test_agent_config_shows_provider_and_model(
     assert "gpt-5.5" in result.stdout
 
 
-@patch("loomcli.commands.agent_observe_cmd.PowerloomClient")
+@patch("loomcli.commands.agent_cmd.PowerloomClient")
 @patch("loomcli.commands.agent_cmd.load_runtime_config")
 def test_agent_set_model_patches_agent_model(
     mock_load_cfg,
