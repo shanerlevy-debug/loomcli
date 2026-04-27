@@ -8,6 +8,27 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 ## Unreleased
 
 
+## v0.6.7 — 2026-04-27 (CLI)
+
+**AX improvements + first-class agent management.** Surfaces Gemini's PR #41 work + the v067 follow-ups that landed since v0.6.6.
+
+### New commands
+
+- **`weave configure`** — AWS-style interactive wizard for profiles + PATs. First-time-setup-friendly.
+- **`weave profile switch <name>`** — quick environment toggle between configured profiles.
+- **`weave agent sub-principal mint`** — easy identity management for spinning up new sub-principals from the CLI.
+- **`weave agent-session update`** — metadata updates for an existing coordination session (capabilities, scope, etc.).
+
+### Cross-cutting
+
+- **`--output` flag (global)** + **`POWERLOOM_FORMAT=json` env var** — every command can now emit machine-readable JSON for agent/CI consumption. Single place to opt into JSON instead of per-command flags.
+- **Unified `agent_cmd.py`** — observability commands (status, logs, recent-work) folded back into the main agent module. The old `agent_observe_cmd.py` retired.
+
+### Tests
+
+- 684 passed (same as v0.6.6; this release is mostly UX surface, no test count delta)
+
+
 ## v0.6.6 — 2026-04-27 (CLI)
 
 **Bulk-migration toolkit + sprint hierarchy + empty-folder bootstrap.** Surfaces a handful of post-v0.6.5 features so the post-org-reorg workflow has the CLI primitives it needs.
