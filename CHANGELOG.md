@@ -8,6 +8,41 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 ## Unreleased
 
 
+## v0.6.5 — 2026-04-27 (CLI)
+
+**Sub-principal pipeline + sprint CLI + slug resolver across the board.** First non-rc release in the v0.6 line — drops the `-rcN` suffix per the new versioning convention (releases are stable by default, pre-releases happen on side-branches when needed).
+
+### New commands
+
+- **`weave sprint`** family — `create / list / show / update / activate / complete / archive / delete / add-thread / remove-thread / threads`. Pairs with the W1.5.2 engine routes (Powerloom #156) so sprints can be dogfooded end-to-end without curl. Sprint addressing accepts UUID, `project:slug`, or bare slug — same shape as W1.5.1 thread slugs.
+- **`weave thread tree / sprint-tree / orphans`** — ASCII tree renderers for the W1.5.3 engine routes (Powerloom #153). `tree` shows the parent_thread_id + parent_of-edge tree rooted at one thread. `sprint-tree` does the same rooted at a sprint's top-level threads. `orphans` lists threads with no parent and no sprint membership ("what's loose right now?" triage).
+
+### Sub-principal pipeline (v067 onboarding sprint)
+
+The auto-attribution path that's been a no-op since v0.6.4-rc1 is finally wired end-to-end:
+
+- `weave agent-session register` now find-or-creates a sub-principal named `<actor_kind>:<scope>` against `POST /me/agents` AFTER the agent-session POST succeeds. Caches the UUID in a new per-scope file at `<config_dir>/active-subprincipal-<scope>.txt` (since shell SessionStart hooks can't propagate `export VAR=…` to the parent shell — the env-var-only path was a no-op for every real session).
+- `weave thread create / reply / pluck` resolves the active sub-principal in two tiers: (1) `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var (explicit override; wins when set), (2) the per-scope cache file (with branch derivation via `git rev-parse`). Falls back to "no attribution" gracefully when neither source resolves.
+- New `loomcli.config.active_subprincipal_file(scope)` helper for the cache-file path.
+
+After this release, every CC session running the existing `.claude/settings.json` SessionStart hook auto-stamps `session_attribution` on every tracker action with no human ritual. Codex/Antigravity/Gemini hooks are open follow-ups (tracked in the v067-onboarding sprint).
+
+### Slug resolver (W1.5.1 + W1.5.3 dogfood)
+
+- **`weave thread show / pluck / reply / done / close / wont-do / update`** all accept UUID, `project:slug`, or bare slug now. Slug shape validated client-side before hitting the network; 404 from `/by-slug` lookups renders a project + slug-specific error.
+
+### Documentation
+
+- README + plugin SKILL files updated for the new commands and the auto-attribution flow.
+- The connect-your-agent doc references the new sprint + tree commands as primary examples for "you've onboarded — now what?"
+
+### Tests
+
+- 23 new in `test_sprint_cmd.py` (full sprint CRUD + slug resolution + JSON output + lifecycle parametrize).
+- 9 new across `test_thread_cmd.py` + `test_agent_session_cli.py` for the sub-principal pipeline (env-var precedence, file fallback, per-scope isolation, graceful network failure, end-to-end attribution).
+- Full suite: **650 passed**.
+
+
 ## v0.6.4-rc2 — 2026-04-27 (CLI)
 
 **Agent onboarding friction reduction + security hardening.** This release focuses on making the first-time setup experience smoother for agents and humans alike, paired with server-side capability discovery.
