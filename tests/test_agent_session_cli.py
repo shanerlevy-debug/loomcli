@@ -6,11 +6,14 @@ produces reasonable output. No network — we mock PowerloomClient.
 """
 from __future__ import annotations
 
+from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from loomcli.cli import app
+from loomcli.client import PowerloomApiError
 
 
 runner = CliRunner()
@@ -19,7 +22,7 @@ runner = CliRunner()
 def test_agent_session_help():
     result = runner.invoke(app, ["agent-session", "--help"])
     assert result.exit_code == 0
-    for sub in ("register", "end", "ls", "get", "status", "watch"):
+    for sub in ("register", "bootstrap", "end", "ls", "get", "status", "watch"):
         assert sub in result.stdout
 
 
@@ -274,6 +277,94 @@ def test_register_missing_summary_without_from_branch_errors():
         app, ["agent-session", "register", "--scope", "my-scope-20260426"]
     )
     assert result.exit_code != 0
+
+
+@patch("loomcli.commands.agent_session_cmd._check_client_plugin")
+@patch("loomcli.commands.agent_session_cmd._ensure_repo")
+@patch("loomcli.commands.agent_session_cmd.PowerloomClient")
+def test_bootstrap_uses_project_config_and_registers(
+    mock_client_cls,
+    mock_ensure_repo,
+    mock_check_plugin,
+    monkeypatch,
+    tmp_path,
+):
+    home = tmp_path / "has-creds"
+    home.mkdir()
+    (home / "credentials").write_text("fake-token\n", encoding="utf-8")
+    monkeypatch.setenv("POWERLOOM_HOME", str(home))
+    mock_ensure_repo.return_value = Path("D:/powerloom/Powerloom")
+
+    mock_client = MagicMock()
+    mock_client.get.side_effect = [
+        {
+            "project_slug": "powerloom",
+            "project_name": "Powerloom",
+            "config": {
+                "repo_url": "https://github.com/example/Powerloom.git",
+                "default_branch": "main",
+                "recommended_workdir": str(tmp_path),
+                "session_scope_template": "{client}-{project}-{date}",
+                "branch_template": "session/{scope}",
+                "summary_template": "{client} session for {project}",
+                "capabilities": ["cli", "docs"],
+            },
+        },
+        {"sessions": []},
+    ]
+    mock_client.post.return_value = {
+        "session": {
+            "id": "sess-1",
+            "session_slug": f"codex-powerloom-{date.today():%Y%m%d}",
+            "status": "active",
+        },
+        "work_chain_event_hash": "abcd" * 16,
+        "overlap_warnings": [],
+    }
+    mock_client_cls.return_value = mock_client
+
+    result = runner.invoke(
+        app,
+        ["agent-session", "bootstrap", "--project", "powerloom", "--client", "codex_cli"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Bootstrap complete" in result.output
+    ensure_kwargs = mock_ensure_repo.call_args.kwargs
+    assert ensure_kwargs["repo_url"] == "https://github.com/example/Powerloom.git"
+    assert ensure_kwargs["default_branch"] == "main"
+    assert ensure_kwargs["session_branch"] == f"session/codex-powerloom-{date.today():%Y%m%d}"
+    mock_check_plugin.assert_called_once_with("codex_cli")
+
+    sent = mock_client.post.call_args[0][1]
+    assert sent["session_slug"] == f"codex-powerloom-{date.today():%Y%m%d}"
+    assert sent["branch_name"] == f"session/codex-powerloom-{date.today():%Y%m%d}"
+    assert sent["actor_kind"] == "codex_cli"
+    assert sent["capabilities"] == ["cli", "docs"]
+
+
+@patch("loomcli.commands.agent_session_cmd.PowerloomClient")
+def test_bootstrap_requires_repo_url_when_project_has_no_config(
+    mock_client_cls,
+    monkeypatch,
+    tmp_path,
+):
+    home = tmp_path / "has-creds"
+    home.mkdir()
+    (home / "credentials").write_text("fake-token\n", encoding="utf-8")
+    monkeypatch.setenv("POWERLOOM_HOME", str(home))
+
+    mock_client = MagicMock()
+    mock_client.get.side_effect = PowerloomApiError(404, "not found")
+    mock_client_cls.return_value = mock_client
+
+    result = runner.invoke(
+        app,
+        ["agent-session", "bootstrap", "--project", "missing", "--client", "codex_cli"],
+    )
+
+    assert result.exit_code != 0
+    assert "No repository URL configured" in result.output
 
 
 @patch("loomcli.commands.agent_session_cmd.PowerloomClient")

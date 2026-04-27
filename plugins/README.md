@@ -33,4 +33,4 @@ gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --cons
 
 `weave plugin instructions <client>` prints the expected command for the current checkout. `weave plugin install <client>` is a dry run by default; pass `--execute` after reviewing the printed command.
 
-On Windows, if Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.
+On Windows, replace placeholder paths with real paths and do not type angle brackets such as `<loomcli>` in PowerShell; `<` is parsed as redirection. If Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.

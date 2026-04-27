@@ -11,10 +11,13 @@ lists CMA agent-runtime sessions.
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import time
 from datetime import date
+from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import typer
@@ -26,6 +29,21 @@ from loomcli.config import load_runtime_config
 
 # Pattern for the project's branch naming convention: session/<scope>-<yyyymmdd>
 _BRANCH_RE = re.compile(r"^session/(?P<scope>.+)-(?P<date>\d{8})$")
+_CLIENT_TO_ACTOR = {
+    "claude": "claude_code",
+    "claude_code": "claude_code",
+    "codex": "codex_cli",
+    "codex_cli": "codex_cli",
+    "gemini": "gemini_cli",
+    "gemini_cli": "gemini_cli",
+    "antigravity": "antigravity",
+}
+_ACTOR_TO_TOKEN = {
+    "claude_code": "claude",
+    "codex_cli": "codex",
+    "gemini_cli": "gemini",
+    "antigravity": "antigravity",
+}
 
 
 _console = Console()
@@ -147,6 +165,185 @@ def _ensure_subprincipal(
     return sub_id
 
 
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "session"
+
+
+def _normalize_actor_kind(client_kind: str) -> str:
+    if client_kind == "auto":
+        if os.environ.get("CODEX_SANDBOX") or shutil.which("codex"):
+            return "codex_cli"
+        if os.environ.get("GEMINI_CLI") or shutil.which("gemini"):
+            return "gemini_cli"
+        if shutil.which("claude"):
+            return "claude_code"
+        return "codex_cli"
+    actor = _CLIENT_TO_ACTOR.get(client_kind)
+    if not actor:
+        _console.print(
+            "[red]Unknown client.[/red] Use auto, codex, codex_cli, "
+            "claude, claude_code, gemini, gemini_cli, or antigravity."
+        )
+        raise typer.Exit(2)
+    return actor
+
+
+def _format_template(template: str, context: dict[str, str]) -> str:
+    try:
+        return template.format(**context)
+    except KeyError as e:
+        _console.print(f"[red]Unknown template field:[/red] {e}")
+        raise typer.Exit(2) from None
+
+
+def _repo_dir_name(repo_url: str) -> str:
+    name = repo_url.rstrip("/").rsplit("/", 1)[-1]
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name or "repo"
+
+
+def _run(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    dry_run: bool = False,
+) -> subprocess.CompletedProcess[str] | None:
+    if dry_run:
+        _console.print(f"[dim]dry-run:[/dim] {' '.join(args)}")
+        return None
+    try:
+        result = subprocess.run(
+            args,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except FileNotFoundError as e:
+        _console.print(f"[red]Command not found:[/red] {args[0]}")
+        raise typer.Exit(1) from e
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        _console.print(f"[red]Command failed:[/red] {' '.join(args)}")
+        if detail:
+            _console.print(detail)
+        raise typer.Exit(result.returncode)
+    return result
+
+
+def _fetch_bootstrap_config(client: PowerloomClient, project: str) -> dict[str, Any] | None:
+    try:
+        return client.get(f"/projects/{project}/bootstrap")
+    except PowerloomApiError as e:
+        if e.status_code == 404:
+            _console.print(
+                f"[yellow]No bootstrap config found for project {project!r}.[/yellow] "
+                "Continuing with CLI flags."
+            )
+            return None
+        _console.print(f"[red]Could not fetch bootstrap config:[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+def _load_codex_plugin_state() -> dict[str, Any]:
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
+        return {"config_path": None, "enabled": False, "marketplace_source": None}
+
+    path = Path.home() / ".codex" / "config.toml"
+    if not path.exists():
+        return {"config_path": str(path), "enabled": False, "marketplace_source": None}
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        return {"config_path": str(path), "enabled": False, "marketplace_source": None}
+    marketplaces = data.get("marketplaces") or {}
+    plugins = data.get("plugins") or {}
+    powerloom_marketplace = marketplaces.get("powerloom") or {}
+    plugin = plugins.get("powerloom-weave@powerloom") or {}
+    return {
+        "config_path": str(path),
+        "enabled": bool(plugin.get("enabled")),
+        "marketplace_source": powerloom_marketplace.get("source"),
+    }
+
+
+def _check_client_plugin(actor_kind: str) -> None:
+    if actor_kind != "codex_cli":
+        binary = {
+            "claude_code": "claude",
+            "gemini_cli": "gemini",
+            "antigravity": None,
+        }.get(actor_kind)
+        if binary and not shutil.which(binary):
+            _console.print(f"[yellow]Warning:[/yellow] {binary} is not on PATH.")
+        return
+
+    state = _load_codex_plugin_state()
+    if state["enabled"] and state["marketplace_source"]:
+        _console.print(
+            f"[green]Codex plugin enabled.[/green] "
+            f"marketplace={state['marketplace_source']}"
+        )
+        return
+    _console.print("[yellow]Codex plugin is not fully enabled.[/yellow]")
+    if state.get("config_path"):
+        _console.print(f"  config: {state['config_path']}")
+    _console.print(
+        "  Run: codex plugin marketplace add C:\\path\\to\\loomcli\\plugins\\codex "
+        "and enable powerloom-weave@powerloom."
+    )
+
+
+def _ensure_repo(
+    *,
+    repo_url: str,
+    default_branch: str,
+    workdir: Path,
+    session_branch: str,
+    create_branch: bool,
+    dry_run: bool,
+) -> Path:
+    repo_path = workdir / _repo_dir_name(repo_url)
+    if not repo_path.exists():
+        if not dry_run:
+            workdir.mkdir(parents=True, exist_ok=True)
+        _run(
+            ["git", "clone", "--branch", default_branch, repo_url, str(repo_path)],
+            dry_run=dry_run,
+        )
+    elif (repo_path / ".git").exists():
+        _run(["git", "fetch", "origin", default_branch], cwd=repo_path, dry_run=dry_run)
+        _run(["git", "checkout", default_branch], cwd=repo_path, dry_run=dry_run)
+        _run(["git", "merge", "--ff-only", f"origin/{default_branch}"], cwd=repo_path, dry_run=dry_run)
+    else:
+        _console.print(f"[red]Target exists but is not a git repo:[/red] {repo_path}")
+        raise typer.Exit(1)
+
+    if create_branch:
+        exists = False
+        if not dry_run:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", session_branch],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            exists = result.returncode == 0
+        _run(
+            ["git", "checkout", session_branch]
+            if exists
+            else ["git", "checkout", "-b", session_branch],
+            cwd=repo_path,
+            dry_run=dry_run,
+        )
+    return repo_path
+
+
 @app.command("register")
 def register_cmd(
     scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch is set.")] = None,
@@ -266,6 +463,154 @@ def register_cmd(
             _console.print(f"  - {w}")
     else:
         _console.print("[dim]No overlaps with other active sessions.[/dim]")
+
+
+@app.command("bootstrap")
+def bootstrap_cmd(
+    project: Annotated[str, typer.Option("--project", help="Project slug or UUID to bootstrap from.")] = "powerloom",
+    client_kind: Annotated[str, typer.Option("--client", help="auto | codex_cli | claude_code | gemini_cli | antigravity")] = "auto",
+    repo_url: Annotated[Optional[str], typer.Option("--repo-url", help="Override the repository URL from project bootstrap config.")] = None,
+    workdir: Annotated[Optional[str], typer.Option("--workdir", help="Directory where the repository should be cloned or updated.")] = None,
+    default_branch: Annotated[Optional[str], typer.Option("--branch", help="Default upstream branch to clone/update.")] = None,
+    scope: Annotated[Optional[str], typer.Option("--scope", help="Override generated session scope.")] = None,
+    summary: Annotated[Optional[str], typer.Option("--summary", help="Override generated session summary.")] = None,
+    capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags. Overrides project config.")] = None,
+    actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email).")] = None,
+    create_branch: Annotated[bool, typer.Option("--create-branch/--no-create-branch", help="Create or reuse the configured session branch after updating main.")] = True,
+    register: Annotated[bool, typer.Option("--register/--no-register", help="Register this coordination session after checkout.")] = True,
+    if_not_active: Annotated[bool, typer.Option("--if-not-active/--always-register", help="Skip registration when the generated scope is already active.")] = True,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Print planned git/API actions without mutating local repo or registering.")] = False,
+    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON result.")] = False,
+) -> None:
+    """Bootstrap an empty-folder client into a Powerloom project.
+
+    This is the single-prompt entry point for Codex CLI, Claude Code, Gemini
+    CLI, and Antigravity sessions. It asks Powerloom for project bootstrap
+    metadata, checks out the configured repo from main, verifies the client
+    plugin surface, and registers the coordination session.
+    """
+    actor_kind = _normalize_actor_kind(client_kind)
+    client_token = _ACTOR_TO_TOKEN[actor_kind]
+    today = date.today().strftime("%Y%m%d")
+
+    client = _client()
+    bootstrap = _fetch_bootstrap_config(client, project)
+    project_slug = (bootstrap or {}).get("project_slug") or _slugify(project)
+    project_name = (bootstrap or {}).get("project_name") or project_slug
+    config = dict((bootstrap or {}).get("config") or {})
+
+    selected_repo_url = repo_url or config.get("repo_url")
+    if not selected_repo_url:
+        _console.print(
+            "[red]No repository URL configured.[/red] Set it in the "
+            "Powerloom project bootstrap settings or pass --repo-url."
+        )
+        raise typer.Exit(1)
+
+    selected_branch = default_branch or config.get("default_branch") or "main"
+    selected_workdir = Path(
+        workdir or config.get("recommended_workdir") or os.getcwd()
+    ).expanduser()
+    template_context = {
+        "client": client_token,
+        "actor_kind": actor_kind,
+        "project": project_slug,
+        "project_name": project_name,
+        "date": today,
+    }
+    selected_scope = scope or _format_template(
+        config.get("session_scope_template") or "{client}-{project}-{date}",
+        template_context,
+    )
+    template_context["scope"] = selected_scope
+    session_branch = (
+        _format_template(
+            config.get("branch_template") or "session/{scope}",
+            template_context,
+        )
+        if create_branch
+        else selected_branch
+    )
+    selected_summary = summary or _format_template(
+        config.get("summary_template") or "{client} session for {project}",
+        template_context,
+    )
+    caps = (
+        [c.strip() for c in capabilities.split(",") if c.strip()]
+        if capabilities is not None
+        else list(config.get("capabilities") or [])
+    )
+
+    repo_path = _ensure_repo(
+        repo_url=selected_repo_url,
+        default_branch=selected_branch,
+        workdir=selected_workdir,
+        session_branch=session_branch,
+        create_branch=create_branch,
+        dry_run=dry_run,
+    )
+    _check_client_plugin(actor_kind)
+
+    session_resp: dict[str, Any] | None = None
+    if register:
+        body = {
+            "session_slug": selected_scope,
+            "scope_summary": selected_summary,
+            "branch_name": session_branch,
+            "capabilities": caps,
+            "cross_cutting": False,
+            "touches_migration": False,
+            "version_claimed": None,
+            "actor_kind": actor_kind,
+            "actor_id": actor_id,
+        }
+        if dry_run:
+            _console.print(f"[dim]dry-run:[/dim] POST /agent-sessions {body}")
+        else:
+            try:
+                if if_not_active:
+                    active = client.get("/agent-sessions", status="active", limit=100)
+                    if any(
+                        s.get("session_slug") == selected_scope
+                        for s in active.get("sessions", [])
+                    ):
+                        _console.print(
+                            f"[dim]Session {selected_scope!r} already active; "
+                            "skipping registration.[/dim]"
+                        )
+                    else:
+                        session_resp = client.post("/agent-sessions", body)
+                else:
+                    session_resp = client.post("/agent-sessions", body)
+            except PowerloomApiError as e:
+                _console.print(f"[red]Registration failed:[/red] {e}")
+                raise typer.Exit(1) from e
+
+    result = {
+        "project": project_slug,
+        "repo_path": str(repo_path),
+        "default_branch": selected_branch,
+        "session_branch": session_branch,
+        "scope": selected_scope,
+        "actor_kind": actor_kind,
+        "capabilities": caps,
+        "session": session_resp,
+    }
+    if json_out:
+        typer.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    _console.print("[green]Bootstrap complete.[/green]")
+    _console.print(f"  project: {project_slug}")
+    _console.print(f"  repo: {repo_path}")
+    _console.print(f"  branch: {session_branch}")
+    _console.print(f"  scope: {selected_scope}")
+    if session_resp:
+        sess = session_resp.get("session", {})
+        _console.print(f"  session id: {sess.get('id')}")
+        warnings = session_resp.get("overlap_warnings") or []
+        for warning in warnings:
+            _console.print(f"  [yellow]overlap:[/yellow] {warning}")
 
 
 @app.command("end")
