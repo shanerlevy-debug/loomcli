@@ -31,11 +31,10 @@ For a self-hosted control plane: set `POWERLOOM_API_BASE_URL=https://powerloom.i
 ## Step 3 — Load the Gemini extension
 
 ```bash
-gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
-gemini extensions enable powerloom-weave
+weave plugin install gemini --execute
 ```
 
-From a loomcli checkout, `weave plugin instructions gemini` prints the correct local path. In PowerShell, replace placeholders with the real path; do not type angle-bracket placeholders such as `<loomcli>`, because PowerShell parses `<` as redirection. Restart Gemini CLI or reload commands after installing. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension auto-merges into the project context.
+`weave plugin instructions gemini` prints the exported extension path. Restart Gemini CLI or reload commands after installing. Slash commands appear under `/weave:*` and `/weave:thread:*`. The `GEMINI.md` context file in the extension auto-merges into the project context.
 
 ## Step 4 — Read CLAUDE.md / GEMINI.md / AGENTS.md §4.10
 

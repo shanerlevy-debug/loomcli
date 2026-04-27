@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from typing import Annotated, Any
 
 import typer
@@ -13,6 +14,7 @@ from rich.table import Table
 from loomcli import __version__
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.config import config_dir, credentials_file, load_runtime_config
+from loomcli.plugin_assets import plugin_export_root
 
 
 _console = Console()
@@ -28,7 +30,16 @@ def doctor_command(
     cfg = load_runtime_config()
     checks: list[dict[str, Any]] = [
         _check("loomcli.version", "ok", __version__),
+        _check("python.executable", "ok", sys.executable),
+        _check("python.version", "ok", sys.version.split()[0]),
+        _check(
+            "stdio.encoding",
+            "ok",
+            f"stdout={getattr(sys.stdout, 'encoding', None) or '?'} "
+            f"stderr={getattr(sys.stderr, 'encoding', None) or '?'}",
+        ),
         _check("config.dir", "ok", str(config_dir())),
+        _check("plugin.export_root", "ok", str(plugin_export_root())),
         _check(
             "credentials",
             "ok" if cfg.access_token else "warn",

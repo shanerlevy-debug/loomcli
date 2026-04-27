@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -54,7 +55,19 @@ def test_plugin_instructions_prints_codex_marketplace_path():
 
     assert result.exit_code == 0, result.stdout
     assert "codex plugin marketplace add" in result.stdout
-    assert "plugins" in result.stdout
+    assert "powerloom-weave" in result.stdout
+
+
+def test_plugin_path_exports_codex_marketplace(tmp_path, monkeypatch):
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
+
+    result = runner.invoke(app, ["plugin", "path", "codex", "--json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["client"] == "codex"
+    assert payload["path"].startswith(str(tmp_path / "pl-home"))
+    assert "plugins" in payload["path"]
 
 
 def test_plugin_install_defaults_to_dry_run():
@@ -72,3 +85,13 @@ def test_plugin_doctor_lists_clients(_mock_which):
     assert result.exit_code == 0, result.stdout
     assert "codex" in result.stdout
     assert "gemini" in result.stdout
+
+
+@patch("loomcli.commands.plugin_cmd.shutil.which", return_value="C:\\bin\\tool.exe")
+def test_plugin_doctor_json_includes_export_root(_mock_which):
+    result = runner.invoke(app, ["plugin", "doctor", "--json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert "export_root" in payload
+    assert any(row["client"] == "codex" for row in payload["clients"])

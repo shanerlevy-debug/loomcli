@@ -10,21 +10,16 @@ Codex plugin package for operating the Powerloom `weave` CLI.
 - Manifest authoring and troubleshooting guidance.
 - Provider-agnostic invocation rules: Codex should use Powerloom's control plane, not direct provider API calls.
 
-## Development Install
+## Install
 
-Codex installs plugin marketplaces, not raw plugin package directories. Point Codex at the marketplace root:
+Codex installs plugin marketplaces, not raw plugin package directories. Let `weave` export the bundled marketplace assets and add the exported root:
 
 ```bash
-codex plugin marketplace add /path/to/loomcli/plugins/codex
+pip install -U loomcli
+weave plugin install codex --execute
 ```
 
-On this checkout:
-
-```powershell
-codex plugin marketplace add D:\powerloom\loomcli\plugins\codex
-```
-
-From a loomcli checkout, `weave plugin instructions codex` prints the exact marketplace path and `weave plugin doctor codex` checks that the package exists and Codex is on PATH.
+`weave plugin instructions codex` prints the exact marketplace path and `weave plugin doctor codex` checks that the package exists and Codex is on PATH.
 
 The plugin package lives at `plugins/codex/powerloom-weave`; the marketplace manifest lives at `plugins/codex/.agents/plugins/marketplace.json`.
 
@@ -38,11 +33,11 @@ enabled = true
 The plugin expects `weave` to be installed:
 
 ```bash
-pip install -e /path/to/loomcli
+pip install -U loomcli
 weave --version
 ```
 
 ## Onboarding a fresh Codex session
 
 If you're a fresh Codex session reading this for the first time, ask "how do I get started with Powerloom?" — the `powerloom-onboarding` skill auto-loads and walks you through installing loomcli, `weave login`, loading this plugin, and filing your first tracker thread.
-If Codex reports that the marketplace root does not contain a supported manifest, use the `plugins/codex` directory above instead of `plugins/codex/powerloom-weave`.
+If Codex reports that the marketplace root does not contain a supported manifest, rerun `weave plugin instructions codex` and use the exported marketplace root it prints, not the nested `powerloom-weave` package directory.

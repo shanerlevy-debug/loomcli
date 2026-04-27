@@ -21,16 +21,15 @@ All plugins should route agent invocation through `weave ask` or `weave chat`, n
 weave plugin doctor
 
 # Claude Code
-claude --plugin-dir /path/to/loomcli/plugin
+weave plugin instructions claude-code
 
 # Codex
-# Codex installs marketplace roots. Point it at plugins/codex, not the package folder.
-codex plugin marketplace add /path/to/loomcli/plugins/codex
+weave plugin install codex --execute
 
 # Gemini CLI
-gemini extensions install /path/to/loomcli/plugins/gemini/powerloom-weave --consent --skip-settings
+weave plugin install gemini --execute
 ```
 
-`weave plugin instructions <client>` prints the expected command for the current checkout. `weave plugin install <client>` is a dry run by default; pass `--execute` after reviewing the printed command.
+`weave plugin instructions <client>` prints the expected command using the plugin assets bundled in the pip-installed `loomcli` package. `weave plugin install <client>` is a dry run by default; pass `--execute` after reviewing the printed command.
 
-On Windows, replace placeholder paths with real paths and do not type angle brackets such as `<loomcli>` in PowerShell; `<` is parsed as redirection. If Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.
+If Gemini CLI fails with `spawn EPERM`, run the install commands with `GEMINI_CLI_NO_RELAUNCH=true`.

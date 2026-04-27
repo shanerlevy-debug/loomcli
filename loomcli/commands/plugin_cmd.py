@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -11,58 +13,62 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-
-CLIENT_NAMES = ("claude-code", "codex", "gemini", "antigravity")
+from loomcli.plugin_assets import (
+    CLIENT_NAMES,
+    PluginAssetError,
+    plugin_export_root,
+    plugin_path,
+)
 
 app = typer.Typer(no_args_is_help=True, help="Inspect and install Powerloom client plugins.")
 _console = Console()
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def _client_specs() -> dict[str, dict[str, Any]]:
-    root = _repo_root()
+    claude_path = plugin_path("claude-code")
+    codex_path = plugin_path("codex")
+    gemini_path = plugin_path("gemini")
     return {
         "claude-code": {
             "binary": "claude",
-            "path": root / "plugin",
+            "path": claude_path,
             "instructions": [
                 "weave setup-claude-code --project <path-to-powerloom-checkout>",
-                f"claude --plugin-dir {root / 'plugin'}",
+                f"claude --plugin-dir {claude_path}",
             ],
             "install": ["weave", "setup-claude-code"],
         },
         "codex": {
             "binary": "codex",
-            "path": root / "plugins" / "codex",
+            "path": codex_path,
             "instructions": [
-                f"codex plugin marketplace add {root / 'plugins' / 'codex'}",
+                f"codex plugin marketplace add {codex_path}",
                 "Enable powerloom-weave@powerloom in Codex if it is not auto-enabled.",
             ],
-            "install": ["codex", "plugin", "marketplace", "add", str(root / "plugins" / "codex")],
+            "install": ["codex", "plugin", "marketplace", "add", str(codex_path)],
         },
         "gemini": {
             "binary": "gemini",
-            "path": root / "plugins" / "gemini" / "powerloom-weave",
+            "path": gemini_path,
             "instructions": [
-                f"gemini extensions install {root / 'plugins' / 'gemini' / 'powerloom-weave'} --consent --skip-settings",
+                f"gemini extensions install {gemini_path} --consent --skip-settings",
                 "gemini extensions enable powerloom-weave",
             ],
             "install": [
                 "gemini",
                 "extensions",
                 "install",
-                str(root / "plugins" / "gemini" / "powerloom-weave"),
+                str(gemini_path),
                 "--consent",
                 "--skip-settings",
             ],
         },
         "antigravity": {
             "binary": None,
-            "path": root / "plugins" / "gemini" / "powerloom-weave",
+            "path": plugin_path("antigravity"),
             "instructions": [
+                "Powerloom uses the bundled Gemini-style extension assets for Antigravity.",
+                f"Extension assets: {plugin_path('antigravity')}",
                 "Open ~/.gemini/antigravity/mcp_config.json.",
                 "Add Powerloom as a local stdio or hosted remote MCP server.",
                 "Restart Antigravity so it reloads MCP config.",
@@ -73,7 +79,11 @@ def _client_specs() -> dict[str, dict[str, Any]]:
 
 
 def _spec_or_exit(client: str) -> dict[str, Any]:
-    specs = _client_specs()
+    try:
+        specs = _client_specs()
+    except PluginAssetError as e:
+        _console.print(f"[red]Plugin assets unavailable:[/red] {e}")
+        raise typer.Exit(1) from e
     if client not in specs:
         _console.print(
             f"[red]Unknown client {client!r}.[/red] "
@@ -96,7 +106,12 @@ def doctor_cmd(
     ] = False,
 ) -> None:
     """Check local plugin files and client binaries."""
-    specs = _client_specs()
+    try:
+        specs = _client_specs()
+        asset_error = None
+    except PluginAssetError as e:
+        specs = {}
+        asset_error = str(e)
     if client and client not in specs:
         _spec_or_exit(client)
     keys = [client] if client else sorted(specs)
@@ -135,11 +150,29 @@ def doctor_cmd(
                 "binary": binary or "(manual config)",
                 "binary_status": status_binary,
                 "binary_path": binary_path or "",
+                "install_command": spec.get("install") or [],
+            }
+        )
+    if asset_error:
+        rows.append(
+            {
+                "client": client or "all",
+                "plugin_path": "",
+                "plugin_path_status": "fail",
+                "binary": "",
+                "binary_status": "warn",
+                "binary_path": asset_error,
+                "install_command": [],
             }
         )
 
     if json_out:
-        typer.echo(json.dumps(rows, indent=2))
+        typer.echo(
+            json.dumps(
+                {"export_root": str(plugin_export_root()), "clients": rows},
+                indent=2,
+            )
+        )
         return
 
     table = Table(title="Powerloom plugin doctor", show_header=True)
@@ -169,6 +202,26 @@ def instructions_cmd(
         _console.print(f"  {line}")
 
 
+@app.command("path")
+def path_cmd(
+    client: Annotated[str, typer.Argument(help="Client name.")],
+    json_out: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Print the exported plugin path for one client."""
+    try:
+        path = plugin_path(client)
+    except PluginAssetError as e:
+        if json_out:
+            typer.echo(json.dumps({"client": client, "error": str(e)}, indent=2))
+        else:
+            _console.print(f"[red]Plugin assets unavailable:[/red] {e}")
+        raise typer.Exit(1) from e
+    if json_out:
+        typer.echo(json.dumps({"client": client, "path": str(path)}, indent=2))
+        return
+    typer.echo(str(path))
+
+
 @app.command("install")
 def install_cmd(
     client: Annotated[str, typer.Argument(help="Client name.")],
@@ -186,7 +239,7 @@ def install_cmd(
             _console.print(f"  {line}")
         return
 
-    _console.print(" ".join(command))
+    _console.print(_format_command(command))
     if not execute:
         _console.print("[dim]Dry run. Re-run with --execute to run it.[/dim]")
         return
@@ -203,3 +256,9 @@ def _status(status: str, value: str) -> str:
     if status == "warn":
         return f"[yellow]warn[/yellow] {value}"
     return f"[red]fail[/red] {value}"
+
+
+def _format_command(command: list[str]) -> str:
+    if os.name == "nt":
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
