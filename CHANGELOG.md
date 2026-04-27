@@ -7,6 +7,18 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+- `weave plugin install <client> --execute` now executes the resolved client
+  executable path from `shutil.which()` instead of the bare command name. This
+  fixes Windows npm shim installs where PowerShell can run `codex`, but Python
+  `subprocess.run(["codex", ...])` raises `[WinError 2]`.
+- `weave plugin install claude-code --execute` is now documented as the
+  standard Claude Code setup path, with `--project-dir` and
+  `--use-env-substitution` forwarded to `weave setup-claude-code`.
+- Windows plugin assets now export to `%USERPROFILE%\.powerloom\plugins`
+  by default so Codex/Gemini/Claude can read the marketplace directory even
+  when `weave` is running under Microsoft Store Python AppData virtualization.
+  `POWERLOOM_HOME` and `POWERLOOM_PLUGIN_HOME` still override this path.
+
 ## v0.7.3 — 2026-04-28 (CLI)
 
 **`weave conventions sync` auto-detects OU scope.** Closes powerloom thread `53b781c8`. The SessionStart hook in `.claude/settings.json` no longer needs a hardcoded `--scope` argument — the CLI walks four detection paths in order until one resolves.

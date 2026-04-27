@@ -1,6 +1,7 @@
 """Bundled client-plugin asset discovery and export helpers."""
 from __future__ import annotations
 
+import os
 import shutil
 from importlib import resources
 from pathlib import Path
@@ -18,6 +19,15 @@ class PluginAssetError(RuntimeError):
 
 def plugin_export_root() -> Path:
     """Return the stable local root where bundled plugin assets are exported."""
+    plugin_home = os.environ.get("POWERLOOM_PLUGIN_HOME")
+    if plugin_home:
+        return Path(plugin_home).expanduser() / __version__
+    if os.name == "nt" and not os.environ.get("POWERLOOM_HOME"):
+        # Python installed from the Microsoft Store can virtualize writes under
+        # AppData\Local. Other CLIs launched by weave (codex/gemini/claude)
+        # then cannot see the exported marketplace path. Keep plugin assets in
+        # a normal user-profile cache by default on Windows.
+        return Path.home() / ".powerloom" / "plugins" / __version__
     return config_dir() / "plugins" / __version__
 
 
@@ -96,6 +106,7 @@ def _copy_tree(source, destination: Path) -> None:
         if item.is_dir():
             _copy_tree(item, target)
         else:
+            target.parent.mkdir(parents=True, exist_ok=True)
             with item.open("rb") as reader:
                 target.write_bytes(reader.read())
 
