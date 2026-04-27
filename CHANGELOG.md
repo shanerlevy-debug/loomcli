@@ -8,6 +8,27 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 ## Unreleased
 
 
+## v0.6.6 — 2026-04-27 (CLI)
+
+**Bulk-migration toolkit + sprint hierarchy + empty-folder bootstrap.** Surfaces a handful of post-v0.6.5 features so the post-org-reorg workflow has the CLI primitives it needs.
+
+### New commands
+
+- **`weave thread move <ref> --to <project> [--force]`** — Cross-project thread move with safe cleanup. Two-phase: without `--force` returns 409 with the cleanup plan (sprint memberships in source project, milestone/parent FK references, dependency edges that would become cross-project); with `--force` applies the cleanup + the move with full audit reply on the moved thread. Pairs with Powerloom #164 (`POST /threads/{id}/move`).
+- **`weave agent-session bootstrap`** — Empty-folder onboarding flow for new clients (PR #37). Initializes a workspace from a project's bootstrap config without requiring a pre-existing checkout.
+
+### Sprint hierarchy
+
+- **`weave sprint create --milestone <uuid>`**, **`weave sprint update <ref> --milestone <uuid>`**, **`weave sprint list --milestone <uuid>`** — Sprints can now nest under milestones (Project > Milestone > Sprint > Thread > Subthread). Pairs with Powerloom #165 (migration 0068 + service-layer support). UUID-only today; milestone slug-resolution lands as a follow-up.
+
+### Tests
+
+- 4 new in `test_sprint_cmd.py` (--milestone create/update/list + UUID validation)
+- 4 new in `test_thread_cmd.py` (move endpoint UUID/slug/force/409 paths)
+- 24 new in `test_agent_session_cli.py` for bootstrap (Codex contribution)
+- Full suite: **684 passed** (was 650 in v0.6.5; +34 net).
+
+
 ## v0.6.5 — 2026-04-27 (CLI)
 
 **Sub-principal pipeline + sprint CLI + slug resolver across the board.** First non-rc release in the v0.6 line — drops the `-rcN` suffix per the new versioning convention (releases are stable by default, pre-releases happen on side-branches when needed).
