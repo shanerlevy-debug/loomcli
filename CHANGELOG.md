@@ -7,6 +7,37 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.3 — 2026-04-28 (CLI)
+
+**`weave conventions sync` auto-detects OU scope.** Closes powerloom thread `53b781c8`. The SessionStart hook in `.claude/settings.json` no longer needs a hardcoded `--scope` argument — the CLI walks four detection paths in order until one resolves.
+
+### Detection chain
+
+1. Explicit `--scope <dotted-path>` (existing, highest priority)
+2. Cached scope from the last successful sync in this config dir (existing, v0.6.8+)
+3. **NEW:** Active sub-principal's home OU — fetched via `/me`, then walked through `/ous/tree` to build the dotted slug path
+4. **NEW:** `git remote get-url origin` → matched against `tracker_projects.github_repo_url`; the project's `ou_id` becomes the scope (pairs with Powerloom migration 0072)
+
+If all four fail, the error message now lists each path tried.
+
+### What you can drop
+
+The `.claude/settings.json` hook can shrink from:
+```bash
+weave conventions sync --scope bespoke-technology.powerloom --runtime claude_code --quiet
+```
+to:
+```bash
+weave conventions sync --runtime claude_code --quiet
+```
+
+(Recommended once you've signed in once: the auth-gated detection paths need a valid token. The hook continues to work with the explicit `--scope` for full back-compat.)
+
+### Tests
+
+- 15/15 passing. Existing `test_sync_no_scope_no_cache_exits_2` updated to assert the new "Could not determine OU scope" error shape.
+
+
 ## v0.7.2 — 2026-04-28 (CLI)
 
 **Agent-session registration for non-developers.** The `register` command no longer assumes a git checkout. Three explicit scope-detection paths, friendlier errors, and a new interactive `start` command for users who don't have (or want) a branch dependency.

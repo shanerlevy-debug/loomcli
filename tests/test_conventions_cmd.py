@@ -251,7 +251,10 @@ def test_sync_no_scope_no_cache_exits_2(mock_client, tmp_path) -> None:
          "--workdir", str(workdir), "--runtime", "claude_code"],
     )
     assert result.exit_code == 2
-    assert "no --scope" in _strip_ansi(result.output).lower()
+    # v0.7.3 — error message mentions OU scope and the auto-detect chain.
+    out = _strip_ansi(result.output).lower()
+    assert "scope" in out
+    assert "--scope" in out
 
 
 def test_sync_invalid_runtime_exits_2(mock_client, tmp_path) -> None:
