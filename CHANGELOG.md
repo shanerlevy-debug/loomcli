@@ -7,6 +7,21 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.5 — 2026-04-28 (CLI)
+
+**Friendly name for agent sessions.** Demo-day ask from Shane: when registering an agent session, give it a human-readable display name distinct from the machine slug.
+
+### What changed
+
+- **`weave agent-session register --friendly-name "Shane CC laptop"`** — new optional flag. Persists to the new `agent_sessions.friendly_name` column (Powerloom migration 0074). The console UI shows this as the primary label on the sessions list and falls through to the machine slug when null.
+- **`weave agent-session start`** — interactive prompt added: after scope + summary, asks for a friendly name (default = the scope slug, so pressing Enter keeps the existing behavior).
+
+### Pairs with
+
+- Powerloom migration 0074 (adds `agent_sessions.friendly_name` column).
+- Powerloom UI `/agents?tab=sessions` — new "Coordination sessions" section listing CC / Codex / Gemini / Antigravity sessions registered via `weave agent-session register`.
+
+
 ## v0.7.4 — 2026-04-28 (CLI)
 
 **Thread management UX (PR #49 by sister agent).** Closes powerloom thread `0040b2b3`.

@@ -364,7 +364,8 @@ def test_start_command_prompts_and_registers():
         result = runner.invoke(
             app,
             ["agent-session", "start"],
-            input="triage-2026-04-28\n\n",  # scope, then enter to accept default summary
+            # scope, then enter for default summary, then enter for default friendly_name
+            input="triage-2026-04-28\n\n\n",
         )
     assert result.exit_code == 0, result.output
     first_post = mock_client.post.call_args_list[0]
