@@ -75,20 +75,81 @@ app = typer.Typer(help="Manage Powerloom tracker threads (create / pluck / reply
 SUBPRINCIPAL_ENV_VAR = "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID"
 
 
+def _resolve_active_subprincipal_id() -> Optional[str]:
+    """Pick the active sub-principal UUID for this session, with two-tier
+    resolution:
+
+      1. `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var — explicit override,
+         wins when set (and non-empty). Same as v0.6.4-rc1 behavior.
+      2. Per-scope cache file at `<config_dir>/active-subprincipal-<scope>.txt` —
+         written by `weave agent-session register`. Fallback because
+         shell SessionStart hooks can't propagate env to the parent
+         shell, so the env-var-only path is a no-op for every real
+         agent session today (verified in the v067 onboarding sprint).
+
+    `<scope>` is derived from the current git branch via the
+    `session/<scope>-<yyyymmdd>` convention. Branches that don't match
+    return None for the file path → fall through to "no attribution"
+    (graceful degradation; old behavior).
+
+    Returns None when neither source resolves.
+    """
+    # Tier 1 — env var
+    env_id = os.environ.get(SUBPRINCIPAL_ENV_VAR, "").strip()
+    if env_id:
+        return env_id
+
+    # Tier 2 — per-scope cache file
+    import subprocess as _subprocess
+    try:
+        result = _subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True, text=True, timeout=5,
+        )
+        branch = (result.stdout or "").strip()
+    except (FileNotFoundError, _subprocess.TimeoutExpired):
+        return None
+    if not branch.startswith("session/"):
+        return None
+    scope = branch[len("session/"):]
+    if not scope:
+        return None
+
+    from loomcli.config import active_subprincipal_file
+    path = active_subprincipal_file(scope)
+    if not path.exists():
+        return None
+    try:
+        cached = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    # Validate UUID-ish shape (skip the malformed leftovers that an
+    # earlier broken hook could have written). uuid.UUID raises
+    # ValueError on bad input.
+    try:
+        uuid.UUID(cached)
+    except (ValueError, TypeError):
+        return None
+    return cached
+
+
 def _build_session_attribution(client: PowerloomClient) -> Optional[dict]:
     """Fetch the active sub-principal's details and assemble the
     session_attribution payload to merge into metadata_json.
 
+    Resolution order (see `_resolve_active_subprincipal_id`):
+      1. `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var
+      2. Per-scope cache file written by `weave agent-session register`
+
     Returns None when:
-    - POWERLOOM_ACTIVE_SUBPRINCIPAL_ID env var is unset (most callers)
-    - The sub-principal lookup fails (logged as a debug warning, not a hard fail)
-    - The env var is set to an empty string
+    - Neither source resolves a sub-principal id (most direct-human callers)
+    - The sub-principal lookup against /me/agents fails (logged + continues)
 
     The shape matches what the dogfood scripts have been writing manually so
     queries (e.g. "find threads attributed to Claude Code sessions") work
     against both old (manually-stamped) and new (auto-stamped) threads.
     """
-    sp_id = os.environ.get(SUBPRINCIPAL_ENV_VAR, "").strip()
+    sp_id = _resolve_active_subprincipal_id()
     if not sp_id:
         return None
     try:

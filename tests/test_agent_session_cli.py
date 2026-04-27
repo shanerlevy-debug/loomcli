@@ -85,8 +85,11 @@ def test_register_emits_expected_payload(mock_client_cls, monkeypatch, tmp_path)
     assert result.exit_code == 0, result.stdout
     assert "Registered" in result.stdout
     assert "t-reg-20260421" in result.stdout
-    # Verify POST was called with the expected body shape.
-    args, kwargs = mock_client.post.call_args
+    # Verify the agent-sessions POST. v067 onboarding sprint added a
+    # second POST to /me/agents (find-or-create sub-principal); look at
+    # the FIRST POST call rather than .call_args (which is the LAST).
+    first_post = mock_client.post.call_args_list[0]
+    args, kwargs = first_post
     assert args[0] == "/agent-sessions"
     sent = args[1]
     assert sent["session_slug"] == "t-reg-20260421"
@@ -161,7 +164,9 @@ def test_register_from_branch_infers_scope(monkeypatch):
         result = runner.invoke(app, ["agent-session", "register", "--from-branch"])
 
     assert result.exit_code == 0, result.output
-    called_body = mock_client.post.call_args[0][1]
+    # First POST is the agent-session register; subsequent POSTs are
+    # the v067-era /me/agents sub-principal find-or-create.
+    called_body = mock_client.post.call_args_list[0][0][1]
     assert called_body["session_slug"] == "phase23-service-accounts-20260425"
     assert called_body["branch_name"] == "session/phase23-service-accounts-20260425"
 
@@ -181,7 +186,7 @@ def test_register_from_branch_scope_can_be_overridden(monkeypatch):
         )
 
     assert result.exit_code == 0, result.output
-    called_body = mock_client.post.call_args[0][1]
+    called_body = mock_client.post.call_args_list[0][0][1]
     assert called_body["session_slug"] == "custom-scope"
 
 
@@ -247,7 +252,12 @@ def test_register_if_not_active_proceeds_when_not_registered():
         )
 
     assert result.exit_code == 0, result.output
-    mock_client.post.assert_called_once()
+    # First POST is /agent-sessions; second POST (v067 onboarding) is
+    # /me/agents for sub-principal find-or-create. Both happen on a
+    # successful register; the test only cares that the
+    # agent-sessions one fired (i.e. --if-not-active didn't short-circuit).
+    posted_paths = [c.args[0] for c in mock_client.post.call_args_list]
+    assert "/agent-sessions" in posted_paths
 
 
 def test_register_missing_scope_without_from_branch_errors():
@@ -335,3 +345,95 @@ def test_agent_session_watch_once_prints_compact_line(mock_client_cls, monkeypat
     assert result.exit_code == 0, result.stdout
     assert "codex-onboarding" in result.stdout
     assert "finish-cli:running" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# v067 onboarding sprint — sub-principal find-or-create + cache file
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_subprincipal_creates_when_missing(monkeypatch, tmp_path):
+    """First call for a (kind, scope) creates the sub-principal + writes the file."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    from loomcli.commands.agent_session_cmd import _ensure_subprincipal
+    from loomcli.config import active_subprincipal_file
+
+    client = MagicMock()
+    client.get.return_value = []  # no existing sub-principals
+    client.post.return_value = {
+        "id": "sp-uuid-aaaa-bbbb-cccc-dddddddddddd",
+        "name": "claude_code:my-test-scope-20260427",
+        "client_kind": "claude_code",
+    }
+
+    sid = _ensure_subprincipal(client, scope="my-test-scope-20260427", actor_kind="claude_code")
+    assert sid == "sp-uuid-aaaa-bbbb-cccc-dddddddddddd"
+
+    # Created with the right name + client_kind
+    args, _ = client.post.call_args
+    assert args[0] == "/me/agents"
+    assert args[1]["name"] == "claude_code:my-test-scope-20260427"
+    assert args[1]["client_kind"] == "claude_code"
+
+    # File written
+    path = active_subprincipal_file("my-test-scope-20260427")
+    assert path.exists()
+    assert path.read_text(encoding="utf-8").strip() == "sp-uuid-aaaa-bbbb-cccc-dddddddddddd"
+
+
+def test_ensure_subprincipal_reuses_existing(monkeypatch, tmp_path):
+    """If a sub-principal with the desired name exists, no POST happens."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    from loomcli.commands.agent_session_cmd import _ensure_subprincipal
+
+    client = MagicMock()
+    client.get.return_value = [
+        {"id": "existing-uuid", "name": "claude_code:existing-scope-20260427"},
+        {"id": "other-uuid", "name": "codex_cli:other-scope-20260427"},
+    ]
+
+    sid = _ensure_subprincipal(client, scope="existing-scope-20260427", actor_kind="claude_code")
+    assert sid == "existing-uuid"
+    client.post.assert_not_called()
+
+
+def test_ensure_subprincipal_per_scope_isolation(monkeypatch, tmp_path):
+    """Two scopes -> two separate cache files."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    from loomcli.commands.agent_session_cmd import _ensure_subprincipal
+    from loomcli.config import active_subprincipal_file
+
+    client = MagicMock()
+    client.get.return_value = []
+    client.post.side_effect = [
+        {"id": "uuid-a", "name": "claude_code:scope-a-20260427"},
+        {"id": "uuid-b", "name": "claude_code:scope-b-20260427"},
+    ]
+
+    a = _ensure_subprincipal(client, scope="scope-a-20260427", actor_kind="claude_code")
+    b = _ensure_subprincipal(client, scope="scope-b-20260427", actor_kind="claude_code")
+    assert a == "uuid-a"
+    assert b == "uuid-b"
+
+    pa = active_subprincipal_file("scope-a-20260427")
+    pb = active_subprincipal_file("scope-b-20260427")
+    assert pa.read_text().strip() == "uuid-a"
+    assert pb.read_text().strip() == "uuid-b"
+    # Different files
+    assert pa != pb
+
+
+def test_ensure_subprincipal_graceful_on_network_failure(monkeypatch, tmp_path):
+    """If /me/agents GET fails, return None — register still succeeds."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    from loomcli.commands.agent_session_cmd import _ensure_subprincipal
+    from loomcli.client import PowerloomApiError
+
+    client = MagicMock()
+    client.get.side_effect = PowerloomApiError(503, "service unavailable")
+
+    sid = _ensure_subprincipal(client, scope="any-20260427", actor_kind="claude_code")
+    assert sid is None
+    # No file written on failure
+    from loomcli.config import active_subprincipal_file
+    assert not active_subprincipal_file("any-20260427").exists()

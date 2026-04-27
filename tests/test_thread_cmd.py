@@ -750,3 +750,106 @@ def test_orphans_include_done_flag(mock_client) -> None:
     assert result.exit_code == 0
     last_call = mock_client.get.call_args_list[-1]
     assert last_call.kwargs.get("include_done") is True
+
+
+# ---------------------------------------------------------------------------
+# v067 onboarding sprint — sub-principal resolution (env var + file fallback)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_subprincipal_env_var_wins(monkeypatch, tmp_path):
+    """Tier 1: env var takes precedence over the per-scope file."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    monkeypatch.setenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", "env-sourced-uuid")
+    from loomcli.commands.thread_cmd import _resolve_active_subprincipal_id
+    # Even if a file exists for some scope, env var wins
+    from loomcli.config import active_subprincipal_file
+    p = active_subprincipal_file("any-scope-20260427")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("99999999-9999-9999-9999-999999999999", encoding="utf-8")
+
+    assert _resolve_active_subprincipal_id() == "env-sourced-uuid"
+
+
+def test_resolve_subprincipal_file_fallback(monkeypatch, tmp_path):
+    """Tier 2: when env var is unset, per-scope file is read.
+
+    Branch detection is mocked via subprocess monkeypatch.
+    """
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    # Stage the cache file
+    from loomcli.config import active_subprincipal_file
+    cached = "11111111-1111-1111-1111-111111111111"
+    p = active_subprincipal_file("test-scope-20260427")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(cached, encoding="utf-8")
+
+    # Mock git branch lookup
+    import subprocess as _sp
+    class _R:
+        stdout = "session/test-scope-20260427\n"
+    monkeypatch.setattr(_sp, "run", lambda *a, **kw: _R())
+
+    from loomcli.commands.thread_cmd import _resolve_active_subprincipal_id
+    assert _resolve_active_subprincipal_id() == cached
+
+
+def test_resolve_subprincipal_returns_none_when_no_source(monkeypatch, tmp_path):
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    import subprocess as _sp
+    class _R:
+        stdout = "main\n"   # not a session/ branch
+    monkeypatch.setattr(_sp, "run", lambda *a, **kw: _R())
+    from loomcli.commands.thread_cmd import _resolve_active_subprincipal_id
+    assert _resolve_active_subprincipal_id() is None
+
+
+def test_resolve_subprincipal_ignores_invalid_uuid_in_file(monkeypatch, tmp_path):
+    """A corrupt cache file (not a UUID) returns None instead of crashing."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    from loomcli.config import active_subprincipal_file
+    p = active_subprincipal_file("test-scope-20260427")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("not-a-uuid", encoding="utf-8")
+    import subprocess as _sp
+    class _R:
+        stdout = "session/test-scope-20260427\n"
+    monkeypatch.setattr(_sp, "run", lambda *a, **kw: _R())
+    from loomcli.commands.thread_cmd import _resolve_active_subprincipal_id
+    assert _resolve_active_subprincipal_id() is None
+
+
+def test_build_session_attribution_uses_file_fallback(monkeypatch, tmp_path):
+    """End-to-end: env var unset, file present, /me/agents/<id> returns the sub-principal."""
+    monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path))
+    monkeypatch.delenv("POWERLOOM_ACTIVE_SUBPRINCIPAL_ID", raising=False)
+    from loomcli.config import active_subprincipal_file
+    sp_id = "22222222-2222-2222-2222-222222222222"
+    p = active_subprincipal_file("test-scope-20260427")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(sp_id, encoding="utf-8")
+    import subprocess as _sp
+    class _R:
+        stdout = "session/test-scope-20260427\n"
+    monkeypatch.setattr(_sp, "run", lambda *a, **kw: _R())
+
+    client = MagicMock()
+    client.get.return_value = {
+        "id": sp_id,
+        "principal_id": "principal-aaa",
+        "name": "claude_code:test-scope-20260427",
+        "client_kind": "claude_code",
+        "user_id": "user-bbb",
+    }
+
+    from loomcli.commands.thread_cmd import _build_session_attribution
+    payload = _build_session_attribution(client)
+    assert payload is not None
+    assert payload["subprincipal_id"] == sp_id
+    assert payload["subprincipal_name"] == "claude_code:test-scope-20260427"
+    assert payload["client_kind"] == "claude_code"
+    # The GET hit /me/agents/<id>
+    assert client.get.call_args.args[0] == f"/me/agents/{sp_id}"

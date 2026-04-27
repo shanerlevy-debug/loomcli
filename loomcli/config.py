@@ -42,6 +42,26 @@ def credentials_file() -> Path:
     return _base_dir() / "credentials"
 
 
+def active_subprincipal_file(scope: str) -> Path:
+    """Return the path to the per-scope active-sub-principal cache file.
+
+    Written by `weave agent-session register`, read by
+    `loomcli.commands.thread_cmd._build_session_attribution` as a
+    fallback when `POWERLOOM_ACTIVE_SUBPRINCIPAL_ID` env var is unset.
+
+    Per-scope (not per-branch) so the same sub-principal stays the same
+    across `cd`s into multiple worktrees of the same scope. The scope
+    string follows the `session/<scope>-<yyyymmdd>` branch convention
+    minus the `session/` prefix.
+
+    File contains a single line: the sub-principal UUID. Anything else
+    (whitespace, comments) is tolerated by the reader (it strips +
+    treats invalid UUID as "no cached sub-principal").
+    """
+    safe_scope = scope.replace("/", "_").replace("\\", "_")
+    return _base_dir() / f"active-subprincipal-{safe_scope}.txt"
+
+
 def config_file() -> Path:
     """Return the path to the optional config.toml (re-read each call)."""
     return _base_dir() / "config.toml"
