@@ -150,7 +150,7 @@ COMMANDS: list[dict[str, Any]] = [
         "summary": "Print or execute an install command for a client plugin.",
         "status": "available",
         "args": ["client"],
-        "options": ["--execute"],
+        "options": ["--execute", "--project-dir", "--use-env-substitution"],
     },
     {
         "command": "weave profile show",

@@ -200,13 +200,15 @@ weave approval wait <approval-id>
 ```bash
 weave doctor
 weave plugin doctor
-weave plugin instructions codex
-weave plugin instructions gemini
+weave plugin install claude-code
 weave plugin install codex
 weave plugin install gemini
+weave agent-session bootstrap --project powerloom --client codex_cli
 ```
 
-`weave doctor` checks local auth, the configured API URL, advertised server capabilities, supported actor kinds, and common client binaries on PATH. `weave plugin doctor` checks local plugin package paths for Claude Code, Codex, Gemini, and Antigravity. Install commands default to dry-run output; pass `--execute` only after reviewing the command.
+`weave doctor` checks local auth, the configured API URL, advertised server capabilities, supported actor kinds, and common client binaries on PATH. `weave plugin doctor` checks local plugin package paths for Claude Code, Codex, Gemini, and Antigravity. Install commands default to dry-run output; pass `--execute` only after reviewing the command. Use `--client claude_code`, `--client codex_cli`, or `--client gemini_cli` with `agent-session bootstrap` to use the same checkout-and-register flow for each CLI.
+
+Plugin assets are exported on first use. On Windows the default plugin cache is `%USERPROFILE%\.powerloom\plugins\<version>` so client CLIs can read the files even when Python is installed from the Microsoft Store. Set `POWERLOOM_PLUGIN_HOME` to override only the plugin cache, or `POWERLOOM_HOME` to override the full Powerloom config root.
 
 ## Schema as source of truth
 

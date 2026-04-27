@@ -7,6 +7,30 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.7 — 2026-04-28 (CLI)
+
+**Windows hardening + JSON-by-default for agents + new `weave project` group.** Sister-agent PR #54 + rebase-fix on top of v0.7.6.
+
+### Windows / cross-platform
+
+- `weave plugin install <client> --execute` now resolves the client executable's full path via `shutil.which()` and execs that path directly. Fixes Windows npm-shim installs where PowerShell can run `codex` but Python's `subprocess.run(["codex", ...])` raises `[WinError 2]`.
+- `weave plugin install claude-code --execute` documented as the standard Claude Code setup path; forwards `--project-dir` and `--use-env-substitution` to `weave setup-claude-code`.
+- Windows plugin assets now export to `%USERPROFILE%\.powerloom\plugins` by default so Codex/Gemini/Claude can read the marketplace directory even when `weave` runs under Microsoft Store Python AppData virtualization. `POWERLOOM_HOME` and `POWERLOOM_PLUGIN_HOME` still override.
+- New `tests/test_stdio_encoding.py` ensures rich's box-drawing chars render correctly under cp1252 / cp932 (the long-standing Windows table-rendering issue).
+
+### Agent ergonomics
+
+- **Auto-JSON output** — when `POWERLOOM_FORMAT=json` is unset, the CLI now sniffs whether stdout is a TTY (or set by an agent runner). Agent processes get JSON automatically; humans get rich tables. Manual `--json` still wins.
+- New `tests/test_auto_json_output.py` covers the heuristic.
+
+### `weave project`
+
+- New top-level command group: `weave project list / get / create / archive`. Wraps the engine's `/projects` endpoints with the same UX as `weave thread`.
+
+### Pairs with
+
+- v0.7.6's `weave thread search` (already shipped) — `weave project list` is the project-side companion.
+
 ## v0.7.6 — 2026-04-28 (CLI)
 
 **`weave thread search <query>`** — global cross-project thread search. Pairs with the new search bar on the console UI's `/projects` page.
@@ -50,7 +74,6 @@ Closes powerloom thread `2dbbefde`. Same engine endpoint (`GET /threads/search`)
 ### Compat
 
 - `_CLIENT_TO_ACTOR` map widened to accept `human` / `cma` / `reconciler` actor kinds (added in v0.7.2 for non-dev paths but missed in #49's actor-kind validator).
-
 
 ## v0.7.3 — 2026-04-28 (CLI)
 
