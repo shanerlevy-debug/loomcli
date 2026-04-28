@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 app = typer.Typer(help="Inspect + decide on approval requests.")
 _console = Console()
@@ -41,10 +41,6 @@ def list_approvals(
         help="Which tab: 'to_approve' (for you to decide), 'mine' (you requested), 'recent' (everything visible).",
     ),
     limit: int = typer.Option(50, "--limit", "-n"),
-    output_format: str = typer.Option(
-        "table", "--format", "-f",
-        help="Output: 'table' or 'json'.",
-    ),
 ) -> None:
     """List approval requests."""
     cfg = load_runtime_config()
@@ -64,7 +60,7 @@ def list_approvals(
         _console.print(f"[dim]No approval requests in '{tab}' tab.[/dim]")
         return
 
-    if output_format == "json":
+    if is_json_output():
         _console.print(json.dumps(items, indent=2, default=str))
         return
 
@@ -138,7 +134,6 @@ def wait_approval(
     timeout: float = typer.Option(
         300.0, "--timeout", help="Maximum seconds to wait."
     ),
-    json_out: bool = typer.Option(False, "--json", help="Print final row as JSON."),
 ) -> None:
     """Poll one approval request until it leaves pending."""
     cfg = load_runtime_config()
@@ -157,7 +152,7 @@ def wait_approval(
 
             status = str(row.get("status", ""))
             if status != "pending":
-                if json_out:
+                if is_json_output():
                     _console.print(json.dumps(row, indent=2, default=str))
                 else:
                     _console.print(
@@ -170,7 +165,7 @@ def wait_approval(
                 raise typer.Exit(2)
 
             if time.monotonic() >= deadline:
-                if json_out:
+                if is_json_output():
                     _console.print(json.dumps(row, indent=2, default=str))
                 else:
                     _console.print(
@@ -179,7 +174,7 @@ def wait_approval(
                     )
                 raise typer.Exit(124)
 
-            if not json_out:
+            if not is_json_output():
                 _console.print(
                     f"[dim]{request_id} pending; polling again in {interval:g}s[/dim]"
                 )
@@ -203,6 +198,10 @@ def approve(
         except PowerloomApiError as e:
             _console.print(f"[red]Approve failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        _console.print(json.dumps(r, indent=2, default=str))
+        return
     _console.print(f"[green]Approved {request_id}[/green] status: {r.get('status', '?')}")
 
 
@@ -223,6 +222,10 @@ def reject(
         except PowerloomApiError as e:
             _console.print(f"[red]Reject failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        _console.print(json.dumps(r, indent=2, default=str))
+        return
     _console.print(f"[red]Rejected {request_id}[/red] status: {r.get('status', '?')}")
 
 
@@ -243,6 +246,10 @@ def cancel(
         except PowerloomApiError as e:
             _console.print(f"[red]Cancel failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        _console.print(json.dumps(r, indent=2, default=str))
+        return
     _console.print(f"[dim]Cancelled {request_id}[/dim] status: {r.get('status', '?')}")
 
 
@@ -302,23 +309,29 @@ def bulk_cancel(
         _console.print("[dim]No matching pending requests to cancel.[/dim]")
         return
 
-    _console.print(
-        f"[yellow]Will cancel {len(pending)} pending request(s):[/yellow]"
-    )
-    for r in pending[:10]:
-        payload = r.get("pending_payload") or {}
+    if is_json_output():
+        # Proceed silently in JSON mode if --yes is given
+        if not yes:
+            _console.print("[red]--yes required for bulk-cancel in JSON mode.[/red]")
+            raise typer.Exit(1)
+    else:
         _console.print(
-            f"  \u2022 {r.get('resource_kind')} create \u2014 "
-            f"{payload.get('name', '?')} "
-            f"(id {str(r.get('id', ''))[:8]})"
+            f"[yellow]Will cancel {len(pending)} pending request(s):[/yellow]"
         )
-    if len(pending) > 10:
-        _console.print(f"  ... and {len(pending) - 10} more")
+        for r in pending[:10]:
+            payload = r.get("pending_payload") or {}
+            _console.print(
+                f"  \u2022 {r.get('resource_kind')} create \u2014 "
+                f"{payload.get('name', '?')} "
+                f"(id {str(r.get('id', ''))[:8]})"
+            )
+        if len(pending) > 10:
+            _console.print(f"  ... and {len(pending) - 10} more")
 
-    if not yes:
-        if not typer.confirm("Proceed?"):
-            _console.print("[dim]Aborted.[/dim]")
-            raise typer.Exit(0)
+        if not yes:
+            if not typer.confirm("Proceed?"):
+                _console.print("[dim]Aborted.[/dim]")
+                raise typer.Exit(0)
 
     body: dict[str, Any] = {"comment": comment}
     if resource_kind:
@@ -332,6 +345,10 @@ def bulk_cancel(
         except PowerloomApiError as e:
             _console.print(f"[red]Bulk-cancel failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        _console.print(json.dumps(r, indent=2, default=str))
+        return
 
     _console.print(
         f"[green]Cancelled {r.get('cancelled_count', 0)} request(s).[/green]"

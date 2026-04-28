@@ -77,7 +77,7 @@ def test_project_ls_table(mock_project_client) -> None:
 
 
 def test_project_ls_json(mock_project_client) -> None:
-    result = runner.invoke(app, ["project", "ls", "--json"])
+    result = runner.invoke(app, ["-o", "json", "project", "ls"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert {p["slug"] for p in payload} == {"powerloom", "loomcli"}
@@ -91,7 +91,7 @@ def test_project_ls_handles_items_envelope(monkeypatch) -> None:
         client.__enter__.return_value = client
         mock_cls.return_value = client
         client.get.return_value = {"items": seed}
-        result = runner.invoke(app, ["project", "ls", "--json"])
+        result = runner.invoke(app, ["-o", "json", "project", "ls"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload == seed

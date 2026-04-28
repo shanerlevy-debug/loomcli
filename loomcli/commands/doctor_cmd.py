@@ -13,19 +13,20 @@ from rich.table import Table
 
 from loomcli import __version__
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import config_dir, credentials_file, load_runtime_config
+from loomcli.config import (
+    config_dir,
+    credentials_file,
+    is_agent_mode,
+    is_json_output,
+    load_runtime_config,
+)
 from loomcli.plugin_assets import plugin_export_root
 
 
 _console = Console()
 
 
-def doctor_command(
-    json_out: Annotated[
-        bool,
-        typer.Option("--json", help="Emit machine-readable check results."),
-    ] = False,
-) -> None:
+def doctor_command() -> None:
     """Check local auth, server capabilities, and plugin prerequisites."""
     cfg = load_runtime_config()
     checks: list[dict[str, Any]] = [
@@ -46,6 +47,11 @@ def doctor_command(
             str(credentials_file()) if cfg.access_token else "not signed in; run `weave login`",
         ),
         _check("api.url", "ok", cfg.api_base_url),
+        _check(
+            "agent_mode",
+            "ok" if is_agent_mode() else "info",
+            "active (compact output)" if is_agent_mode() else "inactive (human output)",
+        ),
     ]
 
     capabilities: dict[str, Any] | None = None
@@ -131,7 +137,7 @@ def doctor_command(
             )
         )
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps({"checks": checks, "capabilities": capabilities}, indent=2, default=str))
         return
 
@@ -156,4 +162,6 @@ def _status_label(status: str) -> str:
         return "[green]ok[/green]"
     if status == "warn":
         return "[yellow]warn[/yellow]"
+    if status == "info":
+        return "[blue]info[/blue]"
     return "[red]fail[/red]"

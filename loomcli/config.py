@@ -287,3 +287,15 @@ def clear_credentials() -> None:
         credentials_file().unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def is_json_output() -> bool:
+    """Return True if the user or environment has requested JSON output."""
+    return os.environ.get("POWERLOOM_FORMAT") == "json"
+
+
+def is_agent_mode() -> bool:
+    """Check if the CLI is running in AI Agent mode (env detection)."""
+    from loomcli.cli import is_agent_mode as _is_agent_mode
+
+    return _is_agent_mode()

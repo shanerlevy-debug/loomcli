@@ -388,7 +388,7 @@ def test_threads_renders_table(mock_client) -> None:
 
 def test_show_json_output(mock_client) -> None:
     mock_client.get.side_effect = [_seed_sprint(slug="v064")]
-    result = runner.invoke(app, ["sprint", "show", SPRINT_UUID, "--json"])
+    result = runner.invoke(app, ["-o", "json", "sprint", "show", SPRINT_UUID])
     assert result.exit_code == 0
     # Find the JSON blob (test runner can prefix with extra whitespace)
     out = result.output.strip()

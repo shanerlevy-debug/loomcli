@@ -23,7 +23,7 @@ def test_command_registry_includes_new_cli_surfaces():
 
 
 def test_commands_command_exports_json():
-    result = runner.invoke(app, ["commands", "--prefix", "weave agent", "--json"])
+    result = runner.invoke(app, ["-o", "json", "commands", "--prefix", "weave agent"])
 
     assert result.exit_code == 0, result.stdout
     assert "weave agent config" in result.stdout

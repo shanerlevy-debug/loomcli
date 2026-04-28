@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 
 _console = Console()
@@ -44,7 +44,6 @@ def _client() -> PowerloomClient:
 @app.command("apply")
 def apply_cmd(
     file: Annotated[Path, typer.Option("-f", "--file", help="Workflow YAML manifest")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Apply (upsert) a workflow definition from a YAML manifest."""
     if not file.exists():
@@ -74,7 +73,7 @@ def apply_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     d = resp["definition"]
@@ -94,7 +93,6 @@ def apply_cmd(
 def run_cmd(
     workflow: Annotated[str, typer.Argument(help="Workflow name or definition UUID")],
     inputs_file: Annotated[Optional[Path], typer.Option("--inputs", help="YAML/JSON inputs file")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Start a new workflow run. Returns the run id; the scheduler
     advances it in the background."""
@@ -124,7 +122,7 @@ def run_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     _console.print(
@@ -144,7 +142,6 @@ def run_cmd(
 @app.command("status")
 def status_cmd(
     run_id: Annotated[str, typer.Argument(help="Run ID")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Show a workflow run's current state with per-step status."""
     client = _client()
@@ -154,7 +151,7 @@ def status_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -195,7 +192,6 @@ def ls_cmd(
     workflow: Annotated[Optional[str], typer.Option("--workflow", help="Filter by workflow name")] = None,
     runs: Annotated[bool, typer.Option("--runs", help="List recent runs instead of definitions")] = False,
     limit: Annotated[int, typer.Option("--limit")] = 50,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List workflow definitions (default) or recent runs (`--runs`)."""
     client = _client()
@@ -210,7 +206,7 @@ def ls_cmd(
         except PowerloomApiError as e:
             _console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1) from e
-        if json_out:
+        if is_json_output():
             typer.echo(json.dumps(resp, indent=2, default=str))
             return
         rows = resp.get("runs", [])
@@ -236,7 +232,7 @@ def ls_cmd(
         except PowerloomApiError as e:
             _console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1) from e
-        if json_out:
+        if is_json_output():
             typer.echo(json.dumps(resp, indent=2, default=str))
             return
         rows = resp.get("workflows", [])
@@ -268,7 +264,6 @@ def ls_cmd(
 def cancel_cmd(
     run_id: Annotated[str, typer.Argument(help="Run ID")],
     reason: Annotated[Optional[str], typer.Option("--reason")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Cancel a running workflow. Cascades to child runs + pending timers."""
     client = _client()
@@ -277,7 +272,7 @@ def cancel_cmd(
     except PowerloomApiError as e:
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     _console.print(f"[yellow]Cancelled[/yellow] run {resp['id']}")
@@ -293,7 +288,6 @@ def approve_cmd(
     run_id: Annotated[str, typer.Argument(help="Workflow run UUID")],
     step_id: Annotated[str, typer.Argument(help="Approval step UUID")],
     comment: Annotated[Optional[str], typer.Option("--comment")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Approve a waiting `kind: approval` step."""
     client = _client()
@@ -305,7 +299,7 @@ def approve_cmd(
     except PowerloomApiError as e:
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     _console.print(
@@ -318,7 +312,6 @@ def reject_cmd(
     run_id: Annotated[str, typer.Argument(help="Workflow run UUID")],
     step_id: Annotated[str, typer.Argument(help="Approval step UUID")],
     comment: Annotated[Optional[str], typer.Option("--comment")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Reject a waiting `kind: approval` step. Transitions the step to
     failed; the run fails on next scheduler tick."""
@@ -331,7 +324,7 @@ def reject_cmd(
     except PowerloomApiError as e:
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     _console.print(
@@ -342,7 +335,6 @@ def reject_cmd(
 @app.command("approvals")
 def approvals_cmd(
     limit: Annotated[int, typer.Option("--limit")] = 50,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List workflow-step approvals currently pending. Unified Phase 12
     inbox integration is a v031.2+ follow-up."""
@@ -352,7 +344,7 @@ def approvals_cmd(
     except PowerloomApiError as e:
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 

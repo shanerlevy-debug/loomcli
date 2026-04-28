@@ -14,6 +14,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from loomcli.config import is_json_output
 from loomcli.plugin_assets import (
     CLIENT_NAMES,
     PluginAssetError,
@@ -108,7 +109,6 @@ def doctor_cmd(
         str | None,
         typer.Argument(help="Optional client to check."),
     ] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
     fix: Annotated[
         bool,
         typer.Option("--fix", help="Attempt to fix identified issues automatically."),
@@ -175,7 +175,7 @@ def doctor_cmd(
             }
         )
 
-    if json_out:
+    if is_json_output():
         typer.echo(
             json.dumps(
                 {"export_root": str(plugin_export_root()), "clients": rows},
@@ -214,18 +214,17 @@ def instructions_cmd(
 @app.command("path")
 def path_cmd(
     client: Annotated[str, typer.Argument(help="Client name.")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Print the exported plugin path for one client."""
     try:
         path = plugin_path(client)
     except PluginAssetError as e:
-        if json_out:
+        if is_json_output():
             typer.echo(json.dumps({"client": client, "error": str(e)}, indent=2))
         else:
             _console.print(f"[red]Plugin assets unavailable:[/red] {e}")
         raise typer.Exit(1) from e
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps({"client": client, "path": str(path)}, indent=2))
         return
     typer.echo(str(path))

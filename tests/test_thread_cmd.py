@@ -132,13 +132,14 @@ def test_create_unknown_slug_lists_available(mock_client) -> None:
     assert "other" in result.stdout
 
 
-def test_create_json_output(mock_client) -> None:
-    """--json prints the created thread as JSON."""
+def test_json_output(mock_client) -> None:
+    """-o json prints the created thread as JSON."""
     created = _seed_thread(id="abc-123")
     mock_client.get.side_effect = [[{"id": "p1", "slug": "powerloom"}]]
     mock_client.post.return_value = created
-    result = runner.invoke(app, ["thread", "create", "--title", "x", "--json"])
+    result = runner.invoke(app, ["-o", "json", "thread", "create", "--title", "x"])
     assert result.exit_code == 0
+
     # JSON ends up in stdout — find it
     assert "abc-123" in result.stdout
 
@@ -409,9 +410,11 @@ def test_search_no_results_prints_friendly_message(mock_client) -> None:
     assert "No threads matched" in result.stdout or "no threads" in result.stdout.lower()
 
 
-def test_list_renders_subprincipal_in_owner_column(mock_client) -> None:
+def test_list_renders_subprincipal_in_owner_column(mock_client, monkeypatch) -> None:
     """When metadata_json.session_attribution.subprincipal_name is present, it
     surfaces in the Owner column instead of the raw user UUID prefix."""
+    # Force a wider terminal so Rich doesn't clip the columns
+    monkeypatch.setenv("COLUMNS", "120")
     mock_client.get.side_effect = [
         [{"id": "p1", "slug": "powerloom"}],
         [_seed_thread(metadata_json={"session_attribution": {"subprincipal_name": "Claude Code Session"}})],
@@ -419,8 +422,6 @@ def test_list_renders_subprincipal_in_owner_column(mock_client) -> None:
     result = runner.invoke(app, ["thread", "list", "--project", "powerloom"])
     assert result.exit_code == 0, result.stdout
     assert "Claude Code Session" in result.stdout
-
-
 # ---------------------------------------------------------------------------
 # show
 # ---------------------------------------------------------------------------

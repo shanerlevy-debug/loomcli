@@ -21,6 +21,19 @@ def _isolated_config_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     creds_dir.mkdir(parents=True, exist_ok=True)
     (creds_dir / "credentials").write_text("test-token")
     monkeypatch.setenv("POWERLOOM_API_BASE_URL", "http://api.test")
+    # Clear agent-mode markers so tests default to human/table output
+    # (prevents auto-JSON switch when tests are run from a GEMINI_CLI
+    # or Claude session).
+    # v0.7.7 token-efficiency: force no-auto-json for the test suite.
+    monkeypatch.setenv("POWERLOOM_NO_AUTO_JSON", "1")
+    for var in (
+        "GEMINI_CLI",
+        "CLAUDE_CODE",
+        "AGENT_MODE",
+        "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID",
+        "POWERLOOM_FORMAT",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
 
 @pytest.fixture

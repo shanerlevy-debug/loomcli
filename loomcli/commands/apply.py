@@ -13,6 +13,7 @@ Per-resource best-effort: one failure doesn't stop others (Q3).
 """
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import typer
@@ -21,7 +22,7 @@ from rich.table import Table
 
 from loomcli.client import PowerloomClient
 from loomcli.commands.plan import render_plan
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 from loomcli.manifest.applier import (
     apply_plan,
@@ -67,13 +68,17 @@ def apply_command(
     with PowerloomClient(cfg) as client:
         resolver = AddressResolver(client)
         plan = plan_resources(sorted_res, resolver)
-        render_plan(plan)
+        
+        if not is_json_output():
+            render_plan(plan)
 
         actionable = [
             a for a in plan.actions
             if a.verb in ("create", "update", "destroy", "unknown")
         ]
         if not actionable:
+            if is_json_output():
+                typer.echo(json.dumps({"status": "no_changes", "plan": []}))
             return
 
         if not auto_approve:
@@ -93,13 +98,20 @@ def apply_command(
 
 
 def _render_outcomes(outcomes) -> None:
-    """Render outcome table.
+    """Render outcome table or JSON."""
+    if is_json_output():
+        results = []
+        for o in outcomes:
+            results.append({
+                "kind": o.action.resource.kind,
+                "address": o.action.resource.address,
+                "action": o.action.verb,
+                "status": o.status,
+                "error": str(o.error) if o.error else None,
+            })
+        typer.echo(json.dumps(results, indent=2, default=str))
+        return
 
-    Table columns stay narrow for scanning; full error bodies are printed
-    below the table for any failed row. The table had been truncating
-    errors at 80 chars, which hid the most important information when
-    something went wrong (v0.5.3 fix).
-    """
     table = Table(title="Apply results", show_header=True, header_style="bold")
     table.add_column("Kind")
     table.add_column("Address")

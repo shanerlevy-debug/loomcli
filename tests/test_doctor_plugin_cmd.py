@@ -69,7 +69,7 @@ def test_plugin_instructions_prints_claude_code_standard_install():
 def test_plugin_path_exports_codex_marketplace(tmp_path, monkeypatch):
     monkeypatch.setenv("POWERLOOM_HOME", str(tmp_path / "pl-home"))
 
-    result = runner.invoke(app, ["plugin", "path", "codex", "--json"])
+    result = runner.invoke(app, ["-o", "json", "plugin", "path", "codex"])
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
@@ -82,7 +82,7 @@ def test_plugin_path_honors_plugin_home_override(tmp_path, monkeypatch):
     monkeypatch.delenv("POWERLOOM_HOME", raising=False)
     monkeypatch.setenv("POWERLOOM_PLUGIN_HOME", str(tmp_path / "plugin-home"))
 
-    result = runner.invoke(app, ["plugin", "path", "codex", "--json"])
+    result = runner.invoke(app, ["-o", "json", "plugin", "path", "codex"])
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
@@ -247,7 +247,7 @@ def test_plugin_doctor_lists_clients(_mock_which):
 
 @patch("loomcli.commands.plugin_cmd.shutil.which", return_value="C:\\bin\\tool.exe")
 def test_plugin_doctor_json_includes_export_root(_mock_which):
-    result = runner.invoke(app, ["plugin", "doctor", "--json"])
+    result = runner.invoke(app, ["-o", "json", "plugin", "doctor"])
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)

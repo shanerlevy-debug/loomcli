@@ -6,13 +6,14 @@ counts.
 """
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
 from loomcli.client import PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 from loomcli.manifest.applier import (
     expand_agent_attachments,
@@ -51,6 +52,10 @@ def plan_command(
     with PowerloomClient(cfg) as client:
         resolver = AddressResolver(client)
         plan = plan_resources(sorted_res, resolver)
+
+    if is_json_output():
+        _render_json_plan(plan)
+        return
 
     render_plan(plan)
 
@@ -100,3 +105,22 @@ def _fmt(value: object) -> str:
     if len(s) > 80:
         return f'"{s[:77]}…"'
     return repr(s) if isinstance(value, str) else str(value)
+
+
+def _render_json_plan(plan: Plan) -> None:
+    actions = []
+    for a in plan.actions:
+        actions.append({
+            "verb": a.verb,
+            "kind": a.resource.kind,
+            "address": a.resource.address,
+            "reason": a.reason,
+            "changed_fields": [
+                {"field": d.field, "before": d.before, "after": d.after}
+                for d in a.changed_fields
+            ]
+        })
+    typer.echo(json.dumps({
+        "actions": actions,
+        "summary": plan.summary_counts()
+    }, indent=2, default=str))
