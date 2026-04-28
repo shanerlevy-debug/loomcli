@@ -393,16 +393,15 @@ def _rows_from_response(items) -> list[dict]:
 
 def _print_thread_table(rows: list[dict]) -> None:
     table = Table(show_header=True, header_style="bold")
-    table.add_column("Status", style="cyan", width=14)
-    table.add_column("Pri", width=8)
+    table.add_column("Status", style="cyan", no_wrap=True)
+    table.add_column("Pri", no_wrap=True)
     # Title needs an explicit width so narrow terminals (CI, default
-    # CliRunner width) don't collapse it to zero. ratio=2 gives Title
-    # twice the share of the remaining space vs the other flex
-    # columns.
-    table.add_column("Title", overflow="fold", min_width=20, ratio=2)
-    table.add_column("Slug", overflow="fold", width=25)
-    table.add_column("Owner", overflow="fold", width=25)
-    table.add_column("ID", overflow="fold", width=10)
+    # CliRunner width) don't collapse it to zero. Keep the other columns
+    # bounded and let Title take the largest share of the remaining space.
+    table.add_column("Title", overflow="fold", min_width=12, ratio=3)
+    table.add_column("Slug", overflow="fold", max_width=18, ratio=1)
+    table.add_column("Owner", overflow="fold", max_width=24, ratio=1)
+    table.add_column("ID", overflow="fold", no_wrap=True)
     for t in rows:
         sp = ((t.get("metadata_json") or {}).get("session_attribution") or {}).get("subprincipal_name") or ""
         owner = sp[:24] if sp else (t.get("assigned_to") or "")[:8]
