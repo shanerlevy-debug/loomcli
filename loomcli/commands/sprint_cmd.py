@@ -49,6 +49,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
+from loomcli.commands.milestone_cmd import resolve_milestone_ref
 from loomcli.config import load_runtime_config
 
 
@@ -198,6 +199,13 @@ def _resolve_thread_ref(
     return str(thread["id"])
 
 
+def _project_context_from_ref(ref: str, default_project: str = "powerloom") -> str:
+    if ":" not in ref:
+        return default_project
+    project_part, _, _slug_part = ref.partition(":")
+    return project_part.strip() or default_project
+
+
 def _output_json(data) -> None:
     """Print data as JSON for --json flag. Handles UUIDs + datetimes."""
     print(_json.dumps(data, indent=2, default=str))
@@ -231,7 +239,7 @@ def create(
     start_date: Annotated[Optional[str], typer.Option("--start-date", help="ISO date YYYY-MM-DD.")] = None,
     end_date: Annotated[Optional[str], typer.Option("--end-date", help="ISO date YYYY-MM-DD.")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal", help="Short goal statement (surfaces in headers).")] = None,
-    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Nest the sprint under this milestone (UUID, currently UUID-only). Engine validates the milestone belongs to the same project.")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Nest the sprint under this milestone (UUID, id prefix, or exact title). Engine validates the milestone belongs to the same project.")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print created sprint as JSON.")] = False,
 ) -> None:
     """Create a sprint in <project>. Slug auto-generates from name when
@@ -239,24 +247,13 @@ def create(
     thread slugs).
 
     Pass --milestone to nest the sprint under a milestone (Project >
-    Milestone > Sprint hierarchy from migration 0068). Today only UUID
-    is accepted; slug-based addressing for milestones lands in a
-    follow-up.
+    Milestone > Sprint hierarchy from migration 0068). Milestones do not
+    have slugs yet, so the CLI accepts UUIDs, unique id prefixes, or exact
+    milestone titles.
     """
     if status not in _SPRINT_STATUSES:
         _console.print(f"[red]Invalid status {status!r}.[/red] One of: {', '.join(_SPRINT_STATUSES)}")
         raise typer.Exit(2)
-
-    # Validate --milestone shape (UUID only for now)
-    if milestone is not None:
-        try:
-            uuid.UUID(milestone)
-        except ValueError:
-            _console.print(
-                "[red]--milestone must be a UUID today[/red] "
-                "(milestone slug-resolution is on the follow-up list)."
-            )
-            raise typer.Exit(2)
 
     body: dict = {"name": name, "status": status}
     if slug is not None:
@@ -269,11 +266,10 @@ def create(
         body["end_date"] = end_date
     if goal is not None:
         body["goal"] = goal
-    if milestone is not None:
-        body["milestone_id"] = milestone
-
     with _client_or_exit() as client:
         project_id = _resolve_project(client, project)
+        if milestone is not None:
+            body["milestone_id"] = resolve_milestone_ref(client, project_id, milestone)
         try:
             sprint = client.post(f"/projects/{project_id}/sprints", body)
         except PowerloomApiError as e:
@@ -299,28 +295,19 @@ def create(
 def list_sprints(
     project: Annotated[str, typer.Option("--project", "-p", help="Project slug or UUID.")] = "powerloom",
     status: Annotated[Optional[str], typer.Option("--status", help="Filter by status.")] = None,
-    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Filter to sprints nested under this milestone (UUID).")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Filter to sprints nested under this milestone (UUID, id prefix, or exact title).")] = None,
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List sprints in a project. Optional --milestone filters to sprints
     nested under that milestone (Project > Milestone > Sprint hierarchy)."""
-    if milestone is not None:
-        try:
-            uuid.UUID(milestone)
-        except ValueError:
-            _console.print(
-                "[red]--milestone must be a UUID today[/red] "
-                "(milestone slug-resolution is on the follow-up list)."
-            )
-            raise typer.Exit(2)
     with _client_or_exit() as client:
         project_id = _resolve_project(client, project)
         params: dict = {"limit": limit}
         if status is not None:
             params["status"] = status
         if milestone is not None:
-            params["milestone_id"] = milestone
+            params["milestone_id"] = resolve_milestone_ref(client, project_id, milestone)
         try:
             rows = client.get(f"/projects/{project_id}/sprints", **params)
         except PowerloomApiError as e:
@@ -418,6 +405,7 @@ def _patch_sprint(sprint_ref: str, body: dict, json_output: bool) -> None:
 @app.command("update")
 def update(
     sprint_ref: Annotated[str, typer.Argument()],
+    project: Annotated[str, typer.Option("--project", "-p", help="Project context for bare sprint and milestone title refs.")] = "powerloom",
     name: Annotated[Optional[str], typer.Option("--name")] = None,
     slug: Annotated[Optional[str], typer.Option("--slug")] = None,
     description: Annotated[Optional[str], typer.Option("--description")] = None,
@@ -425,28 +413,19 @@ def update(
     start_date: Annotated[Optional[str], typer.Option("--start-date")] = None,
     end_date: Annotated[Optional[str], typer.Option("--end-date")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal")] = None,
-    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Attach the sprint to a milestone (UUID). Engine validates same-project.")] = None,
+    milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Attach the sprint to a milestone (UUID, id prefix, or exact title). Engine validates same-project.")] = None,
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Generic sprint update — set any combination of fields via PATCH.
 
-    Pass --milestone <uuid> to attach (or change) the sprint's parent
-    milestone (Project > Milestone > Sprint hierarchy from migration 0068).
-    Engine rejects cross-project milestone refs.
+    Pass --milestone to attach (or change) the sprint's parent milestone
+    (Project > Milestone > Sprint hierarchy from migration 0068). Milestones
+    can be referenced by UUID, unique id prefix, or exact title. Engine rejects
+    cross-project milestone refs.
     """
     if status is not None and status not in _SPRINT_STATUSES:
         _console.print(f"[red]Invalid status {status!r}.[/red] One of: {', '.join(_SPRINT_STATUSES)}")
         raise typer.Exit(2)
-    if milestone is not None:
-        try:
-            uuid.UUID(milestone)
-        except ValueError:
-            _console.print(
-                "[red]--milestone must be a UUID today[/red] "
-                "(milestone slug-resolution is on the follow-up list)."
-            )
-            raise typer.Exit(2)
-
     body: dict = {}
     if name is not None:
         body["name"] = name
@@ -462,13 +441,25 @@ def update(
         body["end_date"] = end_date
     if goal is not None:
         body["goal"] = goal
-    if milestone is not None:
-        body["milestone_id"] = milestone
-
-    if not body:
+    if not body and milestone is None:
         _console.print("[yellow]No fields to update — pass at least one --field.[/yellow]")
         raise typer.Exit(2)
-    _patch_sprint(sprint_ref, body, json_output)
+    with _client_or_exit() as client:
+        project_context = _project_context_from_ref(sprint_ref, project)
+        if milestone is not None:
+            project_id = _resolve_project(client, project_context)
+            body["milestone_id"] = resolve_milestone_ref(client, project_id, milestone)
+        sprint_uuid = _resolve_sprint(client, sprint_ref, default_project=project_context)
+        try:
+            sprint = client.patch(f"/sprints/{sprint_uuid}", body)
+        except PowerloomApiError as e:
+            _console.print(f"[red]Sprint update failed:[/red] {e}")
+            raise typer.Exit(1) from None
+    if json_output:
+        _output_json(sprint)
+        return
+    _console.print("[green]Updated.[/green]")
+    _print_sprint_summary(sprint)
 
 
 @app.command("activate")

@@ -402,6 +402,18 @@ def test_show_json_output(mock_client) -> None:
 
 
 MILESTONE_UUID = "33333333-3333-3333-3333-333333333333"
+MILESTONE_TITLE = "Loomcli onboarding polish"
+
+
+def _seed_milestone(**overrides) -> dict:
+    base = {
+        "id": MILESTONE_UUID,
+        "project_id": PROJECT_UUID,
+        "title": MILESTONE_TITLE,
+        "status": "open",
+    }
+    base.update(overrides)
+    return base
 
 
 def test_create_with_milestone_passes_uuid_in_body(mock_client) -> None:
@@ -423,18 +435,24 @@ def test_create_with_milestone_passes_uuid_in_body(mock_client) -> None:
     assert body["milestone_id"] == MILESTONE_UUID
 
 
-def test_create_milestone_must_be_uuid(mock_client) -> None:
-    """Non-UUID --milestone exits 2 with a slug-resolution-not-shipped hint."""
+def test_create_milestone_title_resolves(mock_client) -> None:
+    """`--milestone <title>` resolves under the selected project."""
+    mock_client.get.side_effect = [
+        [{"id": PROJECT_UUID, "slug": "powerloom"}],
+        [_seed_milestone()],
+    ]
+    mock_client.post.return_value = _seed_sprint()
     result = runner.invoke(
         app,
         [
             "sprint", "create",
             "--name", "Test sprint",
-            "--milestone", "msp",  # slug, not UUID
+            "--milestone", MILESTONE_TITLE,
         ],
     )
-    assert result.exit_code == 2
-    assert "uuid" in result.output.lower()
+    assert result.exit_code == 0, result.output
+    body = mock_client.post.call_args.args[1]
+    assert body["milestone_id"] == MILESTONE_UUID
 
 
 def test_list_with_milestone_filter_passes_param(mock_client) -> None:
@@ -450,11 +468,40 @@ def test_list_with_milestone_filter_passes_param(mock_client) -> None:
     assert last_call.kwargs.get("milestone_id") == MILESTONE_UUID
 
 
+def test_list_with_milestone_title_filter_resolves(mock_client) -> None:
+    mock_client.get.side_effect = [
+        [{"id": PROJECT_UUID, "slug": "powerloom"}],
+        [_seed_milestone()],
+        [],
+    ]
+    result = runner.invoke(
+        app, ["sprint", "list", "--milestone", MILESTONE_TITLE],
+    )
+    assert result.exit_code == 0, result.output
+    last_call = mock_client.get.call_args_list[-1]
+    assert last_call.kwargs.get("milestone_id") == MILESTONE_UUID
+
+
 def test_update_with_milestone_attaches(mock_client) -> None:
     mock_client.patch.return_value = _seed_sprint()
     result = runner.invoke(
         app,
         ["sprint", "update", SPRINT_UUID, "--milestone", MILESTONE_UUID],
+    )
+    assert result.exit_code == 0, result.output
+    body = mock_client.patch.call_args.args[1]
+    assert body == {"milestone_id": MILESTONE_UUID}
+
+
+def test_update_with_milestone_title_attaches(mock_client) -> None:
+    mock_client.get.side_effect = [
+        [{"id": PROJECT_UUID, "slug": "powerloom"}],
+        [_seed_milestone()],
+    ]
+    mock_client.patch.return_value = _seed_sprint()
+    result = runner.invoke(
+        app,
+        ["sprint", "update", SPRINT_UUID, "--milestone", MILESTONE_TITLE],
     )
     assert result.exit_code == 0, result.output
     body = mock_client.patch.call_args.args[1]

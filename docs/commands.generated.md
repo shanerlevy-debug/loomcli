@@ -17,6 +17,12 @@ Generated from `loomcli.command_registry.COMMANDS`. Do not edit by hand.
 | `weave ask` | agent | Ask a Powerloom agent and stream the answer. |
 | `weave chat` | agent | Start a terminal chat with a Powerloom agent. |
 | `weave doctor` | diagnostics | Check local auth, server capabilities, and plugin prerequisites. |
+| `weave milestone close` | coordination | Mark a milestone closed. |
+| `weave milestone create` | coordination | Create a tracker milestone in a project. |
+| `weave milestone ls` | coordination | List tracker milestones in a project. |
+| `weave milestone reopen` | coordination | Mark a milestone open. |
+| `weave milestone show` | coordination | Show a milestone by UUID, id prefix, or exact title. |
+| `weave milestone update` | coordination | Update a milestone by UUID, id prefix, or exact title. |
 | `weave plugin doctor` | diagnostics | Check local plugin files and client binaries. |
 | `weave plugin install` | setup | Print or execute an install command for a client plugin. |
 | `weave plugin instructions` | setup | Print setup instructions for a client plugin. |
@@ -24,4 +30,7 @@ Generated from `loomcli.command_registry.COMMANDS`. Do not edit by hand.
 | `weave profile show` | configuration | Show local CLI defaults. |
 | `weave session events` | observability | Print durable events for a session. |
 | `weave session tail` | observability | Poll durable session events. |
+| `weave sprint add-thread` | coordination | Link a thread to a sprint. |
+| `weave sprint create` | coordination | Create a sprint, optionally nested under a milestone. |
+| `weave sprint list` | coordination | List sprints in a project, optionally filtered by milestone. |
 | `weave thread my-work` | coordination | Show tracker threads assigned to, plucked by, or created by me. |
