@@ -31,7 +31,7 @@ import yaml
 from rich.console import Console
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 app = typer.Typer(help="Author, lint, and inspect v2.0.0 Compose kinds.")
 _console = Console()
@@ -256,10 +256,6 @@ def lint(
 @app.command("show")
 def show(
     kind_name: str = typer.Argument(..., help="Kind name (e.g. 'legal.acme.ContractClause' or just 'ContractClause')."),
-    output_format: str = typer.Option(
-        "yaml", "--format", "-f",
-        help="'yaml' (default) or 'json'.",
-    ),
 ) -> None:
     """Fetch the effective resolved schema for a registered composed
     kind. Shows what the kind's resource shape looks like after all
@@ -297,7 +293,7 @@ def show(
             _console.print(f"[red]Failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if output_format == "json":
+    if is_json_output():
         _console.print(json.dumps(resp, indent=2, default=str))
     else:
         _console.print(yaml.safe_dump(resp, sort_keys=False, default_flow_style=False))

@@ -19,7 +19,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import RuntimeConfig, load_runtime_config
+from loomcli.config import RuntimeConfig, is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 
 
@@ -98,10 +98,6 @@ def ask_command(
             help="Print raw WebSocket event frames instead of assistant text.",
         ),
     ] = False,
-    json_out: Annotated[
-        bool,
-        typer.Option("--json", help="Print invoke response JSON and skip streaming."),
-    ] = False,
 ) -> None:
     """Ask one Powerloom agent a single question and stream the answer."""
     user_prompt = _read_prompt(prompt)
@@ -129,7 +125,7 @@ def ask_command(
             prompt=user_prompt,
             title=title or _title_from_prompt(user_prompt),
             raw_events=raw_events,
-            json_out=json_out,
+            json_out=is_json_output(),
         )
     except (AgentResolutionError, AgentStreamError, PowerloomApiError) as e:
         _console.print(f"[red]Error:[/red] {e}")
@@ -137,7 +133,7 @@ def ask_command(
     finally:
         client.close()
 
-    if not json_out and not raw_events and not result.assistant_text.endswith("\n"):
+    if not is_json_output() and not raw_events and not result.assistant_text.endswith("\n"):
         typer.echo()
 
 

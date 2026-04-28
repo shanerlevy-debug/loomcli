@@ -35,6 +35,7 @@ here grows in lockstep.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from typing import Annotated, Optional
@@ -43,7 +44,7 @@ import typer
 from rich.console import Console
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 
 _console = Console()
@@ -202,14 +203,6 @@ def import_project_command(
 
     commit_sha = _git_short_sha(repo_path)
 
-    _console.print(
-        f"[dim]Collected {len(source_files)} files "
-        f"({total_bytes:,} bytes) from {repo_path}"
-        + (f" @ {commit_sha}" if commit_sha else " (not a git checkout)")
-        + (" [bold yellow]DRY RUN[/bold yellow]" if dry_run else "")
-        + "[/dim]"
-    )
-
     # --- Upload + apply ---
     body: dict = {
         "source_files": source_files,
@@ -230,6 +223,10 @@ def import_project_command(
             raise typer.Exit(1) from None
 
     # --- Render result ---
+    if is_json_output():
+        typer.echo(json.dumps(result, indent=2, default=str))
+        return
+
     if not isinstance(result, dict):
         _console.print(f"[red]Unexpected response shape:[/red] {result}")
         raise typer.Exit(1)

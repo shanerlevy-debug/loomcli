@@ -12,6 +12,7 @@ from loomcli.config import (
     PROFILE_FIELDS,
     clear_profile_values,
     config_file,
+    is_json_output,
     load_cli_config,
     update_profile,
 )
@@ -26,10 +27,6 @@ def show_profile(
         str | None,
         typer.Option("--profile", help="Profile name. Defaults to active profile."),
     ] = None,
-    json_out: Annotated[
-        bool,
-        typer.Option("--json", help="Print JSON instead of a table."),
-    ] = False,
 ) -> None:
     """Show local defaults for one profile."""
     cfg = load_cli_config()
@@ -40,8 +37,8 @@ def show_profile(
         raise typer.Exit(1)
 
     payload = _profile_payload(name, cfg.active_profile, row)
-    if json_out:
-        _console.print_json(json.dumps(payload, default=str))
+    if is_json_output():
+        typer.echo(json.dumps(payload, indent=2, default=str))
         return
 
     table = Table(title=f"Profile: {name}", show_header=True)

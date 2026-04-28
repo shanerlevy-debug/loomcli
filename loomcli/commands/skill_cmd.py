@@ -26,6 +26,7 @@ AddressResolver used elsewhere in the CLI.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import typer
@@ -33,7 +34,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolutionError, AddressResolver
 
 app = typer.Typer(help="Manage Skill archives (upload + activate versions).")
@@ -131,10 +132,6 @@ def upload(
 
     archive_bytes = archive.read_bytes()
     content_type = _guess_content_type(archive)
-    _console.print(
-        f"[dim]Uploading {archive.name} ({len(archive_bytes)} bytes, "
-        f"{content_type}) to {ou_path}/{skill_name}...[/dim]"
-    )
 
     with PowerloomClient(cfg) as client:
         resolver = AddressResolver(client)
@@ -149,6 +146,10 @@ def upload(
         except PowerloomApiError as e:
             _console.print(f"[red]Upload failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        typer.echo(json.dumps(version, indent=2, default=str))
+        return
 
     version_id = version.get("id") if isinstance(version, dict) else None
     _console.print(f"[green]Uploaded version [bold]{version_id}[/bold].[/green]")
@@ -190,13 +191,17 @@ def activate(
         resolver = AddressResolver(client)
         skill_id = _resolve_skill_id(client, resolver, ou_path, skill_name)
         try:
-            client.patch(
+            resp = client.patch(
                 f"/skills/{skill_id}",
                 {"current_version_id": version_id},
             )
         except PowerloomApiError as e:
             _console.print(f"[red]Activation failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        typer.echo(json.dumps(resp, indent=2, default=str))
+        return
     _console.print(
         f"[green]Activated version {version_id} on {address}.[/green]"
     )
@@ -232,10 +237,6 @@ def upload_and_activate(
 
     archive_bytes = archive.read_bytes()
     content_type = _guess_content_type(archive)
-    _console.print(
-        f"[dim]Uploading + activating {archive.name} "
-        f"({len(archive_bytes)} bytes) on {ou_path}/{skill_name}...[/dim]"
-    )
 
     with PowerloomClient(cfg) as client:
         resolver = AddressResolver(client)
@@ -257,7 +258,7 @@ def upload_and_activate(
             )
             raise typer.Exit(1)
         try:
-            client.patch(
+            resp = client.patch(
                 f"/skills/{skill_id}",
                 {"current_version_id": version_id},
             )
@@ -269,6 +270,10 @@ def upload_and_activate(
                 f"[yellow]Retry with: weave skill activate {address} {version_id}[/yellow]"
             )
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        typer.echo(json.dumps(resp, indent=2, default=str))
+        return
 
     _console.print(
         f"[green]Uploaded + activated version [bold]{version_id}[/bold] "
@@ -300,6 +305,10 @@ def versions(
         except PowerloomApiError as e:
             _console.print(f"[red]List failed:[/red] {e}")
             raise typer.Exit(1) from None
+
+    if is_json_output():
+        typer.echo(json.dumps(items, indent=2, default=str))
+        return
 
     if not items:
         _console.print("[dim]No versions uploaded yet.[/dim]")

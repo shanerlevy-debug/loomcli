@@ -52,6 +52,7 @@ import os
 import sys
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
@@ -60,7 +61,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_agent_mode, is_json_output, load_runtime_config
 
 
 app = typer.Typer(help="Manage Powerloom tracker threads (create / pluck / reply / done / list / show / update). See CLAUDE.md / GEMINI.md / AGENTS.md §4.10.")
@@ -393,16 +394,12 @@ def _rows_from_response(items) -> list[dict]:
 
 def _print_thread_table(rows: list[dict]) -> None:
     table = Table(show_header=True, header_style="bold")
-    table.add_column("Status", style="cyan", width=14)
-    table.add_column("Pri", width=8)
-    # Title needs an explicit width so narrow terminals (CI, default
-    # CliRunner width) don't collapse it to zero. ratio=2 gives Title
-    # twice the share of the remaining space vs the other flex
-    # columns.
-    table.add_column("Title", overflow="fold", min_width=20, ratio=2)
-    table.add_column("Slug", overflow="fold", width=25)
-    table.add_column("Owner", overflow="fold", width=25)
-    table.add_column("ID", overflow="fold", width=10)
+    table.add_column("Status", style="cyan")
+    table.add_column("Pri")
+    table.add_column("Title", overflow="fold", ratio=3)
+    table.add_column("Slug", overflow="fold")
+    table.add_column("Owner", overflow="fold")
+    table.add_column("ID", overflow="fold")
     for t in rows:
         sp = ((t.get("metadata_json") or {}).get("session_attribution") or {}).get("subprincipal_name") or ""
         owner = sp[:24] if sp else (t.get("assigned_to") or "")[:8]
@@ -454,7 +451,8 @@ def create(
     milestone_id: Annotated[Optional[str], typer.Option("--milestone-id", help="UUID of an existing milestone in the project.")] = None,
     assigned_to: Annotated[Optional[str], typer.Option("--assigned-to", help="UUID of the user to assign. Default: unassigned.")] = None,
     tag_ids: Annotated[Optional[list[str]], typer.Option("--tag-id", help="Tag UUIDs (repeatable).")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="Print the created thread as JSON.")] = False,
+    id_only: Annotated[bool, typer.Option("--id-only", help="Only print the UUID of the created thread.")] = False,
+    slug_only: Annotated[bool, typer.Option("--slug-only", help="Only print the slug of the created thread.")] = False,
     no_attribution: Annotated[
         bool,
         typer.Option(
@@ -518,7 +516,14 @@ def create(
         # so the JSON / summary output reflects the stamped metadata.
         thread = _maybe_stamp_attribution(client, thread, no_attribution)
 
-    if json_output:
+    if id_only:
+        _console.print(thread["id"])
+        return
+    if slug_only:
+        _console.print(thread.get("slug") or "")
+        return
+
+    if is_json_output():
         _output_json(thread)
         return
 
@@ -536,7 +541,6 @@ def create(
 def pluck(
     thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug' (e.g. 'powerloom:ki-004').")],
     agent_id: Annotated[Optional[str], typer.Option("--agent-id", help="Optional Agent UUID to attribute the pluck to (for hosted-agent claiming).")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="Print the updated thread as JSON.")] = False,
 ) -> None:
     """Claim a thread for the current session (sets status=in_progress).
 
@@ -558,7 +562,7 @@ def pluck(
                 _console.print(f"[red]Pluck failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(thread)
         return
     _console.print(f"[green]Plucked.[/green]")
@@ -576,7 +580,6 @@ def reply(
     content: Annotated[Optional[str], typer.Argument(help="Reply text. Use --from-stdin for long content.")] = None,
     from_stdin: Annotated[bool, typer.Option("--from-stdin", help="Read reply content from stdin.")] = False,
     reply_type: Annotated[str, typer.Option("--type", help="Reply kind: comment, system, import_source.")] = "comment",
-    json_output: Annotated[bool, typer.Option("--json", help="Print the created reply as JSON.")] = False,
     no_attribution: Annotated[
         bool,
         typer.Option(
@@ -620,7 +623,7 @@ def reply(
             _console.print(f"[red]Reply failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(reply_obj)
         return
     _console.print(f"[green]Reply posted.[/green] [dim]id={reply_obj.get('id')}[/dim]")
@@ -654,7 +657,6 @@ def _resolve_reason(
 def _set_status(
     thread_id: str,
     status: str,
-    json_output: bool,
     reason: Optional[str] = None,
     no_attribution: bool = False,
 ) -> None:
@@ -688,7 +690,7 @@ def _set_status(
                     f"Re-run `weave thread reply {thread_uuid} '<reason>'` to add it."
                 )
 
-    if json_output:
+    if is_json_output():
         payload: dict = {"thread": thread}
         if reply_obj is not None:
             payload["reply"] = reply_obj
@@ -718,7 +720,6 @@ _NO_ATTRIBUTION_HELP = (
 @app.command("done")
 def done(
     thread_id: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
     reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
     reason_from_stdin: Annotated[
         bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
@@ -729,13 +730,12 @@ def done(
 ) -> None:
     """Mark a thread as done — the work shipped."""
     resolved = _resolve_reason(reason, reason_from_stdin)
-    _set_status(thread_id, "done", json_output, resolved, no_attribution)
+    _set_status(thread_id, "done", resolved, no_attribution)
 
 
 @app.command("close")
 def close(
     thread_id: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
     reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
     reason_from_stdin: Annotated[
         bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
@@ -746,13 +746,12 @@ def close(
 ) -> None:
     """Close a thread — scope abandoned but might still be relevant."""
     resolved = _resolve_reason(reason, reason_from_stdin)
-    _set_status(thread_id, "closed", json_output, resolved, no_attribution)
+    _set_status(thread_id, "closed", resolved, no_attribution)
 
 
 @app.command("wont-do")
 def wont_do(
     thread_id: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
     reason: Annotated[Optional[str], typer.Option("--reason", help=_REASON_HELP)] = None,
     reason_from_stdin: Annotated[
         bool, typer.Option("--reason-from-stdin", help=_REASON_STDIN_HELP)
@@ -763,7 +762,7 @@ def wont_do(
 ) -> None:
     """Mark a thread as wont_do — decided not to ship."""
     resolved = _resolve_reason(reason, reason_from_stdin)
-    _set_status(thread_id, "wont_do", json_output, resolved, no_attribution)
+    _set_status(thread_id, "wont_do", resolved, no_attribution)
 
 
 # ---------------------------------------------------------------------------
@@ -780,7 +779,6 @@ def update(
     priority: Annotated[Optional[str], typer.Option("--priority", help=f"One of: {', '.join(_PRIORITY_CHOICES)}")] = None,
     assigned_to: Annotated[Optional[str], typer.Option("--assigned-to", help="User UUID, or empty string '' to unassign.")] = None,
     milestone_id: Annotated[Optional[str], typer.Option("--milestone-id")] = None,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Generic thread update — set any combination of fields via PATCH."""
     if status and status not in _STATUS_CHOICES:
@@ -816,7 +814,7 @@ def update(
             _console.print(f"[red]Update failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(thread)
         return
     _console.print(f"[green]Updated.[/green]")
@@ -835,7 +833,7 @@ def list_threads(
     status: Annotated[Optional[str], typer.Option("--status", help="Comma-separated status filter (e.g. 'open,in_progress').")] = None,
     priority: Annotated[Optional[str], typer.Option("--priority", help="Comma-separated priority filter.")] = None,
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """List tracker threads — by project, by status, or your own queue.
 
@@ -870,7 +868,14 @@ def list_threads(
 
     rows = _rows_from_response(items)
 
-    if json_output:
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        for r in rows:
+            r.pop("description", None)
+            r.pop("metadata_json", None)
+            r.pop("replies", None)
+
+    if is_json_output():
         _output_json(rows)
         return
 
@@ -881,42 +886,91 @@ def list_threads(
     _print_thread_table(rows)
 
 
+def _fetch_my_work(client, *, status: Optional[str], limit: int) -> list[dict]:
+    params: dict = {"limit": limit}
+    if status:
+        params["status"] = status
+    rows = client.get("/threads/my-work", **params)
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _print_my_work_table(rows: list[dict]) -> None:
+    if not rows:
+        _console.print("[dim]No threads in my work.[/dim]")
+        return
+    table = Table(title=f"My work — {len(rows)} thread(s)", show_header=True)
+    for col in ("#", "status", "priority", "title", "updated"):
+        table.add_column(col)
+    for row in rows:
+        table.add_row(
+            str(row.get("sequence_number", "")),
+            str(row.get("status", "")),
+            str(row.get("priority", "")),
+            str(row.get("title", ""))[:100],
+            str(row.get("updated_at", ""))[:19],
+        )
+    _console.print(table)
+
+
+def _watch_line(rows: list[dict]) -> str:
+    counts = Counter(str(row.get("status", "unknown")) for row in rows)
+    counts_text = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
+    top = rows[0] if rows else {}
+    top_label = ""
+    if top:
+        top_label = (
+            f" | top=#{top.get('sequence_number', '')} "
+            f"{top.get('status', '')} {str(top.get('title', ''))[:80]}"
+        )
+    return f"my-work total={len(rows)} statuses={counts_text}{top_label}"
+
+
 @app.command("my-work")
 def my_work(
-    status: Annotated[Optional[str], typer.Option("--status", help="Filter by status.")] = None,
+    status: Annotated[Optional[str], typer.Option("--status", help="Filter by thread status.")] = None,
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
     watch: Annotated[bool, typer.Option("--watch", help="Poll until interrupted.")] = False,
-    interval: Annotated[float, typer.Option("--interval", min=1.0, help="Polling interval in seconds.")] = 5.0,
-    once: Annotated[bool, typer.Option("--once", help="Poll once and exit. Useful with --watch.")] = False,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    interval: Annotated[float, typer.Option("--interval", min=1.0)] = 5.0,
+    once: Annotated[bool, typer.Option("--once", help="Poll once and exit (debug; useful with --watch).")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
-    """Show threads assigned to, created by, or plucked by the signed-in user."""
+    """Show tracker threads assigned to, plucked by, or created by me.
+
+    Richer than `weave thread list --mine` — adds watch-mode polling with a
+    compact one-line status summary + JSON output for scripting / heads-up
+    displays.
+    """
     with _client_or_exit() as client:
         try:
             while True:
-                params: dict = {"limit": limit}
-                if status:
-                    params["status"] = status
-                rows = _rows_from_response(client.get("/threads/my-work", **params))
-                if json_output:
+                rows = _fetch_my_work(client, status=status, limit=limit)
+
+                # Brief mode: strip heavy fields in agent mode unless --full is passed
+                if is_agent_mode() and not full:
+                    for r in rows:
+                        r.pop("description", None)
+                        r.pop("metadata_json", None)
+                        r.pop("replies", None)
+
+                if is_json_output():
                     _output_json(rows)
                 elif watch:
-                    _console.print(_my_work_watch_line(rows))
-                elif rows:
-                    _print_thread_table(rows)
+                    _console.print(_watch_line(rows))
                 else:
-                    _console.print("[dim]No threads matched.[/dim]")
+                    _print_my_work_table(rows)
                 if not watch or once:
                     break
                 time.sleep(interval)
         except KeyboardInterrupt:
             typer.echo()
         except PowerloomApiError as e:
-            _console.print(f"[red]Query failed:[/red] {e}")
+            _console.print(f"[red]Error:[/red] {e}")
             if e.status_code == 422:
                 _console.print(
-                    "[yellow]The server may still have /threads/my-work shadowed by /threads/{thread_id}. "
-                    "Upgrade/deploy the route-order fix, then retry.[/yellow]"
+                    "[yellow]The server may still have /threads/my-work shadowed by "
+                    "/threads/{thread_id}. Deploy the route-order fix (Powerloom #143/#145), then retry.[/yellow]"
                 )
             raise typer.Exit(1) from None
 
@@ -930,7 +984,7 @@ def my_work(
 def search(
     query: Annotated[str, typer.Argument(help="Substring to match against title, description, or slug.")],
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """Global thread search across every project in your org.
 
@@ -956,7 +1010,15 @@ def search(
             raise typer.Exit(1) from None
 
     rows = _rows_from_response(rows)
-    if json_output:
+
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        for r in rows:
+            r.pop("description", None)
+            r.pop("metadata_json", None)
+            r.pop("replies", None)
+
+    if is_json_output():
         _output_json(rows)
         return
 
@@ -982,7 +1044,6 @@ def search(
 def show(
     thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug'.")],
     with_replies: Annotated[bool, typer.Option("--with-replies/--no-replies", help="Include reply timeline.")] = True,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Show full detail for one thread — fields, metadata, reply timeline."""
     with _client_or_exit() as client:
@@ -993,13 +1054,13 @@ def show(
             _console.print(f"[red]Fetch failed:[/red] {e}")
             raise typer.Exit(1) from None
         replies = []
-        if with_replies and not json_output:
+        if with_replies and not is_json_output():
             try:
                 replies = client.get(f"/threads/{thread_uuid}/replies") or []
             except PowerloomApiError:
                 replies = []
 
-    if json_output:
+    if is_json_output():
         if with_replies:
             thread = dict(thread)
             thread["replies"] = thread.get("replies") or []
@@ -1033,102 +1094,7 @@ def show(
 
 
 # ---------------------------------------------------------------------------
-# my-work (richer dedicated subcommand with --watch mode)
-# ---------------------------------------------------------------------------
-#
-# Distinct from `weave thread list --mine` — this one adds watch-mode polling
-# + a compact one-line summary view + JSON output. Useful for "I want a
-# heads-up display" workflows + CI integrations. Added in PR #25 on top of
-# T1's broader `list` subcommand.
-
-import json as _json_mw
-import time as _time_mw
-from collections import Counter as _Counter_mw
-
-
-def _fetch_my_work(client, *, status: Optional[str], limit: int) -> list[dict]:
-    params: dict = {"limit": limit}
-    if status:
-        params["status"] = status
-    rows = client.get("/threads/my-work", **params)
-    if not isinstance(rows, list):
-        return []
-    return [row for row in rows if isinstance(row, dict)]
-
-
-def _print_my_work_table(rows: list[dict]) -> None:
-    if not rows:
-        _console.print("[dim]No threads in my work.[/dim]")
-        return
-    table = Table(title=f"My work — {len(rows)} thread(s)", show_header=True)
-    for col in ("#", "status", "priority", "title", "updated"):
-        table.add_column(col)
-    for row in rows:
-        table.add_row(
-            str(row.get("sequence_number", "")),
-            str(row.get("status", "")),
-            str(row.get("priority", "")),
-            str(row.get("title", ""))[:100],
-            str(row.get("updated_at", ""))[:19],
-        )
-    _console.print(table)
-
-
-def _watch_line(rows: list[dict]) -> str:
-    counts = _Counter_mw(str(row.get("status", "unknown")) for row in rows)
-    counts_text = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
-    top = rows[0] if rows else {}
-    top_label = ""
-    if top:
-        top_label = (
-            f" | top=#{top.get('sequence_number', '')} "
-            f"{top.get('status', '')} {str(top.get('title', ''))[:80]}"
-        )
-    return f"my-work total={len(rows)} statuses={counts_text}{top_label}"
-
-
-@app.command("my-work")
-def my_work(
-    status: Annotated[Optional[str], typer.Option("--status", help="Filter by thread status.")] = None,
-    limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
-    output: Annotated[str, typer.Option("-o", "--output", help="table or json")] = "table",
-    watch: Annotated[bool, typer.Option("--watch", help="Poll until interrupted.")] = False,
-    interval: Annotated[float, typer.Option("--interval", min=1.0)] = 5.0,
-    once: Annotated[bool, typer.Option("--once", help="Poll once and exit (debug; useful with --watch).")] = False,
-) -> None:
-    """Show tracker threads assigned to, plucked by, or created by me.
-
-    Richer than `weave thread list --mine` — adds watch-mode polling with a
-    compact one-line status summary + JSON output for scripting / heads-up
-    displays.
-    """
-    with _client_or_exit() as client:
-        try:
-            while True:
-                rows = _fetch_my_work(client, status=status, limit=limit)
-                if output == "json":
-                    print(_json_mw.dumps(rows, indent=2, default=str))
-                elif watch:
-                    _console.print(_watch_line(rows))
-                else:
-                    _print_my_work_table(rows)
-                if not watch or once:
-                    break
-                _time_mw.sleep(interval)
-        except KeyboardInterrupt:
-            typer.echo()
-        except PowerloomApiError as e:
-            _console.print(f"[red]Error:[/red] {e}")
-            if e.status_code == 422:
-                _console.print(
-                    "[yellow]The server may still have /threads/my-work shadowed by "
-                    "/threads/{thread_id}. Deploy the route-order fix (Powerloom #143/#145), then retry.[/yellow]"
-                )
-            raise typer.Exit(1) from None
-
-
-# ---------------------------------------------------------------------------
-# W1.5.3 — tree view (`weave thread tree <ref>`, `weave project orphans`)
+# tree view (`weave thread tree <ref>`, `weave project orphans`)
 # ---------------------------------------------------------------------------
 
 
@@ -1172,7 +1138,6 @@ def _render_tree_node(node: dict, prefix: str = "", is_last: bool = True) -> Non
 def tree(
     thread_id: Annotated[str, typer.Argument(help="Thread reference: UUID, slug, or 'project:slug'.")],
     max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=50, help="Max levels to descend.")] = 10,
-    json_output: Annotated[bool, typer.Option("--json", help="Print the raw tree as JSON.")] = False,
 ) -> None:
     """Print the parent/child tree rooted at <thread_id>.
 
@@ -1191,7 +1156,7 @@ def tree(
             _console.print(f"[red]Tree fetch failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(tree_data)
         return
     _render_tree_node(tree_data)
@@ -1207,7 +1172,6 @@ def tree(
 def sprint_tree_cmd(
     sprint_id: Annotated[str, typer.Argument(help="Sprint reference: UUID, slug (e.g. 'v064'), or 'project:slug'.")],
     max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=50)] = 10,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Render every top-level thread in the sprint as a tree.
 
@@ -1231,7 +1195,7 @@ def sprint_tree_cmd(
             _console.print(f"[red]Sprint tree fetch failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(data)
         return
 
@@ -1254,7 +1218,7 @@ def orphans_cmd(
     project: Annotated[Optional[str], typer.Option("--project", "-p", help="Project slug or UUID.")] = None,
     include_done: Annotated[bool, typer.Option("--include-done", help="Include done/closed/wont_do threads in the orphan list.")] = False,
     limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 200,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """List threads in the project with no parent and no sprint membership.
 
@@ -1274,7 +1238,15 @@ def orphans_cmd(
             raise typer.Exit(1) from None
 
     rows = _rows_from_response(rows)
-    if json_output:
+
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        for r in rows:
+            r.pop("description", None)
+            r.pop("metadata_json", None)
+            r.pop("replies", None)
+
+    if is_json_output():
         _output_json(rows)
         return
     if not rows:
@@ -1300,7 +1272,6 @@ def move_cmd(
     thread_ref: Annotated[str, typer.Argument(help="Thread reference: UUID, slug (e.g. 'ki-004'), or 'project:slug'.")],
     to: Annotated[str, typer.Option("--to", help="Target project — slug (e.g. 'powerloom-engine') or UUID.")],
     force: Annotated[bool, typer.Option("--force", help="Apply cleanups (detach milestone/parent/sprints/dependencies that live in the source project) and proceed with the move. Without this flag, a move that would require any cleanup returns 409 with the plan, so you can preview before committing.")] = False,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Move a thread to a different project (with safe cleanup of cross-project references).
 
@@ -1329,7 +1300,7 @@ def move_cmd(
                 _console.print(f"[red]Move failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if is_json_output():
         _output_json(thread)
         return
     _console.print("[green]Thread moved.[/green]")
@@ -1339,3 +1310,53 @@ def move_cmd(
         f"new sequence_number={thread.get('sequence_number','?')} "
         f"slug={thread.get('slug','(none)')}[/dim]"
     )
+
+
+# ---------------------------------------------------------------------------
+# bulk operations
+# ---------------------------------------------------------------------------
+
+
+@app.command("bulk-create")
+def bulk_create(
+    plan_file: Annotated[typer.FileText, typer.Argument(help="YAML or JSON file with thread payloads.")],
+    project: Annotated[Optional[str], typer.Option("--project", "-p", help="Project slug or UUID.")] = None,
+    no_attribution: Annotated[bool, typer.Option("--no-attribution")] = False,
+) -> None:
+    """Create multiple threads from a structured file.
+
+    File should contain a list of objects with title, priority, description, etc.
+    """
+    import yaml as _yaml
+    try:
+        payloads = _yaml.safe_load(plan_file)
+    except Exception as e:
+        _console.print(f"[red]Could not parse {plan_file.name}:[/red] {e}")
+        raise typer.Exit(1)
+
+    if not isinstance(payloads, list):
+        _console.print(f"[red]Invalid plan file: expected a list of objects.[/red]")
+        raise typer.Exit(1)
+
+    final_project = project or _default_project()
+    results = []
+    with _client_or_exit() as client:
+        project_id = _resolve_project(client, final_project)
+        for i, body in enumerate(payloads):
+            if not isinstance(body, dict) or "title" not in body:
+                _console.print(f"[yellow]Skipping item {i}: missing 'title'.[/yellow]")
+                continue
+
+            try:
+                thread = client.post(f"/projects/{project_id}/threads", body)
+                thread = _maybe_stamp_attribution(client, thread, no_attribution)
+                results.append(thread)
+                if not is_json_output():
+                    _console.print(f"[green]Created {i+1}/{len(payloads)}:[/green] {thread.get('title')}")
+            except PowerloomApiError as e:
+                _console.print(f"[red]Failed to create item {i}:[/red] {e}")
+
+    if is_json_output():
+        _output_json(results)
+    else:
+        _console.print(f"[bold green]Bulk create complete — {len(results)} threads created.[/bold green]")

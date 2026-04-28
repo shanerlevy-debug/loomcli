@@ -11,7 +11,7 @@ Typical uses:
     weave audit --kind skill --action create       # skill creates only
     weave audit --actor user:shane@example.com     # what did shane do?
     weave audit --approval-request <id>            # traces around an approval
-    weave audit --format json                      # machine-readable
+    weave -o json audit                            # machine-readable
 
 Filters chain with AND. Output defaults to a human-readable table
 with column-wrapping, not the raw JSON.
@@ -27,7 +27,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 app = typer.Typer(help="Query the Powerloom audit log.")
 _console = Console()
@@ -123,10 +123,6 @@ def audit(
         50, "--limit", "-n",
         help="Max rows to return (server-capped at 1000).",
     ),
-    output_format: str = typer.Option(
-        "table", "--format", "-f",
-        help="Output format: 'table' (default human-readable) or 'json' (machine).",
-    ),
 ) -> None:
     """List audit log entries matching the filters.
 
@@ -172,7 +168,7 @@ def audit(
         _console.print("[dim]No audit entries match.[/dim]")
         return
 
-    if output_format == "json":
+    if is_json_output():
         _console.print(json.dumps(rows, indent=2, default=str))
         return
 

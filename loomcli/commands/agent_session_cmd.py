@@ -25,7 +25,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 # Pattern for the project's branch naming convention: session/<scope>-<yyyymmdd>
 _BRANCH_RE = re.compile(r"^session/(?P<scope>.+)-(?P<date>\d{8})$")
@@ -55,8 +55,6 @@ _ACTOR_TO_TOKEN = {
 
 
 _console = Console()
-_TERMINAL_STATUSES = {"merged", "abandoned", "yielded"}
-
 _TERMINAL_STATUSES = {"merged", "abandoned", "yielded"}
 
 app = typer.Typer(
@@ -392,7 +390,6 @@ def init_cmd(
     summary: Annotated[Optional[str], typer.Option("--summary", help="One-line description.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags.")] = None,
     actor_kind: Annotated[str, typer.Option("--actor-kind", help="auto | gemini_cli | claude_code | etc.")] = "auto",
-    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Create a new feature branch and register it as a coordination session."""
     if not branch:
@@ -433,7 +430,6 @@ def init_cmd(
         branch=branch,
         capabilities=capabilities,
         actor_kind=actor,
-        json_out=json_out
     )
 
 
@@ -443,7 +439,6 @@ def start_cmd(
     summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. If omitted, you'll be prompted.")] = None,
     friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Display name (e.g. 'Shane CC laptop'). If omitted, you'll be prompted with the scope slug as default.")] = None,
     actor_kind: Annotated[str, typer.Option("--actor-kind", help="claude_code | codex_cli | gemini_cli | antigravity | cma | human")] = "human",
-    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Friendly interactive shortcut for `register`. No git required.
 
@@ -496,7 +491,6 @@ def start_cmd(
         actor_id=None,
         from_branch=False,
         if_not_active=False,
-        json_out=json_out,
     )
 
 
@@ -515,7 +509,6 @@ def register_cmd(
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email)")] = None,
     from_branch: Annotated[bool, typer.Option("--from-branch", help="Infer --scope and --branch from the current git branch (best for devs in a session/<scope>-<yyyymmdd> branch).")] = False,
     if_not_active: Annotated[bool, typer.Option("--if-not-active", help="No-op (exit 0) if a session with the same scope is already active. Safe for SessionStart hooks.")] = False,
-    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Register a new active agent session.
 
@@ -625,7 +618,7 @@ def register_cmd(
             existing = resp.get("sessions", [])
             active = next((s for s in existing if s.get("session_slug") == scope), None)
             if active:
-                if json_out:
+                if is_json_output():
                     typer.echo(
                         json.dumps(
                             {"status": "already_active", "session": active},
@@ -660,7 +653,7 @@ def register_cmd(
     try:
         resp = client.post("/agent-sessions", body)
     except PowerloomApiError as e:
-        if e.status_code == 409 and json_out:
+        if e.status_code == 409 and is_json_output():
             typer.echo(
                 json.dumps(
                     {
@@ -685,7 +678,7 @@ def register_cmd(
     # on the next register.
     sub_id = _ensure_subprincipal(client, scope=scope, actor_kind=actor_kind)
 
-    if json_out:
+    if is_json_output():
         # Surface the sub-principal id in JSON output for tooling
         # (e.g. SessionStart hooks that want to log the binding).
         if sub_id is not None:
@@ -735,7 +728,6 @@ def bootstrap_cmd(
     register: Annotated[bool, typer.Option("--register/--no-register", help="Register this coordination session after checkout.")] = True,
     if_not_active: Annotated[bool, typer.Option("--if-not-active/--always-register", help="Skip registration when the generated scope is already active.")] = True,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Print planned git/API actions without mutating local repo or registering.")] = False,
-    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON result.")] = False,
 ) -> None:
     """Bootstrap an empty-folder client into a Powerloom project.
 
@@ -837,7 +829,7 @@ def bootstrap_cmd(
                         session_resp = client.post("/agent-sessions", body)
                 else:
                     session_resp = client.post("/agent-sessions", body)
-            except PowerloomClientError as exc:
+            except PowerloomApiError as exc:
                 _console.print(f"[red]Failed to register session:[/red] {exc}")
                 raise typer.Exit(code=1) from exc
 
@@ -851,7 +843,7 @@ def bootstrap_cmd(
         "capabilities": caps,
         "session": session_resp,
     }
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(result, indent=2, default=str))
         return
 
@@ -877,7 +869,6 @@ def update_cmd(
     cross_cutting: Annotated[Optional[bool], typer.Option("--cross-cutting/--no-cross-cutting", help="Update cross-cutting status.")] = None,
     migration: Annotated[Optional[bool], typer.Option("--migration/--no-migration", help="Update migration status.")] = None,
     version: Annotated[Optional[str], typer.Option("--version", help="Update target version.")] = None,
-    json_out: Annotated[bool, typer.Option("--json", help="Emit JSON instead of human output")] = False,
 ) -> None:
     """Update metadata for an active agent session."""
     body: dict[str, Any] = {}
@@ -905,7 +896,7 @@ def update_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -920,7 +911,6 @@ def end_cmd(
     outcome: Annotated[str, typer.Option("--outcome", help="merged | abandoned")] = "merged",
     pr_url: Annotated[Optional[str], typer.Option("--pr-url", help="Merged PR URL")] = None,
     reason: Annotated[Optional[str], typer.Option("--reason", help="Abandonment reason")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Terminate an active session with outcome merged or abandoned."""
     body = {
@@ -935,7 +925,7 @@ def end_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
     _console.print(
@@ -948,7 +938,6 @@ def end_cmd(
 def ls_cmd(
     status_filter: Annotated[Optional[str], typer.Option("--status", help="active | yielded | merged | abandoned")] = None,
     limit: Annotated[int, typer.Option("--limit")] = 50,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List sessions."""
     client = _client()
@@ -961,7 +950,7 @@ def ls_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -996,7 +985,6 @@ def ls_cmd(
 @app.command("get")
 def get_cmd(
     session_id: Annotated[str, typer.Argument(help="Session ID (UUID)")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Fetch one session's full detail."""
     client = _client()
@@ -1006,7 +994,7 @@ def get_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -1035,7 +1023,6 @@ def get_cmd(
 @app.command("status")
 def status_cmd(
     session_id: Annotated[str, typer.Argument(help="Coordination session ID (UUID)")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Show one coordination session plus its assigned workflow tasks."""
     client = _client()
@@ -1045,7 +1032,7 @@ def status_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(snapshot, indent=2, default=str))
         return
     _print_coordination_session_snapshot(snapshot)
@@ -1154,7 +1141,6 @@ def _coordination_watch_line(snapshot: dict[str, Any]) -> str:
 @app.command("tasks")
 def tasks_cmd(
     session_id: Annotated[str, typer.Argument(help="Session ID (UUID)")],
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List workflow steps currently assigned to this session.
 
@@ -1170,7 +1156,7 @@ def tasks_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 
@@ -1204,7 +1190,6 @@ def task_complete_cmd(
     outputs_file: Annotated[Optional[str], typer.Option("--outputs-file", help="Path to JSON/YAML file with outputs")] = None,
     output_kv: Annotated[Optional[list[str]], typer.Option("--output", help="key=value output (repeatable)")] = None,
     error_reason: Annotated[Optional[str], typer.Option("--error-reason")] = None,
-    json_out: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Mark an assigned task done or failed. Emits a work-chain event;
     the scheduler advances the workflow on its next tick."""
@@ -1245,7 +1230,7 @@ def task_complete_cmd(
         _console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    if json_out:
+    if is_json_output():
         typer.echo(json.dumps(resp, indent=2, default=str))
         return
 

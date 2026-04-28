@@ -32,6 +32,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "POWERLOOM_FORMAT",
         "POWERLOOM_ACTIVE_SUBPRINCIPAL_ID",
         "POWERLOOM_QUIET_AUTO_JSON",
+        "POWERLOOM_NO_AUTO_JSON",
     ):
         monkeypatch.delenv(var, raising=False)
 

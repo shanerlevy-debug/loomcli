@@ -1,6 +1,7 @@
 """`weave destroy` — delete everything in a manifest, reverse order."""
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import typer
@@ -9,7 +10,7 @@ from rich.console import Console
 from loomcli.client import PowerloomClient
 from loomcli.commands.apply import _render_outcomes
 from loomcli.commands.plan import render_plan
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 from loomcli.manifest.applier import (
     apply_plan,
@@ -50,10 +51,14 @@ def destroy_command(
     with PowerloomClient(cfg) as client:
         resolver = AddressResolver(client)
         plan = plan_destroy_for_resources(resources, resolver)
-        render_plan(plan)
+        
+        if not is_json_output():
+            render_plan(plan)
 
         actionable = [a for a in plan.actions if a.verb == "destroy"]
         if not actionable:
+            if is_json_output():
+                typer.echo(json.dumps({"status": "no_changes", "plan": []}))
             return
 
         if not auto_approve:

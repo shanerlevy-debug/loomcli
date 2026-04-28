@@ -42,6 +42,8 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from loomcli.config import is_json_output
+
 app = typer.Typer(help="Upgrade manifests between schema versions.")
 _console = Console()
 
@@ -229,6 +231,18 @@ def _emit_docs(docs: list[_MigrationResult]) -> str:
 
 
 def _render_report(results: list[_MigrationResult]) -> None:
+    if is_json_output():
+        serializable = []
+        for r in results:
+            serializable.append({
+                "path": str(r.path),
+                "kind": r.kind,
+                "status": r.status,
+                "message": r.message,
+            })
+        typer.echo(json.dumps(serializable, indent=2, default=str))
+        return
+
     table = Table(title="weave migrate v1→v2", show_lines=False)
     table.add_column("File")
     table.add_column("Kind")
@@ -352,7 +366,8 @@ def v1_to_v2(
                 out.write_text(body, encoding="utf-8")
             else:
                 # stdout — only for single-file case, otherwise concat.
-                typer.echo(f"# --- {p} ---")
+                if not is_json_output():
+                    typer.echo(f"# --- {p} ---")
                 typer.echo(body)
 
     # Exit code policy.

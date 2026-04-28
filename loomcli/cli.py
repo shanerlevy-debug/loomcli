@@ -103,7 +103,12 @@ def _detect_auto_json_reason() -> Optional[str]:
          to the table renderer in that case produces the one-char-per-row
          column-collapse bug that ate ~6KB of unreadable output during the
          2026-04-27 dogfood pass.
+
+    Pass POWERLOOM_NO_AUTO_JSON=1 to bypass all of the above and force
+    interactive defaults (table output) regardless of environment.
     """
+    if os.environ.get("POWERLOOM_NO_AUTO_JSON"):
+        return None
     for var in _AGENT_ENV_VARS:
         if os.environ.get(var):
             return f"agent env {var}"

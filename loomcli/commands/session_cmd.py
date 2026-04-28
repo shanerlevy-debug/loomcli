@@ -11,6 +11,7 @@ from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.commands.agent_cmd import _extract_text_from_event, _require_config
+from loomcli.config import is_json_output
 
 
 app = typer.Typer(no_args_is_help=True, help="Inspect session event traces.")
@@ -27,10 +28,6 @@ def events_command(
         int,
         typer.Option("--limit", min=1, max=500, help="Maximum events to return."),
     ] = 100,
-    output: Annotated[
-        Literal["table", "json"],
-        typer.Option("-o", "--output", help="Output format."),
-    ] = "table",
 ) -> None:
     """Print durable events for a session."""
     cfg = _require_config()
@@ -41,8 +38,8 @@ def events_command(
             _console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1) from e
 
-    if output == "json":
-        _console.print_json(json.dumps(rows, default=str))
+    if is_json_output():
+        typer.echo(json.dumps(rows, indent=2, default=str))
         return
     _print_events_table(rows)
 
@@ -125,7 +122,7 @@ def _print_events_table(rows: list[dict[str, Any]]) -> None:
 
 def _print_event(row: dict[str, Any], *, raw_events: bool) -> None:
     if raw_events:
-        _console.print_json(json.dumps(row, default=str))
+        typer.echo(json.dumps(row, default=str))
         return
     frame = {"type": row.get("event_type"), "payload": row.get("payload") or {}}
     text = _extract_text_from_event(frame)

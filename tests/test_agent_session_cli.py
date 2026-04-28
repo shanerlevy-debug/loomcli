@@ -242,7 +242,7 @@ def test_register_if_not_active_skips_when_already_registered():
 
 
 def test_register_if_not_active_json_reports_existing_session():
-    """--if-not-active --json gives hooks a machine-readable no-op result."""
+    """--if-not-active -o json gives hooks a machine-readable no-op result."""
     active_sessions = {
         "sessions": [
             {
@@ -257,11 +257,10 @@ def test_register_if_not_active_json_reports_existing_session():
         result = runner.invoke(
             app,
             [
-                "agent-session", "register",
+                "-o", "json", "agent-session", "register",
                 "--scope", "phase23-service-accounts-20260425",
                 "--summary", "test session",
                 "--if-not-active",
-                "--json",
             ],
         )
 

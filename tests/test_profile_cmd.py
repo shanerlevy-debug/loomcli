@@ -46,7 +46,7 @@ def test_profile_set_show_and_runtime_config(monkeypatch):
     assert cfg.default_model == "gpt-5.5"
     assert cfg.default_output == "json"
 
-    result = runner.invoke(app, ["profile", "show", "--json"])
+    result = runner.invoke(app, ["-o", "json", "profile", "show"])
     assert result.exit_code == 0, result.stdout
     assert '"default_model": "gpt-5.5"' in result.stdout
 

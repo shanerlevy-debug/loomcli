@@ -58,7 +58,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import config_dir, load_runtime_config
+from loomcli.config import config_dir, is_json_output, load_runtime_config
 
 
 app = typer.Typer(
@@ -499,16 +499,12 @@ def show(
         "--scope", "-s",
         help="OU scope-ref (dotted path).",
     )],
-    json_output: Annotated[bool, typer.Option(
-        "--json",
-        help="Print the raw API response as JSON.",
-    )] = False,
 ) -> None:
     """Print the conventions that would be synced for a given scope.
     Read-only; doesn't touch any files."""
     with _client_or_exit() as client:
         conventions = _fetch_conventions(client, scope)
-    if json_output:
+    if is_json_output():
         print(_json.dumps(conventions, indent=2, default=str))
         return
     if not conventions:
@@ -540,7 +536,6 @@ def list_conventions(
         "--status",
         help="Filter by status (active|archived). Default: all.",
     )] = None,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """List every convention visible to your org (cross-OU view).
 
@@ -556,7 +551,7 @@ def list_conventions(
             _console.print(f"[red]Convention list failed:[/red] {e}")
             raise typer.Exit(1) from None
     rows = rows if isinstance(rows, list) else (rows.get("items") or [])
-    if json_output:
+    if is_json_output():
         print(_json.dumps(rows, indent=2, default=str))
         return
     if not rows:

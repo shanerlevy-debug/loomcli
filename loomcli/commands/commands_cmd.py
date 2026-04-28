@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.command_registry import list_commands
+from loomcli.config import is_json_output
 
 _console = Console()
 
@@ -18,15 +19,11 @@ def commands_command(
         str | None,
         typer.Option("--prefix", help="Only include commands with this prefix."),
     ] = None,
-    json_out: Annotated[
-        bool,
-        typer.Option("--json", help="Print machine-readable command metadata."),
-    ] = False,
 ) -> None:
     """List command metadata for autocomplete, plugins, and mobile clients."""
     rows = list_commands(prefix=prefix)
-    if json_out:
-        _console.print_json(json.dumps(rows, default=str))
+    if is_json_output():
+        typer.echo(json.dumps(rows, indent=2, default=str))
         return
 
     table = Table(title="Weave commands", show_header=True)

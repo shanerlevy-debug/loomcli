@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 from loomcli.manifest.addressing import AddressResolver
 
 
@@ -47,10 +47,6 @@ def get_command(
         str | None,
         typer.Option("--ou", help="Filter to resources in the given OU path."),
     ] = None,
-    output: Annotated[
-        Optional[str],
-        typer.Option("-o", "--output", help="Output format."),
-    ] = None,
     tree: Annotated[
         bool,
         typer.Option("--tree", help="Show OU hierarchy as a tree (OUs only)."),
@@ -69,9 +65,6 @@ def get_command(
         _console.print("[yellow]Not signed in.[/yellow]")
         raise typer.Exit(1)
 
-    # Use explicitly provided output format, or fall back to config/env default
-    output_format = output or cfg.default_output or "table"
-
     params: dict[str, str] = {}
     with PowerloomClient(cfg) as client:
         if tree and kind.lower() not in ("ou", "ous"):
@@ -82,8 +75,8 @@ def get_command(
             try:
                 # OUs have a special tree endpoint
                 data = client.get("/ous/tree")
-                if output_format == "json":
-                    _console.print_json(json.dumps(data))
+                if is_json_output():
+                    typer.echo(json.dumps(data, indent=2, default=str))
                     return
                 _print_ou_tree(data)
                 return
@@ -108,8 +101,8 @@ def get_command(
         _console.print(f"[red]Unexpected shape from {list_path}[/red]")
         raise typer.Exit(1)
 
-    if output_format == "json":
-        _console.print_json(json.dumps(rows))
+    if is_json_output():
+        typer.echo(json.dumps(rows, indent=2, default=str))
         return
 
     table = Table(title=f"{kind} — {len(rows)} row(s)", show_header=True)

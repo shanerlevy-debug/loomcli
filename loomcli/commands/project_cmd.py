@@ -12,7 +12,7 @@ parity with `weave get agents` / `weave get skills` / etc.
 Usage:
 
     weave project ls                # all projects you can see
-    weave project ls --json         # same, JSON shape
+    weave -o json project ls        # same, JSON shape
     weave project show powerloom    # full detail by slug
     weave project show <uuid>       # full detail by UUID
 
@@ -30,7 +30,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_json_output, load_runtime_config
 
 
 app = typer.Typer(help="Inspect tracker projects (ls / show).")
@@ -43,15 +43,6 @@ def _client_or_exit() -> PowerloomClient:
         _console.print("[yellow]Not signed in — run `weave login` first.[/yellow]")
         raise typer.Exit(1)
     return PowerloomClient(cfg)
-
-
-def _output_format() -> str:
-    """Resolve the active output format. Mirrors thread_cmd's choice — env wins
-    over the load_runtime_config default since cli._apply_global_options sets
-    POWERLOOM_FORMAT after the fact."""
-    cfg = load_runtime_config()
-    import os
-    return os.environ.get("POWERLOOM_FORMAT") or (cfg.default_output or "table")
 
 
 def _items_from_response(payload: Any) -> list[dict]:
@@ -68,9 +59,7 @@ def _items_from_response(payload: Any) -> list[dict]:
 
 
 @app.command("ls")
-def ls(
-    json_output: Annotated[bool, typer.Option("--json", help="Print as JSON.")] = False,
-) -> None:
+def ls() -> None:
     """List tracker projects visible to the current user."""
     with _client_or_exit() as client:
         try:
@@ -80,10 +69,9 @@ def ls(
             raise typer.Exit(1) from None
 
     items = _items_from_response(payload)
-    fmt = "json" if json_output else _output_format()
 
-    if fmt == "json":
-        _console.print_json(_json.dumps(items))
+    if is_json_output():
+        typer.echo(_json.dumps(items, indent=2, default=str))
         return
 
     if not items:
@@ -110,7 +98,6 @@ def show(
         str,
         typer.Argument(help="Project slug (e.g. 'powerloom') or UUID."),
     ],
-    json_output: Annotated[bool, typer.Option("--json", help="Print as JSON.")] = False,
 ) -> None:
     """Show full detail for one project."""
     with _client_or_exit() as client:
@@ -138,9 +125,8 @@ def show(
             _console.print(f"[red]Could not fetch project:[/red] {e}")
             raise typer.Exit(1) from None
 
-    fmt = "json" if json_output else _output_format()
-    if fmt == "json":
-        _console.print_json(_json.dumps(payload))
+    if is_json_output():
+        typer.echo(_json.dumps(payload, indent=2, default=str))
         return
 
     _console.print(f"[bold]{payload.get('name', '?')}[/bold]  [dim]({payload.get('slug', '?')})[/dim]")

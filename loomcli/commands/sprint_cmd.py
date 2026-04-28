@@ -49,7 +49,7 @@ from rich.console import Console
 from rich.table import Table
 
 from loomcli.client import PowerloomApiError, PowerloomClient
-from loomcli.config import load_runtime_config
+from loomcli.config import is_agent_mode, is_json_output, load_runtime_config
 
 
 app = typer.Typer(
@@ -232,7 +232,8 @@ def create(
     end_date: Annotated[Optional[str], typer.Option("--end-date", help="ISO date YYYY-MM-DD.")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal", help="Short goal statement (surfaces in headers).")] = None,
     milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Nest the sprint under this milestone (UUID, currently UUID-only). Engine validates the milestone belongs to the same project.")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="Print created sprint as JSON.")] = False,
+    id_only: Annotated[bool, typer.Option("--id-only", help="Only print the UUID of the created sprint.")] = False,
+    slug_only: Annotated[bool, typer.Option("--slug-only", help="Only print the slug of the created sprint.")] = False,
 ) -> None:
     """Create a sprint in <project>. Slug auto-generates from name when
     omitted (re-uses the same KI-/T1-/v065-/PR-NN pattern detection as
@@ -280,7 +281,14 @@ def create(
             _console.print(f"[red]Sprint create failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    if id_only:
+        _console.print(sprint["id"])
+        return
+    if slug_only:
+        _console.print(sprint.get("slug") or "")
+        return
+
+    if is_json_output():
         _output_json(sprint)
         return
     _console.print("[green]Sprint created.[/green]")
@@ -301,7 +309,7 @@ def list_sprints(
     status: Annotated[Optional[str], typer.Option("--status", help="Filter by status.")] = None,
     milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Filter to sprints nested under this milestone (UUID).")] = None,
     limit: Annotated[int, typer.Option("--limit", min=1, max=200)] = 50,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """List sprints in a project. Optional --milestone filters to sprints
     nested under that milestone (Project > Milestone > Sprint hierarchy)."""
@@ -328,7 +336,16 @@ def list_sprints(
             raise typer.Exit(1) from None
 
     sprints = rows if isinstance(rows, list) else (rows.get("items") or [])
-    if json_output:
+
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        for s in sprints:
+            if isinstance(s, dict):
+                s.pop("description", None)
+                s.pop("goal", None)
+                s.pop("metadata_json", None)
+
+    if is_json_output():
         _output_json(sprints)
         return
     if not sprints:
@@ -366,7 +383,7 @@ def list_sprints(
 @app.command("show")
 def show(
     sprint_ref: Annotated[str, typer.Argument(help="Sprint reference: UUID, slug (e.g. 'v064'), or 'project:slug'.")],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """Show full detail for one sprint."""
     with _client_or_exit() as client:
@@ -377,7 +394,14 @@ def show(
             _console.print(f"[red]Sprint fetch failed:[/red] {e}")
             raise typer.Exit(1) from None
 
-    if json_output:
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        sprint = dict(sprint)
+        sprint.pop("description", None)
+        sprint.pop("goal", None)
+        sprint.pop("metadata_json", None)
+
+    if is_json_output():
         _output_json(sprint)
         return
     _console.print(f"\n[bold]{sprint.get('name','(no name)')}[/bold] [cyan]{sprint.get('slug','?')}[/cyan]")
@@ -400,7 +424,7 @@ def show(
 # ---------------------------------------------------------------------------
 
 
-def _patch_sprint(sprint_ref: str, body: dict, json_output: bool) -> None:
+def _patch_sprint(sprint_ref: str, body: dict) -> None:
     with _client_or_exit() as client:
         sprint_uuid = _resolve_sprint(client, sprint_ref)
         try:
@@ -408,7 +432,7 @@ def _patch_sprint(sprint_ref: str, body: dict, json_output: bool) -> None:
         except PowerloomApiError as e:
             _console.print(f"[red]Sprint update failed:[/red] {e}")
             raise typer.Exit(1) from None
-    if json_output:
+    if is_json_output():
         _output_json(sprint)
         return
     _console.print("[green]Updated.[/green]")
@@ -426,7 +450,6 @@ def update(
     end_date: Annotated[Optional[str], typer.Option("--end-date")] = None,
     goal: Annotated[Optional[str], typer.Option("--goal")] = None,
     milestone: Annotated[Optional[str], typer.Option("--milestone", "-m", help="Attach the sprint to a milestone (UUID). Engine validates same-project.")] = None,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Generic sprint update — set any combination of fields via PATCH.
 
@@ -468,34 +491,31 @@ def update(
     if not body:
         _console.print("[yellow]No fields to update — pass at least one --field.[/yellow]")
         raise typer.Exit(2)
-    _patch_sprint(sprint_ref, body, json_output)
+    _patch_sprint(sprint_ref, body)
 
 
 @app.command("activate")
 def activate(
     sprint_ref: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Mark a sprint as active (work is in progress)."""
-    _patch_sprint(sprint_ref, {"status": "active"}, json_output)
+    _patch_sprint(sprint_ref, {"status": "active"})
 
 
 @app.command("complete")
 def complete(
     sprint_ref: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Mark a sprint as completed (engine auto-stamps closed_at)."""
-    _patch_sprint(sprint_ref, {"status": "completed"}, json_output)
+    _patch_sprint(sprint_ref, {"status": "completed"})
 
 
 @app.command("archive")
 def archive(
     sprint_ref: Annotated[str, typer.Argument()],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Mark a sprint as archived (engine auto-stamps closed_at)."""
-    _patch_sprint(sprint_ref, {"status": "archived"}, json_output)
+    _patch_sprint(sprint_ref, {"status": "archived"})
 
 
 # ---------------------------------------------------------------------------
@@ -535,28 +555,30 @@ def delete(
 @app.command("add-thread")
 def add_thread(
     sprint_ref: Annotated[str, typer.Argument(help="Sprint UUID / slug / 'project:slug'.")],
-    thread_ref: Annotated[str, typer.Argument(help="Thread UUID / slug / 'project:slug'.")],
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    thread_refs: Annotated[list[str], typer.Argument(help="Thread UUIDs / slugs / 'project:slugs' (repeatable).")],
 ) -> None:
-    """Link a thread to a sprint. Idempotent — already-present pairs return
-    success, not 409."""
+    """Link one or more threads to a sprint. Idempotent — already-present pairs
+    return success, not 409."""
+    results = []
     with _client_or_exit() as client:
         sprint_uuid = _resolve_sprint(client, sprint_ref)
-        thread_uuid = _resolve_thread_ref(client, thread_ref)
-        try:
-            thread = client.post(
-                f"/sprints/{sprint_uuid}/threads",
-                {"thread_id": thread_uuid},
-            )
-        except PowerloomApiError as e:
-            _console.print(f"[red]Add-thread failed:[/red] {e}")
-            raise typer.Exit(1) from None
-    if json_output:
-        _output_json(thread)
-        return
-    _console.print(
-        f"[green]Added thread {thread.get('slug') or thread_uuid[:8]} to sprint.[/green]"
-    )
+        for ref in thread_refs:
+            try:
+                thread_uuid = _resolve_thread_ref(client, ref)
+                thread = client.post(
+                    f"/sprints/{sprint_uuid}/threads",
+                    {"thread_id": thread_uuid},
+                )
+                results.append(thread)
+                if not is_json_output():
+                    _console.print(
+                        f"[green]Added thread {thread.get('slug') or thread_uuid[:8]} to sprint.[/green]"
+                    )
+            except PowerloomApiError as e:
+                _console.print(f"[red]Failed to add thread {ref}:[/red] {e}")
+
+    if is_json_output():
+        _output_json(results)
 
 
 @app.command("remove-thread")
@@ -580,7 +602,7 @@ def remove_thread(
 def threads(
     sprint_ref: Annotated[str, typer.Argument()],
     limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 200,
-    json_output: Annotated[bool, typer.Option("--json")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Include full descriptions and metadata.")] = False,
 ) -> None:
     """List threads in a sprint, sorted by priority then created_at."""
     with _client_or_exit() as client:
@@ -592,7 +614,16 @@ def threads(
             raise typer.Exit(1) from None
 
     items = rows if isinstance(rows, list) else (rows.get("items") or [])
-    if json_output:
+
+    # Brief mode: strip heavy fields in agent mode unless --full is passed
+    if is_agent_mode() and not full:
+        for t in items:
+            if isinstance(t, dict):
+                t.pop("description", None)
+                t.pop("metadata_json", None)
+                t.pop("replies", None)
+
+    if is_json_output():
         _output_json(items)
         return
     if not items:
