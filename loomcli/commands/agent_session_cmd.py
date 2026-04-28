@@ -429,6 +429,7 @@ def init_cmd(
     register_cmd(
         scope=final_scope,
         summary=final_summary,
+        friendly_name=None,
         branch=branch,
         capabilities=capabilities,
         actor_kind=actor,
@@ -484,9 +485,9 @@ def start_cmd(
     register_cmd(
         scope=scope,
         summary=summary,
+        friendly_name=friendly_name,
         branch=None,
         workspace_id=None,
-        friendly_name=friendly_name,
         capabilities=None,
         cross_cutting=False,
         migration=False,
@@ -503,9 +504,9 @@ def start_cmd(
 def register_cmd(
     scope: Annotated[Optional[str], typer.Option("--scope", help="Session scope slug; typically `<name>-<yyyymmdd>`. Required unless --from-branch or --workspace-id is set.")] = None,
     summary: Annotated[Optional[str], typer.Option("--summary", help="One-line scope description. Auto-generated from scope if omitted.")] = None,
+    friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Human-readable display name for this session (e.g. 'Shane CC laptop'). Optional; UI falls through to scope slug when missing. v0.7.5+.")] = None,
     branch: Annotated[Optional[str], typer.Option("--branch", help="Feature branch name. Optional; non-dev sessions can omit it.")] = None,
     workspace_id: Annotated[Optional[str], typer.Option("--workspace-id", help="Hosted-client workspace identifier (Antigravity, mobile, etc.). Used as scope when --scope is not given. No git checkout required.")] = None,
-    friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Human-readable display name for this session (e.g. 'Shane CC laptop'). Optional; UI falls through to scope slug when missing. v0.7.5+.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags (e.g. 'ui,docs,python')")] = None,
     cross_cutting: Annotated[bool, typer.Option("--cross-cutting/--no-cross-cutting", help="Does this session touch many files across modules?")] = False,
     migration: Annotated[bool, typer.Option("--migration/--no-migration", help="Does this session add an Alembic migration?")] = False,
@@ -644,6 +645,7 @@ def register_cmd(
     body = {
         "session_slug": scope,
         "scope_summary": summary,
+        "friendly_name": friendly_name,
         "branch_name": branch,
         "capabilities": caps,
         "cross_cutting": cross_cutting,
@@ -726,6 +728,7 @@ def bootstrap_cmd(
     default_branch: Annotated[Optional[str], typer.Option("--branch", help="Default upstream branch to clone/update.")] = None,
     scope: Annotated[Optional[str], typer.Option("--scope", help="Override generated session scope.")] = None,
     summary: Annotated[Optional[str], typer.Option("--summary", help="Override generated session summary.")] = None,
+    friendly_name: Annotated[Optional[str], typer.Option("--friendly-name", help="Display name for the session.")] = None,
     capabilities: Annotated[Optional[str], typer.Option("--capabilities", help="Comma-separated capability tags. Overrides project config.")] = None,
     actor_id: Annotated[Optional[str], typer.Option("--actor-id", help="Session identifier (defaults to caller email).")] = None,
     create_branch: Annotated[bool, typer.Option("--create-branch/--no-create-branch", help="Create or reuse the configured session branch after updating main.")] = True,
@@ -808,6 +811,7 @@ def bootstrap_cmd(
         body = {
             "session_slug": selected_scope,
             "scope_summary": selected_summary,
+            "friendly_name": friendly_name,
             "branch_name": session_branch,
             "capabilities": caps,
             "cross_cutting": False,
@@ -827,16 +831,15 @@ def bootstrap_cmd(
                         for s in active.get("sessions", [])
                     ):
                         _console.print(
-                            f"[dim]Session {selected_scope!r} already active; "
-                            "skipping registration.[/dim]"
+                            f"[yellow]Active session already exists for scope `{selected_scope}` — skipping registration.[/yellow]"
                         )
                     else:
                         session_resp = client.post("/agent-sessions", body)
                 else:
                     session_resp = client.post("/agent-sessions", body)
-            except PowerloomApiError as e:
-                _console.print(f"[red]Registration failed:[/red] {e}")
-                raise typer.Exit(1) from e
+            except PowerloomClientError as exc:
+                _console.print(f"[red]Failed to register session:[/red] {exc}")
+                raise typer.Exit(code=1) from exc
 
     result = {
         "project": project_slug,
@@ -969,6 +972,7 @@ def ls_cmd(
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("Slug")
+    table.add_column("Friendly Name")
     table.add_column("Status")
     table.add_column("Actor")
     table.add_column("Version")
@@ -978,6 +982,7 @@ def ls_cmd(
     for s in sessions:
         table.add_row(
             s.get("session_slug", ""),
+            s.get("friendly_name", "") or "-",
             s.get("status", ""),
             s.get("actor_kind", ""),
             s.get("version_claimed") or "-",
