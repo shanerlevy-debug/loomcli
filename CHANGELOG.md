@@ -7,6 +7,32 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.8 — 2026-04-28 (CLI)
+
+**Token-efficiency pass for agent consumers (PR #57).** Closes powerloom threads `#256`-`#261`. Tightens the JSON surface and trims the bytes-per-call budget for Claude Code / Codex / Gemini sessions driving weave non-interactively.
+
+### Standardized JSON surface
+
+- Every subcommand now honors the global `-o json` (or the auto-flip from `POWERLOOM_FORMAT=json` / agent-mode detection). Per-command `--json` flags retired in favor of the global option — single output policy across `apply`, `plan`, `destroy`, `get`, `audit`, `approval`, `agent`, `agent-session`, `compose`, `conventions`, `doctor`, `import-project`, `migrate`, `plugin`, `profile`, `project`, `session`, `skill`, `sprint`, `thread`, `workflow`.
+
+### Brief lists
+
+- `weave thread list / show` and `weave sprint list / show` default to a compact row format under agent mode (id8 + slug + status + title) instead of the rich table. Drops ~60% of the bytes returned for typical "scan threads I own" calls. Pass `-o table` to force the wide form.
+
+### Bulk + multi-ref ops
+
+- **`weave thread bulk-create`** — accepts a YAML/JSON file of thread specs and creates them in one round-trip. Returns id-only by default for chaining into subsequent commands.
+- **`weave sprint add-thread`** now accepts multiple refs in one invocation: `weave sprint add-thread <sprint> ref1 ref2 ref3`. Previously required N separate calls.
+- **`--id-only` / `--slug-only`** flags on `thread create`, `sprint create`, `project create` — emit just the new id (or slug) on stdout for trivial chaining without `jq`.
+
+### Tests
+
+- 743 passing. New + updated coverage in `test_thread_cmd.py`, `test_sprint_cmd.py`, `test_project_cmd.py`, `test_command_registry.py`, `test_doctor_plugin_cmd.py`, `test_profile_cmd.py`, `test_auto_json_output.py`, `test_agent_session_cli.py`. New shared fixture in `conftest.py`.
+
+### Pairs with
+
+- The `--from-branch` slug derivation already in v0.7.2 — agents using `register --from-branch` followed by repeat `thread bulk-create` sessions now see roughly half the prior token usage on the discovery + setup phase.
+
 ## v0.7.7 — 2026-04-28 (CLI)
 
 **Windows hardening + JSON-by-default for agents + new `weave project` group.** Sister-agent PR #54 + rebase-fix on top of v0.7.6.
