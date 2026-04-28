@@ -133,6 +133,9 @@ weave agent-session register --scope "<slug>" --summary "<one-line>"
 weave agent-session ls --status active
 weave agent-session status <coordination-session-id>
 weave thread my-work --watch
+weave milestone create --project loomcli --title "CLI onboarding + distribution"
+weave sprint create --project loomcli --milestone "CLI onboarding + distribution" --name "Onboarding sprint"
+weave sprint add-thread loomcli:onboarding-sprint <thread-ref>
 ```
 
 Global flags:
@@ -172,6 +175,20 @@ weave thread my-work --watch
 ```
 
 Use `weave agent ...` and `weave session ...` for runtime execution state. Use `weave agent-session ...` and `weave thread my-work` for coordination state: what a human or agent has claimed, which workflow tasks are assigned, and what tracker threads are active.
+
+### Tracker hierarchy
+
+Tracker work is organized as `Project > Milestone > Sprint > Thread`:
+
+```bash
+weave project ls
+weave milestone ls --project loomcli
+weave milestone create --project loomcli --title "CLI onboarding + distribution"
+weave sprint create --project loomcli --milestone "CLI onboarding + distribution" --name "Onboarding sprint"
+weave sprint add-thread loomcli:onboarding-sprint <thread-ref>
+```
+
+Milestones can be referenced by UUID, unique id prefix, or exact title. That means agents can create a milestone once and attach later sprints with `--milestone "Title"` instead of copying UUIDs between commands.
 
 ### Agent config and CLI profiles
 
