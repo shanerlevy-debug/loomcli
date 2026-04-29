@@ -173,6 +173,44 @@ weave thread my-work --watch
 
 Use `weave agent ...` and `weave session ...` for runtime execution state. Use `weave agent-session ...` and `weave thread my-work` for coordination state: what a human or agent has claimed, which workflow tasks are assigned, and what tracker threads are active.
 
+### Self-hosted agent daemon (`weave agent run`)
+
+For agents registered with `runtime_type='self_hosted'` (the reconciler is the v1 reference), operators run the daemon on their own host — your local server, a customer's, anywhere there's a Python process. The daemon polls the platform for work and dispatches each item to the matching skill handler:
+
+```bash
+weave agent run reconciler                    # foreground, 10s tick (default)
+weave agent run reconciler --once             # single tick + exit (cron-friendly)
+weave agent run reconciler --dry-run          # decide but don't take destructive actions
+weave agent run reconciler --interval 30      # poll cadence in seconds
+weave agent run reconciler --confidence 0.9   # threshold for destructive actions (default 0.8)
+weave agent run reconciler --limit 25         # items per tick (default 10)
+```
+
+Foreground only — Ctrl+C stops cleanly. For background runs, use the OS supervisor of choice:
+
+```bash
+# systemd:        ExecStart=weave agent run reconciler
+# nohup:          nohup weave agent run reconciler > daemon.log 2>&1 &
+# Windows NSSM:   nssm install PowerloomReconciler "C:\Python311\python.exe" "-m loomcli agent run reconciler"
+```
+
+#### Architecture invariants
+
+- **Daemon never holds destructive credentials.** Every action flows through the platform API. The daemon is a polling-loop dispatcher, not a business-logic engine.
+- **Decisions billed against your org's BYOK runtime credential** (`runtime_type='cma'`) — set up once via `/settings/api-keys` in the Powerloom UI. No provider keys on the operator host.
+- **Daemon is stateless between ticks.** The platform DB is the source of truth for the agent's state tables; the daemon's tick loop reads, decides, acts, repeats.
+- **Skill registry is import-time-pluggable.** The `pr_reconciliation` skill ships with v0.7.9. Future self-hosted agents (legal review, ad optimization, anything) plug in by adding a new skill handler — no CLI changes, no platform changes.
+
+#### Operator setup checklist
+
+Before the first run on a fresh host:
+
+1. **Sign in:** `weave login` (against `https://api.powerloom.org` or your control plane's address).
+2. **Confirm BYOK:** in the Powerloom UI, ensure your org has a `runtime_type='cma'` runtime credential populated with a real provider key. The reconciler errors at SDK construction without one.
+3. **Smoke test:** `weave agent run reconciler --dry-run --once` — should print one tick of decisions without taking action. If it prints `0 item(s)`, no actionable PRs are queued; that's normal.
+4. **Confirm the agent advertises a handled task_kind:** `weave agent status reconciler` should list `pr_reconciliation` under `task_kinds`. If your daemon prints a "no handler registered" warning, you're either on a stale loomcli (bump to ≥ v0.7.9) or the agent advertises a task_kind we don't ship a skill for yet.
+5. **Run for real:** `weave agent run reconciler` — leave it foregrounded, watch the tick log. Promote to systemd / NSSM once you trust the cadence.
+
 ### Agent config and CLI profiles
 
 Provider/model selection stays schema-safe:
