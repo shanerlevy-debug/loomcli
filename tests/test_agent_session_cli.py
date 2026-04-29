@@ -373,7 +373,7 @@ def test_start_command_prompts_and_registers():
     posted = args[1]
     assert posted["session_slug"] == "triage-2026-04-28"
     assert posted["actor_kind"] == "human"
-    assert posted["branch_name"] is None
+    assert posted.get("branch_name") is None
 
 
 @patch("loomcli.commands.agent_session_cmd._check_client_plugin")
