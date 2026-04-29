@@ -7,6 +7,26 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.11 — 2026-04-29 (CLI)
+
+**Two operator-host papercuts surfaced during the 2026-04-29 EC2 reconciler bring-up.** Both cosmetic-ish but trip the operator at exactly the wrong moment (during initial bring-up); fixing them now keeps the v0.7.10 deploy story honest.
+
+### Fix: systemd unit's `docker compose pull` fails on locally-built image
+
+`deploy/reconciler/powerloom-reconciler.service` ran `ExecStartPre=/usr/bin/docker compose pull --quiet` on every restart. The companion `docker-compose.yml` builds the image locally as `powerloom-reconciler:local` (no registry push), so `compose pull` has no remote tag to fetch and errors out. With `--quiet` the failure was silent enough that operators thought the unit was healthy when actually `ExecStart` was inheriting the failure.
+
+Replaced with `ExecStartPre=/usr/bin/docker compose build --pull`. Build is incremental + cached when nothing changed, so the no-op restart cost is negligible. The `--pull` flag still ensures the python:3.12-slim base layer gets refreshed when an upstream rebuild lands. Inline comment in the unit explains the swap and points at the registry-push path if we ever publish the image.
+
+### Fix: `weave --version` reports stale version
+
+`loomcli/__init__.py` had `__version__` hardcoded as a string constant (`"0.7.7"` after the v0.7.10 release — drifted because the constant wasn't bumped at release time). v0.7.11 sources the version from package metadata via `importlib.metadata.version("loomcli")`, with a `0.0.0+unknown` fallback for editable / source-tree usage where the wheel hasn't been installed.
+
+Single source of truth for the version is now `pyproject.toml`. Future releases bump it once and `__version__` follows automatically — no more drift.
+
+### Other
+
+- Dockerfile comment block updated to recommend v0.7.11 over v0.7.10 (same floor for `POWERLOOM_ACCESS_TOKEN` env-var auth; v0.7.11 just fixes the bring-up papercuts).
+
 ## v0.7.10 — 2026-04-29 (CLI)
 
 **EC2 / VPS deployment artifacts for the reconciler daemon + `POWERLOOM_ACCESS_TOKEN` env-var auth.** Closes the operator-host packaging gap that v0.7.9 left open — operators running the daemon in Docker or systemd now have an opinionated bring-up path that doesn't require bind-mounting a credentials file.
