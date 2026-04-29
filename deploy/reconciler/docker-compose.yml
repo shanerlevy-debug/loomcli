@@ -32,19 +32,39 @@ services:
     # `docker logs -f powerloom-reconciler` or wire to journald via
     # the systemd unit (deploy/reconciler/powerloom-reconciler.service).
     environment:
+      # Legacy PAT path. Required only when /etc/powerloom/deployment.json
+      # is absent (i.e. the operator hasn't run `weave register` on this
+      # host). Once the credential file exists, the daemon reads
+      # api_base_url + agent + deployment_token from it and ignores
+      # these env vars.
       POWERLOOM_API_BASE_URL: "${POWERLOOM_API_BASE_URL:-https://api.powerloom.org}"
-      POWERLOOM_ACCESS_TOKEN: "${POWERLOOM_ACCESS_TOKEN}"
+      POWERLOOM_ACCESS_TOKEN: "${POWERLOOM_ACCESS_TOKEN:-}"
       POWERLOOM_AGENT: "${POWERLOOM_AGENT:-reconciler}"
-    # Default command runs the daemon foreground at the agent slug
-    # specified above. To dry-run + exit (smoke test):
-    #   docker compose run --rm reconciler weave agent run reconciler --dry-run --once
-    # Operators wanting to add flags long-term should override the
-    # `command:` here, not edit the Dockerfile.
+    # v0.7.12 — bind-mount /etc/powerloom into the container so the
+    # daemon can read /etc/powerloom/deployment.json (written by
+    # `weave register` on the host). Read-only — the daemon never
+    # writes back; only `weave register` does, and that runs on the
+    # host outside the container.
+    volumes:
+      - /etc/powerloom:/etc/powerloom:ro
+    # Default command runs the daemon. Two modes:
+    #   * Deployment mode (preferred, v0.7.12+): operator ran
+    #     `weave register` on the host first; /etc/powerloom/
+    #     deployment.json carries the agent + token + runtime config.
+    #     Pass no positional argument; the daemon reads the credential.
+    #   * PAT mode (legacy): POWERLOOM_ACCESS_TOKEN env var carries
+    #     the operator's PAT; POWERLOOM_AGENT names the agent.
+    #
+    # `${POWERLOOM_AGENT:-}` evaluates empty when unset → daemon
+    # detects no positional arg → falls back to deployment.json.
+    # Operators on the legacy PAT path keep POWERLOOM_AGENT set.
+    #
+    # To smoke-test once: docker compose run --rm reconciler weave agent run --once --dry-run
     command:
       - sh
       - -c
       - >
-        weave agent run "${POWERLOOM_AGENT:-reconciler}"
+        weave agent run ${POWERLOOM_AGENT:+"${POWERLOOM_AGENT}"}
         --interval "${RECONCILER_INTERVAL:-10}"
         --confidence "${RECONCILER_CONFIDENCE:-0.8}"
         $${RECONCILER_DRY_RUN:+--dry-run}

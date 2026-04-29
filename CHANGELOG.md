@@ -7,6 +7,80 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.12 — 2026-04-30 (CLI)
+
+**`weave register` + deployment-bound credentials (Agent Lifecycle UX P3).** Replaces the operator-host PAT-editing dance from v0.7.10 with a single registration command that mints a host-bound credential. Pairs with Powerloom platform PRs #246 (P1 — agent_templates registry) and #248 (P2 — `agent_deployments` lifecycle) which shipped the same day.
+
+### `weave register --token=...`
+
+Pair the current host with an agent deployment. Trades a one-shot registration token (`pat-deploy-...`, minted from `/agents/<id>` → Deployments tab → Add deployment in the UI) for a long-lived deployment token (`dep-...`) bound to this host.
+
+```
+sudo weave register --token=pat-deploy-AbCdEf...
+sudo weave register --token=... --api-url=https://api.example.com   # self-hosted control plane
+sudo weave register --token=... --output ~/.config/powerloom/dep.json   # custom path
+sudo weave register --token=... --force   # overwrite an existing credential
+```
+
+Writes the credential to `/etc/powerloom/deployment.json` when `/etc/powerloom` is writable (Linux host-wide), else to the per-user XDG config dir. File is 0600 on POSIX. Refuses to clobber an existing credential without `--force` so the operator doesn't accidentally orphan an active deployment by re-registering on the wrong host.
+
+The credential carries: `deployment_id`, `agent_id`, `agent_slug`, `deployment_token`, `api_base_url`, `runtime_config`. The daemon reads it on startup and uses every field — no operator-side `--agent`, no PAT, no `.env`.
+
+### `weave agent run` — deployment mode
+
+When `/etc/powerloom/deployment.json` exists, `weave agent run` (no positional argument) reads the credential and:
+
+- Authenticates via the deployment_token (separate identity from the operator's PAT, scoped to the deployment row server-side).
+- Uses the credential's `api_base_url` so a deployment registered against a self-hosted control plane stays pointed at it.
+- On every tick:
+  - **Long-poll runtime config:** `GET /deployments/{id}/runtime-config` with `If-None-Match: <etag>`. 304 most of the time → cheap. 200 on operator-pushed change → daemon picks up the new `interval_seconds`/`confidence_threshold`/`dry_run`/`model` for the next tick. No daemon restart required.
+  - **Heartbeat:** `POST /deployments/{id}/heartbeat`. Powers the UI's online/degraded/offline status. A 401 here means the deployment was archived server-side; the daemon exits with code 3 and a clear message ("re-pair this host with `weave register`").
+
+The legacy PAT path (`POWERLOOM_ACCESS_TOKEN` + `weave agent run <agent>`) still works when no deployment credential is present — the daemon falls back transparently.
+
+### `deploy/reconciler/docker-compose.yml`
+
+Read-only bind mount `/etc/powerloom:/etc/powerloom:ro` added so the container can read the host-side credential. Operator workflow on a fresh EC2 box:
+
+```
+# (1) Install loomcli
+pip install loomcli==0.7.12
+
+# (2) Mint a registration token in the UI, then on the host:
+sudo weave register --token=pat-deploy-AbCdEf...
+
+# (3) Bring the daemon up. It reads /etc/powerloom/deployment.json
+#     through the bind mount; no .env editing.
+sudo systemctl enable --now powerloom-reconciler
+```
+
+Compared to v0.7.10's `.env`-and-PAT story, the v0.7.12 path drops six steps and one cross-tool credential lookup.
+
+### Migration from v0.7.11
+
+Existing v0.7.11 deployments running with `POWERLOOM_ACCESS_TOKEN` keep working — the daemon only switches to deployment mode when it finds `/etc/powerloom/deployment.json`. To migrate:
+
+1. Mint a deployment + registration token in the UI (`/agents/<id>` → Deployments tab).
+2. Run `sudo weave register --token=...` on the host.
+3. Restart the daemon (`sudo systemctl restart powerloom-reconciler` if using the bundled unit).
+4. Optionally remove `POWERLOOM_ACCESS_TOKEN` from the `.env` once the daemon is happy.
+
+The PAT-bound mode stays in the codebase indefinitely for dev workflows + CI smoke tests where minting a UI deployment is overkill.
+
+### Files
+
+```
+loomcli/loomcli/commands/agent_register.py             NEW
+loomcli/loomcli/commands/agent_daemon.py               MOD
+loomcli/loomcli/config.py                              MOD (deployment-credential helpers)
+loomcli/loomcli/cli.py                                 MOD (wire `weave register`)
+loomcli/deploy/reconciler/docker-compose.yml           MOD (mount /etc/powerloom)
+loomcli/CHANGELOG.md                                   MOD
+loomcli/pyproject.toml                                 MOD (0.7.11 → 0.7.12)
+loomcli/tests/test_register_command.py                 NEW
+loomcli/tests/test_daemon_deployment_credential.py     NEW
+```
+
 ## v0.7.11 — 2026-04-29 (CLI)
 
 **Two operator-host papercuts surfaced during the 2026-04-29 EC2 reconciler bring-up.** Both cosmetic-ish but trip the operator at exactly the wrong moment (during initial bring-up); fixing them now keeps the v0.7.10 deploy story honest.

@@ -15,9 +15,18 @@ these were module-level constants evaluated at import time — which
 meant setting POWERLOOM_HOME after importing loomcli.config had no
 effect. That's fixed: every read of the credentials file re-checks
 the env var.
+
+v0.7.12 — deployment-bound credentials (Agent Lifecycle UX P3).
+``deployment_credential_path()`` and ``read_deployment_credential()``
+add a second auth path: ``/etc/powerloom/deployment.json`` (Linux
+host-wide, written by ``weave register``) carries a deployment_token
+plus the agent_id + api_base_url + initial runtime_config. The
+daemon prefers this over POWERLOOM_ACCESS_TOKEN when available, so
+operator-host deployments don't need to mint a long-lived PAT.
 """
 from __future__ import annotations
 
+import json
 import os
 import tomllib
 from dataclasses import dataclass, field
@@ -65,6 +74,130 @@ def active_subprincipal_file(scope: str) -> Path:
 def config_file() -> Path:
     """Return the path to the optional config.toml (re-read each call)."""
     return _base_dir() / "config.toml"
+
+
+# ---------------------------------------------------------------------------
+# Deployment-bound credentials (v0.7.12 — Agent Lifecycle UX P3)
+# ---------------------------------------------------------------------------
+#
+# Operators running a self-hosted agent (the reconciler today, anything
+# with runtime_type='self_hosted' tomorrow) pair their host with a
+# deployment row on the platform via ``weave register --token=...``.
+# The register command writes the resulting credential to
+# ``/etc/powerloom/deployment.json`` (host-wide on Linux) so:
+#
+#   1. Multiple processes on the same host (e.g. a future sidecar +
+#      the daemon itself) share one credential without re-registering.
+#   2. Container restarts via the systemd unit + bind-mount survive
+#      without touching the host-side bind path.
+#   3. ``weave agent run`` resolves the agent_id + api_base_url from
+#      the credential — no positional argument or env-var dance needed.
+#
+# Fallbacks:
+#   * On hosts where /etc/powerloom isn't writable (laptops, dev
+#     machines, containers without root), fall back to the per-user
+#     XDG config_dir() / "deployment.json".
+#   * When neither file is present, daemon falls back to the legacy
+#     PAT path (POWERLOOM_ACCESS_TOKEN env var or credentials file).
+
+DEPLOYMENT_CREDENTIAL_FILENAME = "deployment.json"
+HOST_DEPLOYMENT_CREDENTIAL_PATH = Path("/etc/powerloom") / DEPLOYMENT_CREDENTIAL_FILENAME
+
+
+def deployment_credential_path() -> Path:
+    """Resolve the path where ``weave register`` writes (and the daemon
+    reads) the deployment credential.
+
+    Returns ``/etc/powerloom/deployment.json`` when ``/etc/powerloom``
+    is writable (Linux host with sudo) — that's the single host-wide
+    location operators expect. Falls back to the per-user
+    ``config_dir()/deployment.json`` otherwise (dev hosts, mac laptops,
+    containers without /etc write access).
+
+    Re-evaluated on every call so a process that gains write access
+    mid-run (rare, but explicit) picks up the new path.
+    """
+    primary = HOST_DEPLOYMENT_CREDENTIAL_PATH
+    try:
+        # If the directory exists and is writable, prefer it.
+        if primary.parent.exists() and os.access(primary.parent, os.W_OK):
+            return primary
+        # If the directory doesn't exist but we can create it (i.e. we
+        # have write on /etc), prefer it.
+        if not primary.parent.exists() and os.access(primary.parent.parent, os.W_OK):
+            return primary
+    except OSError:
+        pass
+    return _base_dir() / DEPLOYMENT_CREDENTIAL_FILENAME
+
+
+def read_deployment_credential() -> dict | None:
+    """Return the parsed deployment credential, or None if absent.
+
+    Looks at both the host-wide path (``/etc/powerloom/deployment.json``)
+    and the per-user path (``config_dir()/deployment.json``). Returns
+    the first one that parses as JSON. Daemon prefers this over the
+    PAT path when available.
+
+    Returns None on:
+      * Neither file exists.
+      * File exists but isn't readable (permission error).
+      * File exists but isn't valid JSON.
+    """
+    seen: set[Path] = set()
+    for path in (deployment_credential_path(), HOST_DEPLOYMENT_CREDENTIAL_PATH):
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        try:
+            payload = json.loads(text)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        return payload
+    return None
+
+
+def write_deployment_credential(payload: dict) -> Path:
+    """Write the deployment credential to the resolved path.
+
+    Returns the path it was written to so the caller can surface it
+    to the operator. The file gets 0600 perms on POSIX (best-effort —
+    no-op on Windows where ACLs would be a separate concern).
+
+    Raises OSError if the directory can't be created or the file
+    can't be written. Caller (``weave register``) translates to a
+    user-visible error.
+    """
+    path = deployment_credential_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        # Best-effort; Windows hits this every time and we don't care.
+        pass
+    return path
+
+
+def clear_deployment_credential() -> None:
+    """Remove every deployment credential we know about.
+
+    Used by ``weave register --revoke`` (future) and by the daemon
+    when it detects its own credential has been archived server-side
+    (heartbeat returns 401 → daemon deletes the local file so the
+    next ``weave register`` starts clean).
+    """
+    for path in (deployment_credential_path(), HOST_DEPLOYMENT_CREDENTIAL_PATH):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 @dataclass

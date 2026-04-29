@@ -17,6 +17,7 @@ import typer
 
 from loomcli import __version__
 from loomcli.commands import agent_cmd
+from loomcli.commands import agent_register
 from loomcli.commands import agent_session_cmd
 from loomcli.commands import batch_cmd
 from loomcli.commands import apply as apply_cmd
@@ -233,6 +234,7 @@ def _root(
 # Register subcommands.
 app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami / PAT management.")
 app.add_typer(agent_cmd.app, name="agent", help="Inspect agents and manage identities.")
+app.add_typer(agent_register.app, name="register", help="Pair this host with an agent deployment via a registration token.")
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")
