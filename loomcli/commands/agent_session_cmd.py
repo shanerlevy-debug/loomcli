@@ -76,6 +76,17 @@ def _client() -> PowerloomClient:
 def _current_git_branch() -> Optional[str]:
     """Return the current git branch name, or None if not in a git repo."""
     try:
+        # First check if we are in a git worktree at all
+        res = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if res.returncode != 0 or res.stdout.strip() != "true":
+            return None
+
         result = subprocess.run(
             ["git", "branch", "--show-current"],
             capture_output=True,
@@ -638,7 +649,6 @@ def register_cmd(
     body = {
         "session_slug": scope,
         "scope_summary": summary,
-        "friendly_name": friendly_name,
         "branch_name": branch,
         "capabilities": caps,
         "cross_cutting": cross_cutting,
@@ -649,6 +659,10 @@ def register_cmd(
     }
     if friendly_name:
         body["friendly_name"] = friendly_name
+
+    # Filter out None values to prevent server-side 422s on optional fields
+    body = {k: v for k, v in body.items() if v is not None}
+
     client = _client()
     try:
         resp = client.post("/agent-sessions", body)
