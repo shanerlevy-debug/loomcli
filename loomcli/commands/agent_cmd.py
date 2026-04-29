@@ -835,3 +835,18 @@ def _sync_label(sync: dict[str, Any]) -> str:
     if sync.get("runtime_resource_id"):
         return "synced"
     return "unknown"
+
+
+# ---------------------------------------------------------------------------
+# `weave agent run` — universal self-hosted-agent daemon
+# ---------------------------------------------------------------------------
+# Body lives in agent_daemon.py to keep this module focused on identity /
+# observability commands. Importing the module triggers skill-registry
+# side-effects (pr_reconciliation registers itself), so we import here
+# at app-init time rather than lazily.
+from loomcli.commands.agent_daemon import run_command as _agent_run_command  # noqa: E402
+
+app.command(
+    "run",
+    help="Run the self-hosted-agent daemon for AGENT (foreground; Ctrl+C to stop).",
+)(_agent_run_command)
