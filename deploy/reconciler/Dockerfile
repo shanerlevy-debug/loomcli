@@ -18,9 +18,16 @@
 
 FROM python:3.12-slim
 
-# Pinned for reproducibility — bump alongside the matching loomcli
-# release. v0.7.9 is the first release that ships `weave agent run`.
-ARG LOOMCLI_VERSION=0.7.9
+# By default tracks the PyPI 'latest' so a `docker compose build --pull
+# --no-cache` always pulls the newest release. Operators that want a
+# pinned build (e.g. for staged rollouts or to avoid surprise upgrades)
+# can override at build time:
+#
+#   docker compose build --build-arg LOOMCLI_VERSION=0.7.10
+#
+# v0.7.10 is the floor — earlier releases lack POWERLOOM_ACCESS_TOKEN
+# env-var auth, which this Dockerfile relies on for credential injection.
+ARG LOOMCLI_VERSION=""
 
 # Slim runtime — no build tools needed since loomcli ships pure-Python
 # wheels. ca-certificates so HTTPS to api.powerloom.org works.
@@ -36,7 +43,7 @@ WORKDIR /home/powerloom
 
 # Single dependency. Pin so re-pulling the image is reproducible —
 # upgrades happen by bumping the ARG above and rebuilding.
-RUN pip install --no-cache-dir --user "loomcli==${LOOMCLI_VERSION}"
+RUN pip install --no-cache-dir --user "loomcli${LOOMCLI_VERSION:+==${LOOMCLI_VERSION}}"
 ENV PATH="/home/powerloom/.local/bin:${PATH}"
 
 # Default API target. Operators override at compose / run time:
