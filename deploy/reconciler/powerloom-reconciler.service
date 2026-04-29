@@ -1,0 +1,52 @@
+# systemd service unit for the Powerloom reconciler daemon (docker
+# variant). Companion to deploy/reconciler/docker-compose.yml.
+#
+# Install on an EC2 / VPS box that has docker + docker-compose-plugin:
+#
+#   sudo cp deploy/reconciler/powerloom-reconciler.service \
+#       /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now powerloom-reconciler.service
+#
+# After install:
+#   sudo systemctl status powerloom-reconciler   # current state
+#   sudo journalctl -u powerloom-reconciler -f   # follow logs
+#   sudo systemctl restart powerloom-reconciler  # restart after .env edit
+#
+# The unit:
+#   * Boots on system start (after docker daemon is up).
+#   * Restarts on container crash with a 10s back-off.
+#   * Exits cleanly on SIGTERM (10s grace), letting the daemon's tick
+#     loop finish its current iteration.
+#   * Does NOT supervise logs — those flow through `docker logs`
+#     and journald via Docker's logging driver.
+#
+# Working directory expects the deploy/reconciler/ layout from the
+# loomcli repo. If you've put it somewhere else, edit WorkingDirectory.
+
+[Unit]
+Description=Powerloom reconciler daemon (docker)
+Documentation=https://github.com/shanerlevy-debug/Powerloom/blob/main/docs/operating-self-hosted-agents.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/powerloom-reconciler
+# Pull in fresh image on every restart (pulls fail safely — falls back
+# to the cached image). For pinned-version operation drop --pull.
+ExecStartPre=/usr/bin/docker compose pull --quiet
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down --timeout 10
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=20s
+# Run as a non-root user that owns /opt/powerloom-reconciler + is in
+# the `docker` group. Bootstrap script (setup-ec2.sh) creates this user
+# if missing.
+User=powerloom
+Group=docker
+
+[Install]
+WantedBy=multi-user.target
