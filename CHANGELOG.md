@@ -7,6 +7,31 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.10 — 2026-04-29 (CLI)
+
+**EC2 / VPS deployment artifacts for the reconciler daemon + `POWERLOOM_ACCESS_TOKEN` env-var auth.** Closes the operator-host packaging gap that v0.7.9 left open — operators running the daemon in Docker or systemd now have an opinionated bring-up path that doesn't require bind-mounting a credentials file.
+
+### `POWERLOOM_ACCESS_TOKEN` env-var auth
+
+`loomcli.config._read_credentials_file()` now resolves the access token from `POWERLOOM_ACCESS_TOKEN` first, falling back to the legacy `<POWERLOOM_HOME>/credentials` file when the env var is unset. Resolution rules:
+
+- Env var with whitespace-only value falls through to file (catches docker-compose interpolation footguns).
+- Trailing whitespace / newlines stripped (catches copy-paste-with-newline footguns).
+
+The TTY-host `weave login` flow is untouched; the file-based path remains the default for desktop usage. Six new tests in `test_env_access_token.py`.
+
+### `deploy/reconciler/` — operator-host artifacts
+
+Five files for spinning up the daemon on an EC2 / VPS / on-prem box:
+
+- **`Dockerfile`** — slim Python 3.12, pinned to this loomcli release (`ARG LOOMCLI_VERSION=0.7.10`). Non-root user, `weave doctor --quiet` healthcheck, `weave agent run reconciler` as PID 1.
+- **`docker-compose.yml`** — service definition with env-passthrough for `POWERLOOM_ACCESS_TOKEN` / `POWERLOOM_API_BASE_URL` / `POWERLOOM_AGENT` / dry-run / interval / confidence flags.
+- **`.env.example`** — config template with mint instructions for the PAT.
+- **`powerloom-reconciler.service`** — systemd unit that wraps `docker compose up` with restart-on-failure + journald logging.
+- **`setup-ec2.sh`** — idempotent bootstrap. Installs Docker + compose-plugin, creates the `powerloom` system user, copies assets to `/opt/powerloom-reconciler/`, seeds `.env` from the example, installs the systemd unit. Operator finishes by editing `.env` and running `systemctl enable --now powerloom-reconciler`.
+
+The full operator runbook lives in the Powerloom monorepo at `docs/operating-self-hosted-agents.md`.
+
 ## v0.7.9 — 2026-04-29 (CLI)
 
 **`weave agent run` — universal self-hosted-agent daemon (PR #59).** Closes the operator-side half of the universal-self-hosted-daemon reframe (Powerloom thread `aad43ba0` + Powerloom PR #228). Operators run the daemon on their own host (your local server, a customer's, anywhere) to drive any agent registered with `runtime_type='self_hosted'` against the platform's `GET /agents/{id}/work-queue` endpoint.

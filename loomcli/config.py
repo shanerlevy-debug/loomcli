@@ -260,6 +260,23 @@ def _toml_str(value: str) -> str:
 
 
 def _read_credentials_file() -> str | None:
+    """Resolve the access token used by ``weave`` requests.
+
+    Resolution order:
+
+      1. ``POWERLOOM_ACCESS_TOKEN`` env var. The 12-factor / containerized
+         shape — operators running ``weave agent run`` in Docker /
+         systemd / Kubernetes set the token via env injection without
+         needing to manage a config-dir bind-mount.
+      2. ``<POWERLOOM_HOME>/credentials`` file (the legacy desktop shape
+         written by ``weave login`` on TTY hosts).
+
+    Anything else returns ``None`` and the caller surfaces a "Not signed
+    in" error.
+    """
+    env_token = os.environ.get("POWERLOOM_ACCESS_TOKEN")
+    if env_token and env_token.strip():
+        return env_token.strip()
     path = credentials_file()
     if not path.exists():
         return None
