@@ -23,10 +23,12 @@ FROM python:3.12-slim
 # pinned build (e.g. for staged rollouts or to avoid surprise upgrades)
 # can override at build time:
 #
-#   docker compose build --build-arg LOOMCLI_VERSION=0.7.10
+#   docker compose build --build-arg LOOMCLI_VERSION=0.7.11
 #
 # v0.7.10 is the floor — earlier releases lack POWERLOOM_ACCESS_TOKEN
 # env-var auth, which this Dockerfile relies on for credential injection.
+# v0.7.11 is recommended (fixes the systemd-unit `compose pull` bug for
+# locally-built images + version-string desync; see CHANGELOG).
 ARG LOOMCLI_VERSION=""
 
 # Slim runtime — no build tools needed since loomcli ships pure-Python
