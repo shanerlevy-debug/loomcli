@@ -7,6 +7,37 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.9 — 2026-04-29 (CLI)
+
+**`weave agent run` — universal self-hosted-agent daemon (PR #59).** Closes the operator-side half of the universal-self-hosted-daemon reframe (Powerloom thread `aad43ba0` + Powerloom PR #228). Operators run the daemon on their own host (your local server, a customer's, anywhere) to drive any agent registered with `runtime_type='self_hosted'` against the platform's `GET /agents/{id}/work-queue` endpoint.
+
+### `weave agent run`
+
+```
+weave agent run <agent>                foreground daemon (default 10s tick)
+weave agent run <agent> --once         single tick + exit (cron-friendly)
+weave agent run <agent> --dry-run      decide but don't take destructive actions
+weave agent run <agent> --interval 30  poll cadence
+weave agent run <agent> --confidence 0.9  action threshold (default 0.8)
+weave agent run <agent> --limit 25     items per tick (default 10)
+```
+
+Foreground only — Ctrl+C stops cleanly. For background runs, use the OS supervisor of choice (systemd, supervisord, NSSM on Windows, or `nohup … &`).
+
+### Skill registry
+
+The daemon dispatches each work item to a registered skill handler keyed on the item's `task_kind`. The reconciler is the v1 reference implementation (`pr_reconciliation` skill — wraps `/reconciler/decide` + `/reconciler/{rebase,merge}`, respects `--dry-run`, `--confidence`, and the platform-side approval gate). Future self-hosted agents (legal review, ad optimization, anything) plug in by registering a new skill — no new CLI surface, no new platform endpoints.
+
+### Architecture invariants
+
+- Daemon never holds destructive credentials. Every action flows through the platform API; the daemon is a polling-loop dispatcher.
+- Decisions billed against the org's BYOK `runtime_type='cma'` runtime credential — set up once via the platform UI, no operator-host configuration of provider keys.
+- Daemon is stateless between ticks. The platform DB is the source of truth for `reconciler_pr_state` and any future skill's state table.
+
+### Tests
+
+- 753 passing (743 prior + 10 new in `test_agent_daemon.py`).
+
 ## v0.7.8 — 2026-04-28 (CLI)
 
 **Token-efficiency pass for agent consumers (PR #57).** Closes powerloom threads `#256`-`#261`. Tightens the JSON surface and trims the bytes-per-call budget for Claude Code / Codex / Gemini sessions driving weave non-interactively.
