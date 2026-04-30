@@ -7,6 +7,67 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.14 — 2026-04-30 (CLI)
+
+**Plugin auto-register for Claude Code MCP server (Agent Lifecycle UX M2-P3).** Closes the M2 milestone (parent thread `6ab575d7`). Pairs with platform PR #263 (M2-P1) + loomcli PR #66 (M2-P2 / v0.7.13) shipped earlier today.
+
+### Claude Code MCP server auto-registers sessions
+
+When the powerloom_home MCP server boots (via the SessionStart hook in the Claude Code plugin), it now:
+
+1. Looks for a Claude Code deployment credential at `~/.config/powerloom/deployment-claude_code.json` (written by `weave register --token=...` after M2-P2).
+2. If found, POSTs `/agent-sessions` with the deployment_token to mint a session row tied to the deployment + working scope.
+3. Tracks the session_id in module state for the lifetime of the MCP server.
+4. Best-effort POSTs `/agent-sessions/{id}/end` at process shutdown.
+
+This is **Option B** from the M2 design: plugins drop the requirement to explicitly call `weave agent-session register`. Sessions open automatically on IDE start. Operators with no deployment credential keep the legacy PAT-based flow (no breaking change).
+
+### `powerloom_session_status` MCP tool
+
+New tool exposed by the powerloom_home MCP server. Reports the auto-registered session for visibility:
+
+```json
+{
+  "active": true,
+  "session_id": "...",
+  "scope": "powerloom",
+  "agent_id": "...",
+  "agent_slug": "claude_code_session",
+  "deployment_id": "...",
+  "api_base_url": "https://api.powerloom.org"
+}
+```
+
+Returns `{"active": false}` with an actionable reason when no credential / failed POST.
+
+### `weave agent-session register` falls back to deployment credential
+
+When no PAT is configured (`weave login` never run or credential expired), `weave agent-session register` now discovers a deployment credential via M2-P2's `list_deployment_credentials()`. Prefers IDE-kind (claude_code, gemini_cli, codex_cli); falls back to host/default. Lets Codex/Gemini plugins (and operators on hosts paired via `weave register` only) call `weave agent-session register` without `weave login`.
+
+### Operator workflow now end-to-end
+
+1. UI: `/agents` → New agent → pick "Claude Code Session" template → submit (M2-P1 templates).
+2. Detail page → Deployments tab → Add deployment → mint command (M2-P4 IDE-aware).
+3. Run `weave register --token=...` on the laptop — credential lands at `~/.config/powerloom/deployment-claude_code.json` (M2-P2 per-user XDG).
+4. Open Claude Code in any working tree — MCP server auto-registers the session (M2-P3).
+5. UI shows "Session active" for the deployment.
+
+### Tests
+
+- 15 new tests in `plugin/tests/test_auto_register.py` covering credential discovery (per-kind, legacy fallback, wrong-kind skip, malformed JSON, missing fields), session POST (200/401/network-error), Bearer auth header, scope-from-cwd + override, session close.
+- Full loomcli suite: 821 passed, 1 skipped.
+
+### Files
+
+```
+loomcli/plugin/mcp-server/powerloom_home/auto_register.py    NEW (220 LOC)
+loomcli/plugin/mcp-server/powerloom_home/__main__.py         MOD — auto-register + close hooks + new MCP tool
+loomcli/loomcli/commands/agent_session_cmd.py                MOD — _client() falls back to deployment credential
+loomcli/plugin/tests/test_auto_register.py                   NEW (260 LOC)
+loomcli/CHANGELOG.md                                         MOD
+loomcli/pyproject.toml                                       MOD (0.7.13 → 0.7.14)
+```
+
 ## v0.7.13 — 2026-04-30 (CLI)
 
 **Per-user XDG paths + multi-credential support (Agent Lifecycle UX M2-P2).** Pairs with Powerloom platform PR #263 (M2-P1) which added IDE agent templates + `credential_scope` to the register response. v0.7.13 is the loomcli side of bringing IDE-style agents (Claude Code / Gemini CLI / Codex CLI) up to deployment-bound credential parity.

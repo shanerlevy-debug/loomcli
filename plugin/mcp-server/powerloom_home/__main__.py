@@ -36,6 +36,7 @@ except ImportError:
     )
     sys.exit(1)
 
+from . import auto_register
 from .db import HomeDB
 
 
@@ -56,6 +57,66 @@ app = Server("powerloom-home")
 db = HomeDB()
 log.info("powerloom_home MCP server starting")
 log.info("DB path: %s", db._path)
+
+
+# ---------------------------------------------------------------------------
+# Session auto-register state (M2-P3)
+# ---------------------------------------------------------------------------
+# When a Claude Code deployment credential exists at
+# ~/.config/powerloom/deployment-claude_code.json, the MCP server
+# auto-mints an agent_session row at startup and tears it down at
+# exit. The state below tracks the active session for the
+# `powerloom_session_status` MCP tool + the close-on-exit hook.
+_SESSION_CREDENTIAL: dict | None = None
+_SESSION_ROW: dict | None = None
+
+
+def _attempt_auto_register() -> None:
+    """Try to auto-mint a session against the platform's
+    /agent-sessions endpoint. No-op when no credential exists.
+
+    Errors are logged (not raised) — if the MCP server can't reach
+    the platform at startup, we still want it to serve the local
+    powerloom_home tools."""
+    global _SESSION_CREDENTIAL, _SESSION_ROW
+    credential = auto_register.read_deployment_credential()
+    if credential is None:
+        log.info(
+            "auto-register: no Claude Code deployment credential found. "
+            "Sessions won't auto-register; use `weave agent-session register` "
+            "for manual session minting."
+        )
+        return
+    log.info(
+        "auto-register: found deployment %s (agent %s); minting session...",
+        str(credential.get("deployment_id"))[:8],
+        credential.get("agent_slug") or str(credential.get("agent_id"))[:8],
+    )
+    session = auto_register.open_session(credential)
+    if session is None:
+        log.warning("auto-register: session POST failed; continuing without one.")
+        return
+    _SESSION_CREDENTIAL = credential
+    _SESSION_ROW = session
+    log.info(
+        "auto-register: session opened id=%s scope=%s",
+        session.get("id"),
+        session.get("scope"),
+    )
+
+
+def _attempt_close_session() -> None:
+    """Best-effort close of the auto-minted session. Called on exit."""
+    if _SESSION_CREDENTIAL is None or _SESSION_ROW is None:
+        return
+    session_id = _SESSION_ROW.get("id")
+    if not session_id:
+        return
+    auto_register.close_session(_SESSION_CREDENTIAL, str(session_id))
+    log.info("auto-register: session %s closed", session_id)
+
+
+_attempt_auto_register()
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +148,16 @@ TOOLS: list[mcp_types.Tool] = [
         name="powerloom_whoami",
         description="Identify the current Powerloom home org + user. Useful for "
                     "confirming the MCP server is live + backed by the expected DB.",
+        inputSchema={"type": "object", "properties": {}},
+    ),
+    mcp_types.Tool(
+        name="powerloom_session_status",
+        description="Report the auto-registered Claude Code session, if any. "
+                    "Returns deployment_id + session_id + scope + agent_slug "
+                    "when a deployment credential at "
+                    "~/.config/powerloom/deployment-claude_code.json exists "
+                    "and the session POST succeeded at MCP server startup. "
+                    "Returns {active: false} otherwise.",
         inputSchema={"type": "object", "properties": {}},
     ),
     mcp_types.Tool(
@@ -270,6 +341,26 @@ async def _call_tool(name: str, arguments: dict[str, Any] | None):
                 "db_path": str(db._path),
                 "version": "0.1.0-dev",
             })
+        if name == "powerloom_session_status":
+            if _SESSION_ROW is None or _SESSION_CREDENTIAL is None:
+                return _ok({
+                    "active": False,
+                    "reason": (
+                        "no Claude Code deployment credential found, or the "
+                        "session POST failed at MCP server startup. Pair this "
+                        "host with `weave register --token=...` against an "
+                        "agent created from the claude_code_session template."
+                    ),
+                })
+            return _ok({
+                "active": True,
+                "session_id": _SESSION_ROW.get("id"),
+                "scope": _SESSION_ROW.get("scope"),
+                "agent_id": _SESSION_CREDENTIAL.get("agent_id"),
+                "agent_slug": _SESSION_CREDENTIAL.get("agent_slug"),
+                "deployment_id": _SESSION_CREDENTIAL.get("deployment_id"),
+                "api_base_url": _SESSION_CREDENTIAL.get("api_base_url"),
+            })
         if name == "powerloom_list_ous":
             return _ok(db.list_ous())
         if name == "powerloom_get_ou":
@@ -364,6 +455,9 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        # M2-P3: end the auto-registered session before tearing down
+        # the DB. Best-effort — failures don't propagate.
+        _attempt_close_session()
         db.close()
 
 
