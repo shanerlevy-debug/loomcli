@@ -7,6 +7,57 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.13 — 2026-04-30 (CLI)
+
+**Per-user XDG paths + multi-credential support (Agent Lifecycle UX M2-P2).** Pairs with Powerloom platform PR #263 (M2-P1) which added IDE agent templates + `credential_scope` to the register response. v0.7.13 is the loomcli side of bringing IDE-style agents (Claude Code / Gemini CLI / Codex CLI) up to deployment-bound credential parity.
+
+### `weave register` honors server-driven `credential_scope`
+
+The register response (M2-P1) now carries:
+
+```
+credential_scope: "host" | "user"
+credential_kind:  "default" | "claude_code" | "gemini_cli" | "codex_cli"
+```
+
+`weave register --token=...` reads these and writes to:
+
+- `host/default` → `/etc/powerloom/deployment.json` (M1 reconciler shape, unchanged)
+- `user/<kind>` → `~/.config/powerloom/deployment-<kind>.json` (NEW for M2 IDE)
+
+The kind suffix lets multiple IDE deployments coexist on one machine — Claude Code on Shane's laptop writes `deployment-claude_code.json`, Codex writes `deployment-codex_cli.json`, no collision.
+
+### Multi-credential discovery
+
+New `config.list_deployment_credentials()` returns a `{kind: payload}` dict of every readable credential. Used by:
+
+- `read_deployment_credential(kind="claude_code")` — fetch a specific kind. Plugin auto-register flows (M2-P3 next) call this to find their credential.
+- `read_deployment_credential()` — legacy API. Maintains v0.7.12 behavior: returns the host/default credential if present, falls back to alphabetical-first per-kind. The reconciler daemon in v0.7.12 keeps working unchanged.
+
+### Refuse-to-clobber tradeoff
+
+In v0.7.12 the register command refused pre-call if a credential existed at the default path. v0.7.13 moves the check post-call so M2 IDE registrations don't false-positive against an existing reconciler credential (different paths, no actual conflict). Tradeoff: a refused registration burns one server-side registration token (operator archives the orphaned deployment via UI).
+
+### Migration from v0.7.12
+
+Existing v0.7.12 deployments running with `weave register` keep working — the server's pre-M2-P1 register response was missing `credential_scope`/`credential_kind`, but the loomcli code defaults to `host/default` when those fields are absent. Same path, same daemon behavior.
+
+To take advantage of M2 IDE deployments after upgrading:
+
+1. Mint a Claude Code / Gemini CLI / Codex CLI deployment in the UI (templates available after M2-P1 + M2-P4 land).
+2. Run `weave register --token=...` on the host — credential lands at `~/.config/powerloom/deployment-<kind>.json`.
+3. M2-P3 (next PR) wires plugins to read these credentials at session start.
+
+### Files
+
+```
+loomcli/loomcli/commands/agent_register.py    MOD — honor credential_scope/kind
+loomcli/loomcli/config.py                     MOD — multi-credential paths + lookups
+loomcli/CHANGELOG.md                          MOD
+loomcli/pyproject.toml                        MOD (0.7.12 → 0.7.13)
+loomcli/tests/test_register_command.py        MOD — 8 new M2-P2 tests
+```
+
 ## v0.7.12 — 2026-04-30 (CLI)
 
 **`weave register` + deployment-bound credentials (Agent Lifecycle UX P3).** Replaces the operator-host PAT-editing dance from v0.7.10 with a single registration command that mints a host-bound credential. Pairs with Powerloom platform PRs #246 (P1 — agent_templates registry) and #248 (P2 — `agent_deployments` lifecycle) which shipped the same day.

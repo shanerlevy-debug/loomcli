@@ -25,6 +25,7 @@ to register before 24h elapses, they mint a fresh token from the UI.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Optional
 
 import httpx
@@ -108,34 +109,31 @@ def register(
         or _DEFAULT_API_BASE_URL
     ).rstrip("/")
 
-    # Resolve credential path. --output wins; otherwise let config
-    # decide based on /etc/powerloom writability.
+    # The final credential path depends on the server's
+    # ``credential_scope`` + ``credential_kind`` response (M2-P1).
+    # We can't know pre-call whether this'll be a host/default
+    # registration (would clobber an existing reconciler) or a
+    # user/<kind> registration (independent path).
+    #
+    # Tradeoff: we make the server call first, then refuse-to-clobber
+    # against the SPECIFIC resolved path. This means a refused
+    # registration burns one registration token (the server marks it
+    # redeemed even though we didn't write the credential). The
+    # operator can archive the orphaned deployment via the UI. This is
+    # acceptable because:
+    #   * False positives in the pre-call check were worse — they
+    #     blocked legitimate IDE registrations on hosts with a
+    #     reconciler credential.
+    #   * Tokens are cheap; deployments are not. The post-call check
+    #     gives precise per-path safety.
+    #
+    # ``--output`` still gets a pre-call check for the explicit path
+    # since we know it ahead of time.
+    cred_path: Path | None = None
     if output:
         cred_path = _Path(output)
-    else:
-        cred_path = config.deployment_credential_path()
-
-    # Refuse to clobber unless --force.
-    if cred_path.exists() and not force:
-        existing = config.read_deployment_credential() or {}
-        existing_dep_id = existing.get("deployment_id", "?")
-        existing_agent = existing.get("agent_slug", "?")
-        _console.print(
-            f"[red]A deployment credential already exists at {cred_path}.[/red]\n"
-            f"  Existing deployment: [cyan]{existing_dep_id}[/cyan] "
-            f"(agent [cyan]{existing_agent}[/cyan])\n"
-            f"\n"
-            f"Re-running [bold]weave register[/bold] would orphan that "
-            f"deployment server-side (its token would still be valid, but "
-            f"this host would point at a different one).\n"
-            f"\n"
-            f"  • To pair this host with the new token, archive the "
-            f"existing deployment in the UI first, then re-run with "
-            f"[bold]--force[/bold].\n"
-            f"  • To leave the existing pairing alone, drop this token "
-            f"and mint a fresh one for the host you actually meant."
-        )
-        raise typer.Exit(1)
+        if cred_path.exists() and not force:
+            _refuse_clobber(cred_path)
 
     # POST /deployments/register. The token is the auth — no bearer
     # header needed for this route.
@@ -197,13 +195,35 @@ def register(
         "deployment_token": body["deployment_token"],
         "api_base_url": base,
         "runtime_config": body.get("runtime_config") or {},
+        # M2-P1 server fields. The plugin auto-register flow (M2-P3)
+        # reads `credential_kind` to identify "this is the Claude
+        # Code credential" vs Codex etc.
+        "credential_scope": body.get("credential_scope") or "host",
+        "credential_kind": body.get("credential_kind") or "default",
     }
+
+    # Resolve scope + kind from the server response (M2-P1). Legacy
+    # servers without these fields default to host/default which is
+    # the M1 reconciler shape — no behavior change for existing flows.
+    scope = body.get("credential_scope") or "host"
+    kind = body.get("credential_kind") or "default"
+    if scope not in ("host", "user"):
+        # Server bug or malformed response. Treat unknown scope as
+        # 'host' to match v0.7.12 behavior.
+        scope = "host"
+
+    # Now resolve the actual write path (unless --output was passed).
+    if not output:
+        cred_path = config.deployment_credential_path(scope=scope, kind=kind)
+        if cred_path.exists() and not force:
+            _refuse_clobber(cred_path)
 
     try:
         if output:
-            # User-specified path — write directly without going through
-            # config.write_deployment_credential which always uses the
-            # default location.
+            # User-specified path — write directly without going
+            # through config.write_deployment_credential which uses
+            # the resolved scope/kind path.
+            assert cred_path is not None
             cred_path.parent.mkdir(parents=True, exist_ok=True)
             import json as _json
             cred_path.write_text(_json.dumps(credential, indent=2), encoding="utf-8")
@@ -213,26 +233,41 @@ def register(
             except OSError:
                 pass
         else:
-            cred_path = config.write_deployment_credential(credential)
+            cred_path = config.write_deployment_credential(
+                credential, scope=scope, kind=kind
+            )
     except OSError as e:
+        location_hint = (
+            "On Linux you usually need [bold]sudo weave register --token=...[/bold] "
+            "so the credential lands at /etc/powerloom/deployment.json."
+            if scope == "host"
+            else "Check that your home directory is writable."
+        )
         _console.print(
-            f"[red]Failed to write {cred_path}:[/red] {e}\n"
-            f"On Linux you usually need [bold]sudo weave register --token=...[/bold] "
-            f"so the credential lands at /etc/powerloom/deployment.json."
+            f"[red]Failed to write {cred_path}:[/red] {e}\n{location_hint}"
         )
         raise typer.Exit(1) from e
 
     deployment_id_short = body["deployment_id"].split("-")[0]
     agent_label = body.get("agent_slug") or body["agent_id"][:8]
+    next_step = (
+        "Start the daemon: [bold]weave agent run[/bold]"
+        if scope == "host"
+        else (
+            "Open your IDE in any working tree — the plugin will "
+            "auto-register sessions against this credential."
+        )
+    )
 
     _console.print(
         f"[green]✓[/green] Registered as deployment "
         f"[cyan]{deployment_id_short}[/cyan]\n"
         f"  Agent:      [cyan]{agent_label}[/cyan]\n"
         f"  API:        [dim]{base}[/dim]\n"
+        f"  Scope:      [dim]{scope}/{kind}[/dim]\n"
         f"  Credential: [dim]{cred_path}[/dim]\n"
         f"\n"
-        f"Start the daemon: [bold]weave agent run[/bold]"
+        f"{next_step}"
     )
 
 
@@ -255,7 +290,35 @@ def _safe_text(response: httpx.Response) -> str:
         return f"<{len(response.content)} bytes of response body>"
 
 
-# Lazy import alias — avoids a top-level Path import for this small module.
-def _Path(s: str):
-    from pathlib import Path as _P
-    return _P(s)
+def _refuse_clobber(cred_path: Path) -> None:
+    """Print the actionable refuse-to-clobber message and exit.
+
+    Used by both the --output pre-check (before the register call)
+    and the post-server-response path resolution. Same message body
+    in both cases — the shape of the warning is identical regardless
+    of how we discovered the existing credential.
+    """
+    existing = config.read_deployment_credential() or {}
+    existing_dep_id = existing.get("deployment_id", "?")
+    existing_agent = existing.get("agent_slug", "?")
+    _console.print(
+        f"[red]A deployment credential already exists at {cred_path}.[/red]\n"
+        f"  Existing deployment: [cyan]{existing_dep_id}[/cyan] "
+        f"(agent [cyan]{existing_agent}[/cyan])\n"
+        f"\n"
+        f"Re-running [bold]weave register[/bold] would orphan that "
+        f"deployment server-side (its token would still be valid, but "
+        f"this host would point at a different one).\n"
+        f"\n"
+        f"  • To pair this host with the new token, archive the "
+        f"existing deployment in the UI first, then re-run with "
+        f"[bold]--force[/bold].\n"
+        f"  • To leave the existing pairing alone, drop this token "
+        f"and mint a fresh one for the host you actually meant."
+    )
+    raise typer.Exit(1)
+
+
+# Lazy alias retained for tests that monkeypatch this. Plain Path call.
+def _Path(s: str) -> Path:
+    return Path(s)

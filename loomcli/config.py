@@ -77,53 +77,96 @@ def config_file() -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Deployment-bound credentials (v0.7.12 — Agent Lifecycle UX P3)
+# Deployment-bound credentials (v0.7.12 — M1-P3 / v0.7.13 — M2-P2)
 # ---------------------------------------------------------------------------
 #
-# Operators running a self-hosted agent (the reconciler today, anything
-# with runtime_type='self_hosted' tomorrow) pair their host with a
-# deployment row on the platform via ``weave register --token=...``.
-# The register command writes the resulting credential to
-# ``/etc/powerloom/deployment.json`` (host-wide on Linux) so:
+# Operators pair a host with a deployment row on the platform via
+# ``weave register --token=...``. The register command writes the
+# resulting credential to one of two locations, decided by the server:
 #
-#   1. Multiple processes on the same host (e.g. a future sidecar +
-#      the daemon itself) share one credential without re-registering.
-#   2. Container restarts via the systemd unit + bind-mount survive
-#      without touching the host-side bind path.
-#   3. ``weave agent run`` resolves the agent_id + api_base_url from
-#      the credential — no positional argument or env-var dance needed.
+#   * **host scope** (default for daemon-style agents like the
+#     reconciler) — ``/etc/powerloom/deployment.json``. Single
+#     host-wide credential, shared across processes.
+#   * **user scope** (default for IDE-style agents like Claude Code
+#     / Gemini CLI / Codex CLI as of v0.7.13 / M2) —
+#     ``<XDG>/powerloom/deployment-<kind>.json``. Per-user, per-IDE
+#     credential. Multiple IDE deployments coexist on one machine
+#     without colliding (one file per IDE kind).
 #
-# Fallbacks:
-#   * On hosts where /etc/powerloom isn't writable (laptops, dev
-#     machines, containers without root), fall back to the per-user
-#     XDG config_dir() / "deployment.json".
-#   * When neither file is present, daemon falls back to the legacy
-#     PAT path (POWERLOOM_ACCESS_TOKEN env var or credentials file).
+# The server returns ``credential_scope`` + ``credential_kind`` on the
+# register response (see ``RegisterResponse`` in the platform's
+# ``schemas/agent_deployment.py``). Loomcli reads those fields and
+# writes to the resolved path. ``deployment_credential_path(scope,
+# kind)`` is the canonical resolver.
+#
+# Backwards compat: when a host has only the legacy single
+# ``/etc/powerloom/deployment.json`` (M1 reconciler shape), the
+# read path still finds it without a kind argument. New M2 hosts
+# may have multiple per-kind files; ``read_deployment_credential(kind=...)``
+# disambiguates.
 
 DEPLOYMENT_CREDENTIAL_FILENAME = "deployment.json"
 HOST_DEPLOYMENT_CREDENTIAL_PATH = Path("/etc/powerloom") / DEPLOYMENT_CREDENTIAL_FILENAME
 
+# Recognized credential scopes. Stays in sync with the platform's
+# ``derive_credential_scope`` (services/agent_deployments.py).
+_VALID_SCOPES = ("host", "user")
 
-def deployment_credential_path() -> Path:
-    """Resolve the path where ``weave register`` writes (and the daemon
-    reads) the deployment credential.
 
-    Returns ``/etc/powerloom/deployment.json`` when ``/etc/powerloom``
-    is writable (Linux host with sudo) — that's the single host-wide
-    location operators expect. Falls back to the per-user
-    ``config_dir()/deployment.json`` otherwise (dev hosts, mac laptops,
-    containers without /etc write access).
+def _user_credential_filename(kind: str) -> str:
+    """The per-user credential filename for a given kind.
+
+    Examples:
+        kind="default" or "" -> "deployment.json" (back-compat)
+        kind="claude_code"   -> "deployment-claude_code.json"
+        kind="gemini_cli"    -> "deployment-gemini_cli.json"
+
+    The "default" kind maps to the bare filename so a v0.7.12 host
+    (which knew nothing about kinds) can be upgraded to v0.7.13 and
+    still find its existing credential.
+    """
+    if not kind or kind == "default":
+        return DEPLOYMENT_CREDENTIAL_FILENAME
+    # Sanitize: kind comes from the server but defense-in-depth so a
+    # malformed value can't traverse outside the config dir.
+    safe = kind.replace("/", "_").replace("\\", "_").replace("..", "_")
+    return f"deployment-{safe}.json"
+
+
+def deployment_credential_path(
+    scope: str = "host", kind: str = "default"
+) -> Path:
+    """Resolve where ``weave register`` writes (and clients read) the
+    deployment credential.
+
+    Args:
+        scope: ``"host"`` (write /etc/powerloom/deployment.json) or
+            ``"user"`` (write per-user XDG path). Server returns this
+            on ``RegisterResponse.credential_scope``.
+        kind: filename suffix for ``user`` scope. ``"default"`` means
+            the bare ``deployment.json`` filename (M1 back-compat);
+            ``"claude_code"`` etc. produces ``deployment-claude_code.json``.
+            Server returns this on ``RegisterResponse.credential_kind``.
+
+    Behavior:
+        * ``scope="host"``: prefer /etc/powerloom/deployment.json when
+          the directory is writable; fall back to the user XDG path
+          otherwise. The kind argument is IGNORED for host scope (the
+          host-wide location is single-tenant by design).
+        * ``scope="user"``: always returns the user XDG path with the
+          kind-suffixed filename. Doesn't touch /etc.
 
     Re-evaluated on every call so a process that gains write access
-    mid-run (rare, but explicit) picks up the new path.
+    mid-run picks up the new path.
     """
+    if scope == "user":
+        return _base_dir() / _user_credential_filename(kind)
+
+    # scope=="host" path. Same as the v0.7.12 logic, kind ignored.
     primary = HOST_DEPLOYMENT_CREDENTIAL_PATH
     try:
-        # If the directory exists and is writable, prefer it.
         if primary.parent.exists() and os.access(primary.parent, os.W_OK):
             return primary
-        # If the directory doesn't exist but we can create it (i.e. we
-        # have write on /etc), prefer it.
         if not primary.parent.exists() and os.access(primary.parent.parent, os.W_OK):
             return primary
     except OSError:
@@ -131,69 +174,189 @@ def deployment_credential_path() -> Path:
     return _base_dir() / DEPLOYMENT_CREDENTIAL_FILENAME
 
 
-def read_deployment_credential() -> dict | None:
-    """Return the parsed deployment credential, or None if absent.
+def list_deployment_credentials() -> dict[str, dict]:
+    """Discover every readable deployment credential on this host.
 
-    Looks at both the host-wide path (``/etc/powerloom/deployment.json``)
-    and the per-user path (``config_dir()/deployment.json``). Returns
-    the first one that parses as JSON. Daemon prefers this over the
-    PAT path when available.
+    Returns a ``{kind: payload}`` dict. The "default" kind covers both
+    the legacy host-wide ``/etc/powerloom/deployment.json`` AND the
+    per-user fallback ``<XDG>/deployment.json`` (de-duplicated; if
+    both exist the host-wide one wins).
+
+    Used by:
+      * The daemon (``weave agent run``) to find ITS credential
+        when the host might have multiple (e.g. Claude Code +
+        reconciler on the same laptop).
+      * Plugin auto-register flows (M2-P3) to find their kind's
+        credential.
+      * ``weave register --force`` to surface a list of existing
+        credentials before clobbering.
+
+    Returns ``{}`` when no credentials exist.
+    """
+    found: dict[str, dict] = {}
+    base = _base_dir()
+
+    # 1) Host-wide credential (M1 reconciler shape).
+    for path in (HOST_DEPLOYMENT_CREDENTIAL_PATH, base / DEPLOYMENT_CREDENTIAL_FILENAME):
+        if "default" in found:
+            break
+        payload = _read_credential_file(path)
+        if payload is not None:
+            found["default"] = payload
+
+    # 2) Per-kind user credentials (M2 IDE shape).
+    if base.exists():
+        try:
+            for entry in base.iterdir():
+                if not entry.is_file():
+                    continue
+                name = entry.name
+                if not name.startswith("deployment-") or not name.endswith(".json"):
+                    continue
+                kind = name[len("deployment-"):-len(".json")]
+                if not kind or kind == "default" or kind in found:
+                    continue
+                payload = _read_credential_file(entry)
+                if payload is not None:
+                    found[kind] = payload
+        except OSError:
+            pass
+
+    return found
+
+
+def read_deployment_credential(kind: str | None = None) -> dict | None:
+    """Return one parsed deployment credential.
+
+    Args:
+        kind: when provided, look ONLY for the credential with this
+            exact kind (e.g. "claude_code"). Use this from plugin
+            auto-register flows that know which IDE they are.
+            When None (default), return the first credential found
+            via the historical lookup order — host-wide first, then
+            per-user default, then any per-kind file. Maintains
+            backwards-compat with the v0.7.12 daemon.
 
     Returns None on:
       * Neither file exists.
       * File exists but isn't readable (permission error).
       * File exists but isn't valid JSON.
     """
+    if kind is not None:
+        # Exact match — for plugin auto-register flows.
+        # Try the host-default name first if kind="default", else the
+        # per-kind user file.
+        if kind == "default":
+            for path in (
+                HOST_DEPLOYMENT_CREDENTIAL_PATH,
+                _base_dir() / DEPLOYMENT_CREDENTIAL_FILENAME,
+            ):
+                payload = _read_credential_file(path)
+                if payload is not None:
+                    return payload
+            return None
+        path = _base_dir() / _user_credential_filename(kind)
+        return _read_credential_file(path)
+
+    # Legacy lookup (v0.7.12 daemon behavior). Host-default first,
+    # then user-default, then any per-kind credential alphabetically.
     seen: set[Path] = set()
-    for path in (deployment_credential_path(), HOST_DEPLOYMENT_CREDENTIAL_PATH):
+    for path in (deployment_credential_path(scope="host"), HOST_DEPLOYMENT_CREDENTIAL_PATH):
         if path in seen:
             continue
         seen.add(path)
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        payload = _read_credential_file(path)
+        if payload is not None:
+            return payload
+
+    # No host-default; return the first per-kind credential we find.
+    for kind_name in sorted(list_deployment_credentials().keys()):
+        if kind_name == "default":
             continue
-        try:
-            payload = json.loads(text)
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(payload, dict):
-            continue
-        return payload
+        payload = _read_credential_file(
+            _base_dir() / _user_credential_filename(kind_name)
+        )
+        if payload is not None:
+            return payload
     return None
 
 
-def write_deployment_credential(payload: dict) -> Path:
-    """Write the deployment credential to the resolved path.
+def _read_credential_file(path: Path) -> dict | None:
+    """Parse a single credential file. Returns None on any read /
+    parse failure (permission error, corrupt JSON, wrong shape)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    try:
+        payload = json.loads(text)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
 
-    Returns the path it was written to so the caller can surface it
-    to the operator. The file gets 0600 perms on POSIX (best-effort —
-    no-op on Windows where ACLs would be a separate concern).
+
+def write_deployment_credential(
+    payload: dict,
+    *,
+    scope: str = "host",
+    kind: str = "default",
+) -> Path:
+    """Write the deployment credential to the path resolved by
+    ``deployment_credential_path(scope, kind)``.
+
+    Returns the path written. File gets 0600 perms on POSIX (best-
+    effort; no-op on Windows where ACLs would be a separate concern).
 
     Raises OSError if the directory can't be created or the file
     can't be written. Caller (``weave register``) translates to a
     user-visible error.
     """
-    path = deployment_credential_path()
+    if scope not in _VALID_SCOPES:
+        raise ValueError(f"invalid scope {scope!r}; expected one of {_VALID_SCOPES}")
+    path = deployment_credential_path(scope=scope, kind=kind)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     try:
         os.chmod(path, 0o600)
     except OSError:
-        # Best-effort; Windows hits this every time and we don't care.
         pass
     return path
 
 
-def clear_deployment_credential() -> None:
-    """Remove every deployment credential we know about.
+def clear_deployment_credential(kind: str | None = None) -> None:
+    """Remove deployment credential file(s).
 
-    Used by ``weave register --revoke`` (future) and by the daemon
-    when it detects its own credential has been archived server-side
-    (heartbeat returns 401 → daemon deletes the local file so the
-    next ``weave register`` starts clean).
+    Args:
+        kind: when provided, remove only that kind's file (e.g.
+            "claude_code" -> deletes ~/.config/powerloom/deployment-claude_code.json).
+            When None, removes EVERY known deployment credential
+            on the host. The latter is used by ``weave register
+            --revoke`` (future) and by daemons that detect their
+            credential has been archived server-side.
     """
-    for path in (deployment_credential_path(), HOST_DEPLOYMENT_CREDENTIAL_PATH):
+    if kind is not None:
+        try:
+            (_base_dir() / _user_credential_filename(kind)).unlink(missing_ok=True)
+        except OSError:
+            pass
+        if kind == "default":
+            try:
+                HOST_DEPLOYMENT_CREDENTIAL_PATH.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return
+
+    # No kind: clear everything.
+    paths_to_clear = [
+        HOST_DEPLOYMENT_CREDENTIAL_PATH,
+        _base_dir() / DEPLOYMENT_CREDENTIAL_FILENAME,
+    ]
+    for k in list_deployment_credentials():
+        if k != "default":
+            paths_to_clear.append(_base_dir() / _user_credential_filename(k))
+    for path in paths_to_clear:
         try:
             path.unlink(missing_ok=True)
         except OSError:
