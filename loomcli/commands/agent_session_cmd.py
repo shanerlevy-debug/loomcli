@@ -66,10 +66,40 @@ app = typer.Typer(
 def _client() -> PowerloomClient:
     cfg = load_runtime_config()
     if cfg.access_token is None:
-        _console.print(
-            "[yellow]Not signed in. Run `weave auth login --dev-as <email>` first.[/yellow]"
-        )
-        raise typer.Exit(1)
+        # M2-P3: fall back to the deployment credential when one
+        # exists. Lets Codex/Gemini plugins (and operators on hosts
+        # that ran `weave register` but never `weave login`) call
+        # `weave agent-session register` without a PAT.
+        from loomcli import config as cfg_mod
+
+        creds = cfg_mod.list_deployment_credentials()
+        # Prefer IDE-kind credentials (claude_code, gemini_cli,
+        # codex_cli) since they're what `agent-session register` is
+        # most likely being invoked for. Fall back to host/default
+        # for completeness.
+        chosen = None
+        for kind in ("claude_code", "gemini_cli", "codex_cli"):
+            if kind in creds:
+                chosen = creds[kind]
+                break
+        if chosen is None and "default" in creds:
+            chosen = creds["default"]
+
+        if chosen and chosen.get("deployment_token") and chosen.get("api_base_url"):
+            from loomcli.config import RuntimeConfig
+
+            cfg = RuntimeConfig(
+                api_base_url=str(chosen["api_base_url"]).rstrip("/"),
+                access_token=str(chosen["deployment_token"]),
+                request_timeout_seconds=cfg.request_timeout_seconds,
+                active_profile=cfg.active_profile,
+            )
+        else:
+            _console.print(
+                "[yellow]Not signed in. Run `weave auth login --dev-as <email>` "
+                "or pair this host with `weave register --token=...` first.[/yellow]"
+            )
+            raise typer.Exit(1)
     return PowerloomClient(cfg)
 
 
