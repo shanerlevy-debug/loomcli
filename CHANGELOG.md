@@ -7,6 +7,54 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.15 — 2026-04-30 (CLI)
+
+**Plugin platform-MCP bridge — hosted Powerloom tools for CC sessions outside the monorepo.** Closes the gap that surfaced right after powerloom monorepo PR #290 (CMA push gating refactor). Operators running `weave register --token=pat-deploy-...` from a directory **outside** the powerloom monorepo wrote a valid deployment credential but a fresh CC session in that directory had **no** Powerloom or Weave tools available — the previous architecture only exposed platform tools via the monorepo's project-local `.mcp.json`.
+
+### Plugin manifest declares a second MCP server
+
+`plugin/.claude-plugin/plugin.json` adds `powerloom-platform` alongside the existing `powerloom-home` entry. The two complement each other:
+
+| Server | Scope |
+|---|---|
+| `powerloom-home` (existing) | Local SQLite home-edition tools (offline-first, casual / home-tier users) |
+| `powerloom-platform` (new) | Hosted platform tools (sessions, threads, projects, agents, skills, memory) via the operator's deployment credential |
+
+### `powerloom-platform` is a stdio→HTTP MCP proxy
+
+New module `plugin/mcp-server/powerloom_platform/`:
+
+- **`credential.py`** — reads the deployment credential at startup using the same path-resolution pattern as `powerloom_home.auto_register` (XDG / `%APPDATA%` / `/etc/powerloom`). Refuses credentials missing `api_base_url` or `deployment_token`; refuses credentials with mismatched `credential_kind` (won't hijack a `gemini_cli` credential).
+- **`__main__.py`** — connects upstream to `{api_base_url}/mcp` via `mcp.client.streamable_http` with `Authorization: Bearer {deployment_token}`. Forwards `tools/list` and `tools/call` requests transparently. Lazy connection (opens on first MCP request, not at boot) so unpaired hosts pay nothing.
+- **Graceful zero-tools mode** when no credential exists OR malformed OR upstream unreachable. Operators see an empty tool list rather than errors; once they `weave register` and restart CC, tools appear.
+
+### Test plan
+
+14 stateless tests in `plugin/tests/test_powerloom_platform.py` covering credential resolution (missing/valid/wrong-kind/legacy/canonical-priority/malformed) + MCP URL composition (trailing-slash robustness, subpath handling). 50/50 plugin tests pass.
+
+### Files
+
+```
+plugin/.claude-plugin/plugin.json                         MOD (added powerloom-platform mcpServers entry)
+plugin/mcp-server/powerloom_platform/__init__.py          NEW
+plugin/mcp-server/powerloom_platform/credential.py        NEW
+plugin/mcp-server/powerloom_platform/__main__.py          NEW
+plugin/tests/test_powerloom_platform.py                   NEW
+loomcli/pyproject.toml                                    MOD (0.7.14 → 0.7.15)
+CHANGELOG.md                                              MOD (this entry)
+```
+
+### Tracker
+
+Powerloom thread `e1e61ca6` ("Plugin: bridge hosted Powerloom MCP tools into CC sessions outside the monorepo (Fix B)") — closed via the merge of PR #68.
+
+### Companion
+
+Powerloom monorepo PR #290 (CMA push gating refactor) closed `5dffcb15`. Together this PR + #290 answer Shane's two friction points from 2026-04-30:
+
+1. Why does CMA fire on every skill upload? → #290 (gated on consumer)
+2. Why don't tools appear after `weave register` outside the monorepo? → this release (bridge MCP server)
+
 ## v0.7.14 — 2026-04-30 (CLI)
 
 **Plugin auto-register for Claude Code MCP server (Agent Lifecycle UX M2-P3).** Closes the M2 milestone (parent thread `6ab575d7`). Pairs with platform PR #263 (M2-P1) + loomcli PR #66 (M2-P2 / v0.7.13) shipped earlier today.
