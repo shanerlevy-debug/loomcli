@@ -39,6 +39,7 @@ from loomcli.commands import compose_cmd
 from loomcli.commands import conventions_cmd
 from loomcli.commands import doctor_cmd
 from loomcli.commands import migrate_cmd
+from loomcli.commands import open_cmd
 from loomcli.commands import plugin_cmd
 from loomcli.commands import thread_cmd
 from loomcli.commands import profile_cmd
@@ -235,6 +236,9 @@ def _root(
 app.add_typer(auth_cmd.app, name="auth", help="Login / logout / whoami / PAT management.")
 app.add_typer(agent_cmd.app, name="agent", help="Inspect agents and manage identities.")
 app.add_typer(agent_register.app, name="register", help="Pair this host with an agent deployment via a registration token.")
+# Single-command registration (not add_typer) so positional TOKEN parses
+# cleanly without a phantom COMMAND/ARGS suffix in the usage line.
+app.command("open", help="Bootstrap an agent session from a launch token (paste-from-web flow).")(open_cmd.run)
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")

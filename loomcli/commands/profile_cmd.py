@@ -89,6 +89,17 @@ def set_profile(
         str | None,
         typer.Option("--output", help="Default output format, e.g. table or json."),
     ] = None,
+    worktree_root: Annotated[
+        str | None,
+        typer.Option(
+            "--worktree-root",
+            help=(
+                "Override the default `weave open` worktree root "
+                "(~/.powerloom/worktrees/). Useful when home is on a "
+                "small drive and you want worktrees on a larger one."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Set local defaults for a profile and make it active."""
     values = {
@@ -100,6 +111,7 @@ def set_profile(
         "default_runtime": default_runtime,
         "default_model": default_model,
         "output": output,
+        "worktree_root": worktree_root,
     }
     selected = {k: v for k, v in values.items() if v is not None}
     if not selected:
@@ -136,6 +148,7 @@ def clear_profile(
     default_runtime: Annotated[bool, typer.Option("--default-runtime")] = False,
     default_model: Annotated[bool, typer.Option("--default-model")] = False,
     output: Annotated[bool, typer.Option("--output")] = False,
+    worktree_root: Annotated[bool, typer.Option("--worktree-root")] = False,
     all_values: Annotated[
         bool,
         typer.Option("--all", help="Clear every local default in the profile."),
@@ -162,6 +175,8 @@ def clear_profile(
             fields.append("default_model")
         if output:
             fields.append("output")
+        if worktree_root:
+            fields.append("worktree_root")
     if not fields:
         _console.print("[yellow]No profile fields selected.[/yellow]")
         raise typer.Exit(1)
