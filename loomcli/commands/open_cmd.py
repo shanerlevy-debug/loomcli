@@ -46,6 +46,12 @@ from loomcli._open.git_ops import (
     path_length_warning,
     short_id_from_launch_id,
 )
+from loomcli._open.session_reg import (
+    SessionRegisterError,
+    ensure_gitignore_entry,
+    register_agent_session,
+    write_session_env_file,
+)
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.config import is_json_output, load_runtime_config
 from loomcli.schema.launch_spec import LaunchSpec
@@ -301,8 +307,38 @@ def run(
         if warn:
             _console.print(f"  [yellow]warn:[/yellow] {warn}")
 
-    # Future-thread stubs. After 5fab82ed / 53573d73 / 53fddf29 land the
-    # bootstrap completes here; this marker shrinks each thread.
+    # ---- session register + env file --------------------------------------
+    try:
+        registered = register_agent_session(client, spec)
+    except SessionRegisterError as exc:
+        # Worktree is already on disk — leave it and let the user retry
+        # without re-redeeming. The 5-min cache covers the retry window.
+        _emit_error(
+            f"Session registration failed (HTTP {exc.status_code}): {exc}",
+            hint=(
+                "The worktree at "
+                f"{worktree} is intact; re-running `weave open <token>` "
+                "within 5min retries via the redeem cache."
+            ),
+        )
+        raise typer.Exit(1) from None
+
+    env_file = write_session_env_file(worktree, registered, spec)
+    ensure_gitignore_entry(worktree)
+
+    if not is_json_output():
+        _console.print(
+            f"  [green]✓[/green] Session registered: "
+            f"{registered.session_slug} ({registered.session_id[:8]}…)"
+        )
+        if registered.overlap_warnings:
+            for w in registered.overlap_warnings:
+                msg = w.get("message") if isinstance(w, dict) else str(w)
+                _console.print(f"  [yellow]overlap:[/yellow] {msg}")
+        _console.print(f"  [green]✓[/green] Wrote {env_file.name}")
+
+    # Future-thread stubs. After 53573d73 / 53fddf29 land the bootstrap
+    # completes here; this marker shrinks each thread.
     if not is_json_output():
         unused = []
         if reuse:
@@ -315,8 +351,8 @@ def run(
             else ""
         )
         _console.print(
-            "\n[yellow]TODO[/yellow]: skill install, MCP wiring, session "
-            "register, rules-sync, and runtime exec land in subsequent "
-            "threads of sprint cli-weave-open-20260430."
+            "\n[yellow]TODO[/yellow]: skill install, MCP wiring, "
+            "rules-sync, and runtime exec land in subsequent threads "
+            "of sprint cli-weave-open-20260430."
             + unused_blurb
         )

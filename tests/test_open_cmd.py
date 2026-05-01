@@ -82,7 +82,13 @@ def _strip_ansi(s: str) -> str:
 
 @pytest.fixture
 def mock_client():
-    """Patch PowerloomClient where open_cmd imports it."""
+    """Patch PowerloomClient where open_cmd imports it.
+
+    Defaults ``.post('/agent-sessions', ...)`` to a sensible registered-
+    session payload so happy-path tests don't need to wire it; tests
+    that exercise the register-failure path can override
+    ``client.post.side_effect``.
+    """
     with patch("loomcli.commands.open_cmd.PowerloomClient") as mock_cls:
         with patch(
             "loomcli.commands.open_cmd.load_runtime_config",
@@ -90,6 +96,14 @@ def mock_client():
         ):
             client = MagicMock()
             client.__enter__.return_value = client
+            client.post.return_value = {
+                "session": {
+                    "id": "ab123456-0000-0000-0000-000000000000",
+                    "session_slug": "cc-test-20260501",
+                },
+                "work_chain_event_hash": "deadbeef",
+                "overlap_warnings": [],
+            }
             mock_cls.return_value = client
             yield client
 
@@ -110,10 +124,15 @@ def mock_bootstrap(tmp_path):
         worktrees_root=tmp_path / "worktrees",
     )
 
-    def _ok(cmd, **kw):
+    def _fake_run(cmd, **kw):
+        # Mimic git's filesystem side-effects so downstream steps
+        # (env-file write into the worktree) find the directory.
+        if len(cmd) >= 4 and cmd[:3] == ["git", "worktree", "add"]:
+            worktree_target = __import__("pathlib").Path(cmd[3])
+            worktree_target.mkdir(parents=True, exist_ok=True)
         return sp.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
-    with patch("loomcli._open.git_ops.subprocess.run", side_effect=_ok):
+    with patch("loomcli._open.git_ops.subprocess.run", side_effect=_fake_run):
         with patch("loomcli._open.git_ops.shutil.which", return_value="/usr/bin/git"):
             with patch.object(WeaveOpenPaths, "default", return_value=paths):
                 yield paths
@@ -153,12 +172,24 @@ def test_redeem_happy_path(mock_client, mock_bootstrap) -> None:
     # Worktree path uses scope-slug + first-4 of launch_id.hex.
     # _seed_spec() uses launch_id="11111111-..." → short_id="1111".
     assert "cc-test-20260501-1111" in out
-    # Future-thread TODO marker still present (skill / MCP / register / exec).
+    # Session register output (5fab82ed) — registered + env file emitted.
+    assert "Session registered" in out
+    assert "ab123456" in out
+    assert ".powerloom-session.env" in out
+    # Future-thread TODO marker still present (skill / MCP / rules / exec).
     assert "TODO" in out
     # Redeem URL hit with the path token
-    mock_client.get.assert_called_once_with(
+    mock_client.get.assert_any_call(
         "/launches/lt_aaaaaaaaaaaaaaaaaaaaaa"
     )
+    # Register POST'd to /agent-sessions
+    register_call = next(
+        c for c in mock_client.post.call_args_list
+        if c.args and c.args[0] == "/agent-sessions"
+    )
+    body = register_call.args[1]
+    assert body["session_slug"] == "cc-test-20260501"
+    assert body["actor_kind"] == "claude_code"
 
 
 def test_redeem_dry_run_exits_after_preview(mock_client) -> None:
@@ -217,6 +248,23 @@ def test_redeem_unexpected_error_surfaces_with_message(mock_client) -> None:
     assert result.exit_code == 1
     err = _strip_ansi(result.output)
     assert "redeem failed" in err.lower()
+
+
+def test_session_register_failure_surfaces_actionable_message(
+    mock_client, mock_bootstrap
+) -> None:
+    """Worktree on disk + register fails → error tells user worktree is intact."""
+    mock_client.get.return_value = _seed_spec()
+    mock_client.post.side_effect = PowerloomApiError(
+        409, "scope already active in another session"
+    )
+    result = runner.invoke(app, ["open", "lt_regfail00000000000000"])
+    assert result.exit_code == 1
+    out = _strip_ansi(result.output)
+    assert "Session registration failed" in out
+    assert "HTTP 409" in out
+    # Hint mentions the worktree is still intact + cache-window retry.
+    assert "intact" in out.lower() or "5min" in out
 
 
 # ---------------------------------------------------------------------------
