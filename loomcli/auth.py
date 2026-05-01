@@ -272,6 +272,126 @@ def exchange_machine_credential(
     return resp
 
 
+def refresh_machine_credential(cfg: RuntimeConfig) -> dict | None:
+    """Rotate the on-disk machine credential by calling the engine's refresh endpoint.
+
+    Pre-condition: ``auth.json`` carries a usable credential whose
+    ``refresh_at`` has passed but ``expires_at`` has not.
+
+    POST ``/auth/machine-credentials/{credential_id}/refresh`` with the
+    *current* credential as the bearer. Server validates ownership +
+    rotates the token (new raw + hash + prefix; new expires_at = now +
+    90d). On success we write the new credential to disk and return the
+    response dict; on failure we return ``None`` and the caller logs
+    but doesn't block the current request — the existing token is
+    still valid until ``expires_at``.
+
+    Sprint thread 648bca84.
+    """
+    cred = read_machine_credential()
+    if cred is None or not cred.get("credential_id") or not cred.get("token"):
+        return None
+
+    refresh_cfg = RuntimeConfig(
+        api_base_url=cfg.api_base_url,
+        access_token=cred["token"],  # authenticate as the current credential
+        approval_justification=None,
+        active_profile=cfg.active_profile,
+    )
+    try:
+        with PowerloomClient(refresh_cfg) as client:
+            resp = client.post(
+                f"/auth/machine-credentials/{cred['credential_id']}/refresh",
+                {},
+            )
+    except PowerloomApiError:
+        # 401 / 410 / network — refresh failed. Don't disrupt the
+        # caller's request; the current token is still valid until
+        # expires_at. Caller may log.
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+    new_cred = {
+        # credential_id never changes — refresh rotates the secret only.
+        "credential_id": cred["credential_id"],
+        "token": resp.get("token"),
+        "expires_at": resp.get("expires_at"),
+        "refresh_at": resp.get("refresh_at"),
+        "issued_at": cred.get("issued_at"),  # original issuance preserved
+        "machine_fingerprint": cred.get("machine_fingerprint"),
+        "name": cred.get("name"),
+    }
+    write_machine_credential(new_cred)
+    return resp
+
+
+def is_in_refresh_window(cred: dict) -> bool:
+    """Return True if ``now >= refresh_at`` (i.e. eligible for refresh).
+
+    ``refresh_at = expires_at - 14d`` per the engine contract. Tolerates
+    'Z' suffix and missing fields (returns False for missing — nothing
+    to refresh). Used by the resolver to decide whether to kick off
+    a refresh on credential read.
+    """
+    from datetime import datetime, timezone
+
+    refresh_at_str = cred.get("refresh_at")
+    if not refresh_at_str:
+        return False
+    try:
+        refresh_at = datetime.fromisoformat(
+            str(refresh_at_str).replace("Z", "+00:00")
+        )
+        if refresh_at.tzinfo is None:
+            refresh_at = refresh_at.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return False
+    return datetime.now(timezone.utc) >= refresh_at
+
+
+def expired_machine_credential_meta() -> dict | None:
+    """Return metadata for a *recently* expired machine credential, if any.
+
+    ``read_machine_credential`` returns ``None`` for both "missing"
+    and "expired" — useful for the resolver, but the UX layer wants
+    to distinguish so it can surface "your credential expired on X.
+    Run `weave open <token>` to re-pair" rather than the generic
+    "Not signed in" message.
+
+    This helper reads the file *without* the expiry filter and
+    returns the credential dict iff it's actually expired. Used by
+    ``weave whoami`` and the once-per-process startup warning.
+    """
+    from datetime import datetime, timezone
+
+    path = auth_file()
+    if not path.exists():
+        return None
+    try:
+        import json as _json
+
+        cred = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError):
+        return None
+    if not isinstance(cred, dict):
+        return None
+    expires_at_str = cred.get("expires_at")
+    if not expires_at_str:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(
+            str(expires_at_str).replace("Z", "+00:00")
+        )
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+    if expires_at <= datetime.now(timezone.utc):
+        return cred
+    return None
+
+
 def compute_machine_fingerprint() -> str:
     """Return an opaque SHA-256 of ``<hostname>:<os>:<arch>``.
 

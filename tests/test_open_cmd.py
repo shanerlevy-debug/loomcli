@@ -109,12 +109,18 @@ def mock_client():
 
 
 @pytest.fixture
-def mock_bootstrap(tmp_path):
+def mock_bootstrap(tmp_path, monkeypatch):
     """Patch subprocess + paths so non-dry-run tests don't run real git.
 
     Returns the tmp-rooted ``WeaveOpenPaths`` so tests can assert on
     expected worktree locations without monkeypatching ``Path.home``.
     """
+    # Disable auto-refresh of machine credential — the resolver in
+    # ``config._read_credentials_file`` would otherwise try to phone
+    # the engine when a dev's real ``auth.json`` is in the refresh
+    # window. Test isolation, not a behavior change for users.
+    monkeypatch.setenv("POWERLOOM_DISABLE_AUTO_REFRESH", "1")
+
     import subprocess as sp
 
     from loomcli._open.git_ops import WeaveOpenPaths

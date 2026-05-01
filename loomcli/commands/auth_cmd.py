@@ -140,6 +140,16 @@ def _print_credential_origin() -> None:
     if origin == auth_api.CREDENTIAL_ORIGIN_PAT:
         _console.print(f"[dim]auth: PAT file {info.get('path')}[/dim]")
         return
+    # No active token. Surface expired-mcred specifically so the user
+    # knows which path to recover via.
+    expired = auth_api.expired_machine_credential_meta()
+    if expired is not None:
+        _console.print(
+            f"[yellow]Your machine credential expired on "
+            f"{expired.get('expires_at')}.[/yellow]\n"
+            f"[dim]Run `weave open <token>` from the web UI to re-pair.[/dim]"
+        )
+        return
     _console.print("[dim]auth: (unknown origin)[/dim]")
 
 

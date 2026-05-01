@@ -590,7 +590,11 @@ def _read_credentials_file() -> str | None:
          auth-bootstrap-20260430 / v0.7.16+. ``weave open`` writes a 90d
          machine credential here on first launch; takes precedence over
          the legacy PAT credential so a paired-on-this-machine flow uses
-         the freshest binding.
+         the freshest binding. When the credential is within its 14-day
+         refresh window (``now >= refresh_at``), this resolver also
+         kicks off an inline refresh that rotates the token in place
+         before returning. Refresh failures are non-fatal — the
+         current token is returned unchanged.
       3. ``<POWERLOOM_HOME>/credentials`` file (the legacy desktop shape
          written by ``weave login`` on TTY hosts).
 
@@ -602,6 +606,17 @@ def _read_credentials_file() -> str | None:
         return env_token.strip()
     mcred = read_machine_credential()
     if mcred is not None:
+        # Refresh-on-read (sprint thread 648bca84). Stays inline to keep
+        # the CLI single-process; concurrent refresh races aren't an
+        # issue because most CLI invocations are single-action.
+        # Disabled when POWERLOOM_DISABLE_AUTO_REFRESH=1 (test harness +
+        # ops escape hatch for diagnosing token issues).
+        if (
+            not os.environ.get("POWERLOOM_DISABLE_AUTO_REFRESH")
+            and _maybe_refresh_machine_credential(mcred)
+        ):
+            # Refresh succeeded; reload to pick up the rotated token.
+            mcred = read_machine_credential() or mcred
         return mcred["token"]
     path = credentials_file()
     if not path.exists():
@@ -610,6 +625,33 @@ def _read_credentials_file() -> str | None:
         return path.read_text(encoding="utf-8").strip() or None
     except OSError:
         return None
+
+
+def _maybe_refresh_machine_credential(cred: dict) -> bool:
+    """If ``cred`` is in its refresh window, fire an inline refresh.
+
+    Returns True iff the refresh succeeded and ``auth.json`` was rotated.
+
+    Local import to dodge the module cycle: ``loomcli.auth`` already
+    imports from ``loomcli.config`` for ``RuntimeConfig`` + path helpers.
+    """
+    from loomcli.auth import is_in_refresh_window, refresh_machine_credential
+
+    if not is_in_refresh_window(cred):
+        return False
+    # Build a minimal cfg locally — full ``load_runtime_config`` would
+    # recurse into ``_read_credentials_file`` which is exactly the
+    # call site. The refresh client only needs api_base_url + the
+    # current bearer token (which is already in ``cred``).
+    cfg = RuntimeConfig(
+        api_base_url=(
+            os.environ.get("POWERLOOM_API_BASE_URL") or "https://api.powerloom.org"
+        ).rstrip("/"),
+        access_token=None,
+        approval_justification=None,
+        active_profile="default",
+    )
+    return refresh_machine_credential(cfg) is not None
 
 
 # ---------------------------------------------------------------------------
