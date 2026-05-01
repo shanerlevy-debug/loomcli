@@ -46,6 +46,12 @@ from loomcli._open.git_ops import (
     path_length_warning,
     short_id_from_launch_id,
 )
+from loomcli._open.runtime_exec import (
+    ANTIGRAVITY_RUNTIME,
+    RuntimeBinaryError,
+    assert_runtime_available,
+    exec_runtime,
+)
 from loomcli._open.session_reg import (
     SessionRegisterError,
     ensure_gitignore_entry,
@@ -231,16 +237,28 @@ def run(
             _console.print("\n[dim]--dry-run: redeem succeeded; not creating worktree.[/dim]")
         raise typer.Exit(0)
 
-    # ---- bootstrap (clone + worktree) -------------------------------------
-    # Pre-flight: git on PATH. Sprint clone-auth-policy-20260430 will
-    # add the broader pre-flight (runtime binary, ~/.powerloom writable,
-    # local creds when mode=local_credentials). For now the cheap check.
+    # ---- bootstrap (pre-flights + clone + worktree) -----------------------
+    # Pre-flights run before clone so users learn about missing tooling
+    # in seconds, not 30 seconds into a slow clone. Sprint
+    # clone-auth-policy-20260430 adds the broader checks (~/.powerloom
+    # writable, local creds when clone_auth.mode=local_credentials).
     try:
         assert_git_available()
     except GitOpError as exc:
         _emit_error(
             str(exc),
             hint="Install git and re-run. https://git-scm.com/downloads",
+        )
+        raise typer.Exit(1) from None
+    try:
+        assert_runtime_available(spec.runtime)
+    except RuntimeBinaryError as exc:
+        _emit_error(
+            str(exc),
+            hint=(
+                "Install the runtime first. The launch token will still "
+                "be valid (5min single-use cache) — re-run after install."
+            ),
         )
         raise typer.Exit(1) from None
 
@@ -337,8 +355,11 @@ def run(
                 _console.print(f"  [yellow]overlap:[/yellow] {msg}")
         _console.print(f"  [green]✓[/green] Wrote {env_file.name}")
 
-    # Future-thread stubs. After 53573d73 / 53fddf29 land the bootstrap
-    # completes here; this marker shrinks each thread.
+    # ---- runtime hand-off -------------------------------------------------
+    # Skill install / MCP wiring / rules_sync still pending in
+    # subsequent threads of this sprint; surface a brief TODO so smoke
+    # testers know the worktree is technically usable but missing the
+    # conveniences before they exec into it.
     if not is_json_output():
         unused = []
         if reuse:
@@ -346,13 +367,34 @@ def run(
         if resume:
             unused.append(f"--resume {resume}")
         unused_blurb = (
-            f" (flags accepted but not yet wired: {', '.join(unused)})"
+            f" Flags accepted but not yet wired: {', '.join(unused)}."
             if unused
             else ""
         )
         _console.print(
-            "\n[yellow]TODO[/yellow]: skill install, MCP wiring, "
-            "rules-sync, and runtime exec land in subsequent threads "
-            "of sprint cli-weave-open-20260430."
+            "\n[dim]TODO (sprint cli-weave-open-20260430): skill install, "
+            "MCP wiring, rules-sync still pending — agent session works "
+            "but starts without those pre-loaded."
             + unused_blurb
+            + "[/dim]"
         )
+
+        if spec.runtime == ANTIGRAVITY_RUNTIME:
+            _console.print(
+                "\n[green]✓[/green] Antigravity launch ready. "
+                "Start the local worker with [cyan]weave antigravity-worker "
+                "start[/cyan] — it picks up the registered session by "
+                "polling /agent-sessions."
+            )
+        else:
+            _console.print(f"\n[bold]→[/bold] Launching {spec.runtime} in {worktree}…")
+
+    # Antigravity returns; everything else replaces the process.
+    if spec.runtime == ANTIGRAVITY_RUNTIME:
+        return
+
+    try:
+        exec_runtime(worktree, spec.runtime)
+    except RuntimeBinaryError as exc:
+        _emit_error(f"Runtime exec failed: {exc}")
+        raise typer.Exit(1) from None

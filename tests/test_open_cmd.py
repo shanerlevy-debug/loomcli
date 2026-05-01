@@ -132,10 +132,26 @@ def mock_bootstrap(tmp_path):
             worktree_target.mkdir(parents=True, exist_ok=True)
         return sp.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
+    def _exec_aborts(file, args, env):
+        # Real exec replaces the process; in tests we abort cleanly so
+        # `runner.invoke` records a normal exit.
+        raise SystemExit(0)
+
     with patch("loomcli._open.git_ops.subprocess.run", side_effect=_fake_run):
         with patch("loomcli._open.git_ops.shutil.which", return_value="/usr/bin/git"):
-            with patch.object(WeaveOpenPaths, "default", return_value=paths):
-                yield paths
+            with patch(
+                "loomcli._open.runtime_exec.shutil.which",
+                return_value="/usr/bin/claude",
+            ):
+                with patch("loomcli._open.runtime_exec.os.chdir"):
+                    with patch(
+                        "loomcli._open.runtime_exec.os.execvpe",
+                        side_effect=_exec_aborts,
+                    ):
+                        with patch.object(
+                            WeaveOpenPaths, "default", return_value=paths
+                        ):
+                            yield paths
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +192,9 @@ def test_redeem_happy_path(mock_client, mock_bootstrap) -> None:
     assert "Session registered" in out
     assert "ab123456" in out
     assert ".powerloom-session.env" in out
-    # Future-thread TODO marker still present (skill / MCP / rules / exec).
+    # Runtime hand-off output (53573d73) — Launching banner before exec.
+    assert "Launching claude_code" in out
+    # TODO marker shrinks but persists (skill / MCP / rules still pending).
     assert "TODO" in out
     # Redeem URL hit with the path token
     mock_client.get.assert_any_call(
@@ -248,6 +266,46 @@ def test_redeem_unexpected_error_surfaces_with_message(mock_client) -> None:
     assert result.exit_code == 1
     err = _strip_ansi(result.output)
     assert "redeem failed" in err.lower()
+
+
+def test_runtime_pre_flight_missing_binary_exits_before_clone(
+    mock_client, mock_bootstrap
+) -> None:
+    """Missing runtime binary → fail-fast pre-flight, no clone, no register."""
+    mock_client.get.return_value = _seed_spec()
+    # Override runtime-exec's shutil.which to simulate a missing binary;
+    # mock_bootstrap's default returns a path so we have to override
+    # within this test scope.
+    with patch("loomcli._open.runtime_exec.shutil.which", return_value=None):
+        result = runner.invoke(app, ["open", "lt_norunt00000000000000"])
+    assert result.exit_code == 1
+    out = _strip_ansi(result.output)
+    assert "claude" in out
+    assert "PATH" in out
+    # Session register POST should NOT have been issued.
+    register_calls = [
+        c for c in mock_client.post.call_args_list
+        if c.args and c.args[0] == "/agent-sessions"
+    ]
+    assert register_calls == []
+
+
+def test_antigravity_runtime_returns_after_register_no_exec(
+    mock_client, mock_bootstrap
+) -> None:
+    """Antigravity launch doesn't exec — it instructs the user to start the worker."""
+    spec = _seed_spec(runtime="antigravity")
+    spec["actor"]["runtime"] = "antigravity"
+    mock_client.get.return_value = spec
+
+    # exec must NOT be called for antigravity.
+    with patch("loomcli._open.runtime_exec.os.execvpe") as mock_exec:
+        result = runner.invoke(app, ["open", "lt_antigrav0000000000000"])
+
+    assert result.exit_code == 0, result.output
+    out = _strip_ansi(result.output)
+    assert "antigravity-worker" in out
+    mock_exec.assert_not_called()
 
 
 def test_session_register_failure_surfaces_actionable_message(
