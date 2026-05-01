@@ -94,6 +94,31 @@ def mock_client():
             yield client
 
 
+@pytest.fixture
+def mock_bootstrap(tmp_path):
+    """Patch subprocess + paths so non-dry-run tests don't run real git.
+
+    Returns the tmp-rooted ``WeaveOpenPaths`` so tests can assert on
+    expected worktree locations without monkeypatching ``Path.home``.
+    """
+    import subprocess as sp
+
+    from loomcli._open.git_ops import WeaveOpenPaths
+
+    paths = WeaveOpenPaths(
+        repos_root=tmp_path / "repos",
+        worktrees_root=tmp_path / "worktrees",
+    )
+
+    def _ok(cmd, **kw):
+        return sp.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    with patch("loomcli._open.git_ops.subprocess.run", side_effect=_ok):
+        with patch("loomcli._open.git_ops.shutil.which", return_value="/usr/bin/git"):
+            with patch.object(WeaveOpenPaths, "default", return_value=paths):
+                yield paths
+
+
 # ---------------------------------------------------------------------------
 # discovery
 # ---------------------------------------------------------------------------
@@ -112,7 +137,7 @@ def test_open_subcommand_registered() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_redeem_happy_path(mock_client) -> None:
+def test_redeem_happy_path(mock_client, mock_bootstrap) -> None:
     mock_client.get.return_value = _seed_spec()
     result = runner.invoke(app, ["open", "lt_aaaaaaaaaaaaaaaaaaaaaa"])
     assert result.exit_code == 0, result.output
@@ -122,7 +147,14 @@ def test_redeem_happy_path(mock_client) -> None:
     assert "session/cc-test-20260501" in out
     assert "claude_code" in out
     assert "init" in out  # skill name
-    assert "TODO" in out  # marker that this thread doesn't bootstrap yet
+    # Bootstrap output (864c55a4) — repo + worktree lines emitted.
+    assert "Repo:" in out
+    assert "Worktree:" in out
+    # Worktree path uses scope-slug + first-4 of launch_id.hex.
+    # _seed_spec() uses launch_id="11111111-..." → short_id="1111".
+    assert "cc-test-20260501-1111" in out
+    # Future-thread TODO marker still present (skill / MCP / register / exec).
+    assert "TODO" in out
     # Redeem URL hit with the path token
     mock_client.get.assert_called_once_with(
         "/launches/lt_aaaaaaaaaaaaaaaaaaaaaa"
@@ -192,7 +224,9 @@ def test_redeem_unexpected_error_surfaces_with_message(mock_client) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_fields_in_response_are_ignored(mock_client) -> None:
+def test_unknown_fields_in_response_are_ignored(
+    mock_client, mock_bootstrap
+) -> None:
     """LaunchSpec uses extra='ignore' so a newer engine doesn't break old CLIs."""
     spec = _seed_spec()
     spec["future_field_engine_added_later"] = "value-the-cli-doesnt-know-about"
@@ -207,7 +241,9 @@ def test_unknown_fields_in_response_are_ignored(mock_client) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_future_flags_are_accepted_and_logged(mock_client) -> None:
+def test_future_flags_are_accepted_and_logged(
+    mock_client, mock_bootstrap, tmp_path
+) -> None:
     mock_client.get.return_value = _seed_spec()
     result = runner.invoke(
         app,
@@ -219,13 +255,14 @@ def test_future_flags_are_accepted_and_logged(mock_client) -> None:
             "--resume",
             str(uuid.uuid4()),
             "--root",
-            "/tmp/wt",
+            str(tmp_path / "alt_worktrees"),
         ],
     )
     assert result.exit_code == 0, result.output
     out = _strip_ansi(result.output)
-    # All three flags surface in the unused-flags blurb so users know
-    # they were accepted but not yet acted on.
+    # --root is wired (worktree lands under the override path); --reuse +
+    # --resume are still future-thread stubs and surface in the TODO blurb.
     assert "--reuse" in out
     assert "--resume" in out
-    assert "--root" in out
+    # --root is not in the unused-flags blurb because it IS wired.
+    assert "alt_worktrees" in out

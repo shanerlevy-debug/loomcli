@@ -35,6 +35,17 @@ from typing import Annotated, Optional
 import typer
 from rich.console import Console
 
+from loomcli._open.git_ops import (
+    CloneAuthError,
+    GitOpError,
+    WeaveOpenPaths,
+    WorktreePathInvalidError,
+    assert_git_available,
+    create_worktree,
+    ensure_bare_clone,
+    path_length_warning,
+    short_id_from_launch_id,
+)
 from loomcli.client import PowerloomApiError, PowerloomClient
 from loomcli.config import is_json_output, load_runtime_config
 from loomcli.schema.launch_spec import LaunchSpec
@@ -214,26 +225,98 @@ def run(
             _console.print("\n[dim]--dry-run: redeem succeeded; not creating worktree.[/dim]")
         raise typer.Exit(0)
 
-    # Future-thread stubs. Until threads 864c55a4 / 5fab82ed / 53573d73 /
-    # 5790b2d6 / 53fddf29 land, --reuse / --resume / --root are accepted
-    # but unused; no clone, no register, no exec. Print a clear marker so
-    # smoke testers don't think they got a fully-bootstrapped session.
+    # ---- bootstrap (clone + worktree) -------------------------------------
+    # Pre-flight: git on PATH. Sprint clone-auth-policy-20260430 will
+    # add the broader pre-flight (runtime binary, ~/.powerloom writable,
+    # local creds when mode=local_credentials). For now the cheap check.
+    try:
+        assert_git_available()
+    except GitOpError as exc:
+        _emit_error(
+            str(exc),
+            hint="Install git and re-run. https://git-scm.com/downloads",
+        )
+        raise typer.Exit(1) from None
+
+    # ``--root`` overrides the worktree root; threads not yet wired use
+    # the default. Sprint flags-polish (5790b2d6) will let users persist
+    # the override via ``weave config set worktree-root``.
+    paths = (
+        WeaveOpenPaths.with_worktree_root(__import__("pathlib").Path(root))
+        if root
+        else WeaveOpenPaths.default()
+    )
+
+    short_id = short_id_from_launch_id(spec.launch_id.hex)
+
+    try:
+        bare_clone = ensure_bare_clone(
+            paths,
+            project_slug=spec.project.slug,
+            repo_url=str(spec.project.repo_url),
+            clone_auth_token=spec.clone_auth.token,
+        )
+    except CloneAuthError as exc:
+        hint = (
+            "Token-based clone auth (sprint clone-auth-policy-20260430) "
+            "isn't yet wired; the engine returned no clone token. Configure "
+            "git credentials for the host (e.g. `gh auth login`) and retry."
+            if spec.clone_auth.token is None
+            else (
+                "Server-minted clone token rejected by the host. "
+                "Re-mint the launch token to get a fresh clone token."
+            )
+        )
+        _emit_error(f"Clone failed: {exc}", hint=hint)
+        raise typer.Exit(1) from None
+    except GitOpError as exc:
+        _emit_error(f"Clone failed: {exc}")
+        raise typer.Exit(1) from None
+
+    if not is_json_output():
+        _console.print(f"  [green]✓[/green] Repo: {bare_clone}")
+
+    try:
+        worktree = create_worktree(
+            paths,
+            bare_clone=bare_clone,
+            scope_slug=spec.scope.slug,
+            branch_base=spec.scope.branch_base,
+            branch_name=spec.scope.branch_name,
+            short_id=short_id,
+        )
+    except WorktreePathInvalidError as exc:
+        _emit_error(
+            str(exc),
+            hint="Remove the conflicting directory and retry.",
+        )
+        raise typer.Exit(1) from None
+    except GitOpError as exc:
+        _emit_error(f"Worktree creation failed: {exc}")
+        raise typer.Exit(1) from None
+
+    if not is_json_output():
+        _console.print(f"  [green]✓[/green] Worktree: {worktree}")
+        warn = path_length_warning(worktree)
+        if warn:
+            _console.print(f"  [yellow]warn:[/yellow] {warn}")
+
+    # Future-thread stubs. After 5fab82ed / 53573d73 / 53fddf29 land the
+    # bootstrap completes here; this marker shrinks each thread.
     if not is_json_output():
         unused = []
         if reuse:
             unused.append(f"--reuse {reuse}")
         if resume:
             unused.append(f"--resume {resume}")
-        if root:
-            unused.append(f"--root {root}")
         unused_blurb = (
             f" (flags accepted but not yet wired: {', '.join(unused)})"
             if unused
             else ""
         )
         _console.print(
-            "\n[yellow]TODO[/yellow]: worktree creation, skill install, "
-            "MCP wiring, session register, and runtime exec land in "
-            "subsequent threads of sprint cli-weave-open-20260430."
+            "\n[yellow]TODO[/yellow]: skill install, MCP wiring, session "
+            "register, rules-sync, and runtime exec land in subsequent "
+            "threads of sprint cli-weave-open-20260430."
             + unused_blurb
         )
