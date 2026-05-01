@@ -51,6 +51,21 @@ def credentials_file() -> Path:
     return _base_dir() / "credentials"
 
 
+def auth_file() -> Path:
+    """Path to the machine-credential JSON file (sprint auth-bootstrap-20260430).
+
+    Written by ``weave open`` after the launch_token is exchanged for a
+    90d machine credential via POST /auth/machine-credentials/exchange.
+    Read by every authed weave call (see ``_read_credentials_file``)
+    when no env-token + no PAT credential is present.
+
+    Linux/macOS: ``<XDG>/powerloom/auth.json``
+    Windows: ``%LOCALAPPDATA%\\powerloom\\auth.json``
+    (Both via ``_base_dir()`` → PlatformDirs.)
+    """
+    return _base_dir() / "auth.json"
+
+
 def active_subprincipal_file(scope: str) -> Path:
     """Return the path to the per-scope active-sub-principal cache file.
 
@@ -571,7 +586,12 @@ def _read_credentials_file() -> str | None:
          shape — operators running ``weave agent run`` in Docker /
          systemd / Kubernetes set the token via env injection without
          needing to manage a config-dir bind-mount.
-      2. ``<POWERLOOM_HOME>/credentials`` file (the legacy desktop shape
+      2. ``<XDG>/powerloom/auth.json`` machine credential — sprint
+         auth-bootstrap-20260430 / v0.7.16+. ``weave open`` writes a 90d
+         machine credential here on first launch; takes precedence over
+         the legacy PAT credential so a paired-on-this-machine flow uses
+         the freshest binding.
+      3. ``<POWERLOOM_HOME>/credentials`` file (the legacy desktop shape
          written by ``weave login`` on TTY hosts).
 
     Anything else returns ``None`` and the caller surfaces a "Not signed
@@ -580,6 +600,9 @@ def _read_credentials_file() -> str | None:
     env_token = os.environ.get("POWERLOOM_ACCESS_TOKEN")
     if env_token and env_token.strip():
         return env_token.strip()
+    mcred = read_machine_credential()
+    if mcred is not None:
+        return mcred["token"]
     path = credentials_file()
     if not path.exists():
         return None
@@ -587,6 +610,101 @@ def _read_credentials_file() -> str | None:
         return path.read_text(encoding="utf-8").strip() or None
     except OSError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Machine credentials — sprint auth-bootstrap-20260430 / v0.7.16+
+# ---------------------------------------------------------------------------
+
+
+def read_machine_credential() -> dict | None:
+    """Return the active machine credential dict, or ``None`` if missing/expired.
+
+    Shape on disk (written by ``write_machine_credential``):
+        {
+          "credential_id": "...",
+          "token": "mcred_...",
+          "expires_at": "ISO-8601",
+          "refresh_at": "ISO-8601",
+          "issued_at": "ISO-8601",
+          "machine_fingerprint": "..." | null,
+          "name": "..." | null
+        }
+
+    Returns ``None`` when:
+      - the file is absent
+      - the file is unreadable / malformed JSON
+      - ``token`` field is missing
+      - ``expires_at`` has passed (revoked-server-side returns ``None``
+        too — caller hits 401 and the resolver returns null)
+
+    Callers that need expiry / refresh metadata for UX purposes (e.g.
+    ``weave whoami`` showing credential origin, sprint thread
+    ``648bca84`` refresh-on-use) should use this directly. Hot-path
+    auth lookup goes through ``_read_credentials_file`` which only
+    surfaces the raw token.
+    """
+    path = auth_file()
+    if not path.exists():
+        return None
+    try:
+        import json
+        from datetime import datetime, timezone
+
+        raw = path.read_text(encoding="utf-8")
+        cred = json.loads(raw)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(cred, dict):
+        return None
+    if not cred.get("token"):
+        return None
+    expires_at_str = cred.get("expires_at")
+    if expires_at_str:
+        try:
+            # Tolerate both 'Z' and '+00:00' suffixes.
+            expires_at = datetime.fromisoformat(
+                str(expires_at_str).replace("Z", "+00:00")
+            )
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                return None
+        except (ValueError, TypeError):
+            # Unparseable expires_at — treat as expired/invalid.
+            return None
+    return cred
+
+
+def write_machine_credential(cred: dict) -> None:
+    """Persist the machine credential to ``auth_file()`` with 0600 mode on POSIX.
+
+    Caller is responsible for the dict's contract (see ``read_machine_credential``
+    docstring). This function just JSON-serialises and writes — no
+    schema validation. Wrong-shape data round-trips through reads as
+    ``None``, which surfaces as "no auth" rather than a hard error.
+    """
+    import json
+
+    directory = config_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = auth_file()
+    path.write_text(json.dumps(cred, indent=2), encoding="utf-8")
+    # Best-effort restrict permissions on POSIX. Windows ACL lockdown
+    # is a separate concern; the file lands under the user's profile
+    # dir which already has user-only read by default in most setups.
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def clear_machine_credential() -> None:
+    """Remove the machine credential file. Idempotent on missing files."""
+    try:
+        auth_file().unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def write_credentials(token: str) -> None:
