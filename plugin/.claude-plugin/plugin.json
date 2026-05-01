@@ -29,6 +29,16 @@
         "POWERLOOM_HOME_DB_PATH": "${CLAUDE_PLUGIN_DATA}/powerloom-home.sqlite",
         "POWERLOOM_HOME_LOG_LEVEL": "info"
       }
+    },
+    "powerloom-platform": {
+      "command": "python",
+      "args": [
+        "-m",
+        "powerloom_platform"
+      ],
+      "env": {
+        "POWERLOOM_PLATFORM_LOG_LEVEL": "info"
+      }
     }
   }
 }
