@@ -137,21 +137,37 @@ def mock_bootstrap(tmp_path):
         # `runner.invoke` records a normal exit.
         raise SystemExit(0)
 
-    with patch("loomcli._open.git_ops.subprocess.run", side_effect=_fake_run):
-        with patch("loomcli._open.git_ops.shutil.which", return_value="/usr/bin/git"):
+    def _noop_sync(**kwargs):
+        # rules_sync.apply_directives() defaults to the real conventions
+        # sync command which would hit the engine. Stub it for tests.
+        return None
+
+    with patch(
+        "loomcli.commands.conventions_cmd.sync",
+        side_effect=_noop_sync,
+    ):
+        with patch(
+            "loomcli._open.git_ops.subprocess.run", side_effect=_fake_run
+        ):
             with patch(
-                "loomcli._open.runtime_exec.shutil.which",
-                return_value="/usr/bin/claude",
+                "loomcli._open.git_ops.shutil.which",
+                return_value="/usr/bin/git",
             ):
-                with patch("loomcli._open.runtime_exec.os.chdir"):
-                    with patch(
-                        "loomcli._open.runtime_exec.os.execvpe",
-                        side_effect=_exec_aborts,
-                    ):
-                        with patch.object(
-                            WeaveOpenPaths, "default", return_value=paths
+                with patch(
+                    "loomcli._open.runtime_exec.shutil.which",
+                    return_value="/usr/bin/claude",
+                ):
+                    with patch("loomcli._open.runtime_exec.os.chdir"):
+                        with patch(
+                            "loomcli._open.runtime_exec.os.execvpe",
+                            side_effect=_exec_aborts,
                         ):
-                            yield paths
+                            with patch.object(
+                                WeaveOpenPaths,
+                                "default",
+                                return_value=paths,
+                            ):
+                                yield paths
 
 
 # ---------------------------------------------------------------------------
@@ -188,13 +204,16 @@ def test_redeem_happy_path(mock_client, mock_bootstrap) -> None:
     # Worktree path uses scope-slug + first-4 of launch_id.hex.
     # _seed_spec() uses launch_id="11111111-..." → short_id="1111".
     assert "cc-test-20260501-1111" in out
+    # Rules sync output (53fddf29) — one directive line per scope.
+    assert "Rules synced from" in out
+    assert "bespoke-technology.powerloom" in out
     # Session register output (5fab82ed) — registered + env file emitted.
     assert "Session registered" in out
     assert "ab123456" in out
     assert ".powerloom-session.env" in out
     # Runtime hand-off output (53573d73) — Launching banner before exec.
     assert "Launching claude_code" in out
-    # TODO marker shrinks but persists (skill / MCP / rules still pending).
+    # TODO marker now points at next-sprint work (skills + MCP).
     assert "TODO" in out
     # Redeem URL hit with the path token
     mock_client.get.assert_any_call(

@@ -52,6 +52,7 @@ from loomcli._open.resume import (
     find_by_scope,
     find_by_session_id,
 )
+from loomcli._open.rules_sync import apply_directives as _apply_rules_sync
 from loomcli._open.runtime_exec import (
     ANTIGRAVITY_RUNTIME,
     RuntimeBinaryError,
@@ -424,6 +425,25 @@ def run(
         if warn:
             _console.print(f"  [yellow]warn:[/yellow] {warn}")
 
+    # ---- rules sync (CLAUDE.md / AGENTS.md / GEMINI.md) -------------------
+    # Per-directive: write the org/OU/project convention overlay into the
+    # worktree's project-rules files. Failures here are warnings, not
+    # fatal — the agent can still work without freshest rules.
+    rules_results = _apply_rules_sync(spec, worktree)
+    if not is_json_output():
+        for result in rules_results:
+            ok = ", ".join(result.succeeded_runtimes) or "(none)"
+            line = (
+                f"  [green]✓[/green] Rules synced from "
+                f"[cyan]{result.scope}[/cyan]: {ok}"
+            )
+            if result.failed_runtimes:
+                fail_blurb = ", ".join(
+                    f"{r} ({m})" for r, m in result.failed_runtimes
+                )
+                line += f"  [yellow]warn:[/yellow] failed: {fail_blurb}"
+            _console.print(line)
+
     # ---- session register + env file --------------------------------------
     try:
         registered = register_agent_session(client, spec)
@@ -455,27 +475,14 @@ def run(
         _console.print(f"  [green]✓[/green] Wrote {env_file.name}")
 
     # ---- runtime hand-off -------------------------------------------------
-    # Skill install / MCP wiring / rules_sync still pending in
-    # subsequent threads of this sprint; surface a brief TODO so smoke
-    # testers know the worktree is technically usable but missing the
-    # conveniences before they exec into it.
+    # Sprint 2 closes here for runtime exec. Skill install + MCP wiring
+    # are sprint skills-mcp-bootstrap-20260430 territory; surface a
+    # brief TODO so smoke testers know what's still missing.
     if not is_json_output():
-        unused = []
-        if reuse:
-            unused.append(f"--reuse {reuse}")
-        if resume:
-            unused.append(f"--resume {resume}")
-        unused_blurb = (
-            f" Flags accepted but not yet wired: {', '.join(unused)}."
-            if unused
-            else ""
-        )
         _console.print(
-            "\n[dim]TODO (sprint cli-weave-open-20260430): skill install, "
-            "MCP wiring, rules-sync still pending — agent session works "
-            "but starts without those pre-loaded."
-            + unused_blurb
-            + "[/dim]"
+            "\n[dim]TODO (sprint skills-mcp-bootstrap-20260430): "
+            "skill install + MCP wiring still pending — agent session "
+            "works but starts without those pre-loaded.[/dim]"
         )
 
         if spec.runtime == ANTIGRAVITY_RUNTIME:
