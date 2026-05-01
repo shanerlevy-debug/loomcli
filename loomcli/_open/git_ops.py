@@ -85,10 +85,25 @@ class WeaveOpenPaths:
 
     @classmethod
     def default(cls) -> "WeaveOpenPaths":
+        """Default paths under ``~/.powerloom/``, with profile override.
+
+        ``worktrees_root`` honours ``profile.worktree_root`` when set —
+        users on small home drives can persist a larger location via
+        ``weave profile set --worktree-root <path>``. ``repos_root``
+        intentionally doesn't follow; the bare clones are small and
+        shared across worktrees, so keeping them in home is fine.
+        """
         base = Path.home() / ".powerloom"
+        try:
+            from loomcli.config import load_runtime_config
+
+            cfg = load_runtime_config()
+            override = cfg.worktree_root
+        except Exception:
+            override = None
         return cls(
             repos_root=base / "repos",
-            worktrees_root=base / "worktrees",
+            worktrees_root=Path(override) if override else (base / "worktrees"),
         )
 
     @classmethod

@@ -46,6 +46,12 @@ from loomcli._open.git_ops import (
     path_length_warning,
     short_id_from_launch_id,
 )
+from loomcli._open.resume import (
+    ResumeError,
+    ResumeTarget,
+    find_by_scope,
+    find_by_session_id,
+)
 from loomcli._open.runtime_exec import (
     ANTIGRAVITY_RUNTIME,
     RuntimeBinaryError,
@@ -111,17 +117,70 @@ def _emit_error(message: str, *, hint: Optional[str] = None) -> None:
         _err.print(f"  [dim]hint:[/dim] {hint}")
 
 
+def _resume_via_target(
+    target: ResumeTarget,
+    selector_kind: str,  # "session" | "scope"
+    selector_value: str,
+) -> None:
+    """Common path for ``--resume`` / ``--reuse``: validate runtime, dirty-warn, exec.
+
+    Pre-flight runs *after* worktree resolution because we need the
+    worktree's stored runtime (no spec to read it from). If the env
+    file is missing the runtime field the resumed worktree is
+    incomplete — surface and bail.
+    """
+    if not target.runtime:
+        _emit_error(
+            (
+                f"Worktree {target.worktree} has no POWERLOOM_RUNTIME in "
+                f"its .powerloom-session.env — can't determine which "
+                f"runtime to launch."
+            ),
+            hint=(
+                "The worktree may be from a partial bootstrap. Inspect "
+                "manually; consider deleting and re-launching."
+            ),
+        )
+        raise typer.Exit(1) from None
+
+    try:
+        assert_runtime_available(target.runtime)
+    except RuntimeBinaryError as exc:
+        _emit_error(str(exc))
+        raise typer.Exit(1) from None
+
+    if not is_json_output():
+        _console.print(
+            f"  [green]✓[/green] Resuming {target.worktree} "
+            f"({selector_kind}={selector_value}, runtime={target.runtime})"
+        )
+        if target.is_dirty:
+            _console.print(
+                "  [yellow]warn:[/yellow] worktree has uncommitted changes."
+            )
+        _console.print(f"\n[bold]→[/bold] Launching {target.runtime}…")
+
+    if target.runtime == ANTIGRAVITY_RUNTIME:
+        return
+
+    try:
+        exec_runtime(target.worktree, target.runtime)
+    except RuntimeBinaryError as exc:
+        _emit_error(f"Runtime exec failed: {exc}")
+        raise typer.Exit(1) from None
+
+
 def run(
     token: Annotated[
-        str,
+        Optional[str],
         typer.Argument(
             help=(
                 "Launch token from the web UI's 'Open in agent' modal "
                 "(format: lt_…). Single-use by default; expires 15min "
-                "after mint."
+                "after mint. Optional when --resume or --reuse is given."
             ),
         ),
-    ],
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option(
@@ -139,9 +198,11 @@ def run(
         typer.Option(
             "--reuse",
             help=(
-                "Reuse the most recent worktree for this scope instead of "
-                "creating a new one. Wired in thread 5790b2d6 — accepted "
-                "but no-op in this thread."
+                "Reuse the most recent worktree under "
+                "~/.powerloom/worktrees/<scope>-* (latest mtime wins). "
+                "Skips redeem + clone + register; just exec's the runtime "
+                "in the existing worktree. Token positional is optional "
+                "in this mode."
             ),
         ),
     ] = None,
@@ -150,10 +211,11 @@ def run(
         typer.Option(
             "--resume",
             help=(
-                "Resume a previously-launched session by id; skips clone "
-                "and register, just exec's the runtime in the existing "
-                "worktree. Wired in thread 5790b2d6 — accepted but no-op "
-                "in this thread."
+                "Resume a registered session by its UUID. Scans the "
+                "worktrees root for one whose .powerloom-session.env "
+                "carries the matching POWERLOOM_SESSION_ID and exec's "
+                "the runtime there. Token positional is optional in "
+                "this mode."
             ),
         ),
     ] = None,
@@ -170,6 +232,43 @@ def run(
     ] = None,
 ) -> None:
     """Redeem a launch token and (eventually) hand off to the runtime."""
+
+    # ---- resume / reuse short-circuit -------------------------------------
+    # Both bypass redeem + clone + register; they exec the runtime in an
+    # existing worktree on disk. Token is optional in those modes.
+    if resume or reuse:
+        if token:
+            _emit_error(
+                "Pass either a launch token or --resume / --reuse, not both."
+            )
+            raise typer.Exit(2) from None
+        if resume and reuse:
+            _emit_error("Pass either --resume or --reuse, not both.")
+            raise typer.Exit(2) from None
+        paths = (
+            WeaveOpenPaths.with_worktree_root(__import__("pathlib").Path(root))
+            if root
+            else WeaveOpenPaths.default()
+        )
+        try:
+            if resume:
+                target = find_by_session_id(paths.worktrees_root, resume)
+                _resume_via_target(target, "session", resume)
+            else:
+                assert reuse is not None
+                target = find_by_scope(paths.worktrees_root, reuse)
+                _resume_via_target(target, "scope", reuse)
+        except ResumeError as exc:
+            _emit_error(str(exc))
+            raise typer.Exit(1) from None
+        return
+
+    if not token:
+        _emit_error(
+            "Token is required (or pass --resume / --reuse).",
+            hint=f"Mint a token at {_LAUNCHES_HELP_URL}.",
+        )
+        raise typer.Exit(2) from None
 
     # ---- redeem ------------------------------------------------------------
     cfg = load_runtime_config()

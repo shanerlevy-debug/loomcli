@@ -373,6 +373,10 @@ class ProfileConfig:
     default_runtime: str | None = None
     default_model: str | None = None
     output: str | None = None
+    # Sprint cli-weave-open-20260430: per-user override for the
+    # ~/.powerloom/worktrees/ root used by `weave open`. Set via
+    # `weave profile set --worktree-root <path>`.
+    worktree_root: str | None = None
 
 
 @dataclass
@@ -412,6 +416,7 @@ class RuntimeConfig:
     default_runtime: str | None = None
     default_model: str | None = None
     default_output: str | None = None
+    worktree_root: str | None = None
 
 
 def load_runtime_config() -> RuntimeConfig:
@@ -442,6 +447,7 @@ def load_runtime_config() -> RuntimeConfig:
         default_runtime=profile.default_runtime,
         default_model=profile.default_model,
         default_output=profile.output,
+        worktree_root=profile.worktree_root,
     )
 
 
@@ -454,6 +460,7 @@ PROFILE_FIELDS = (
     "default_runtime",
     "default_model",
     "output",
+    "worktree_root",
 )
 
 

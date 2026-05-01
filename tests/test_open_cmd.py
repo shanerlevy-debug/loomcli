@@ -308,6 +308,95 @@ def test_antigravity_runtime_returns_after_register_no_exec(
     mock_exec.assert_not_called()
 
 
+def test_resume_finds_worktree_and_execs_runtime(
+    mock_client, mock_bootstrap
+) -> None:
+    """--resume <session-id> short-circuits redeem + clone + register."""
+    # Pre-create a worktree with a matching env file under the bootstrap paths.
+    target_dir = mock_bootstrap.worktrees_root / "cc-test-20260501-1111"
+    target_dir.mkdir(parents=True)
+    (target_dir / ".powerloom-session.env").write_text(
+        "POWERLOOM_SESSION_ID=resume-sess-id\n"
+        "POWERLOOM_RUNTIME=claude_code\n"
+        "POWERLOOM_SCOPE=cc-test-20260501\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(
+        app, ["open", "--resume", "resume-sess-id"]
+    )
+    assert result.exit_code == 0, result.output
+    out = _strip_ansi(result.output)
+    assert "Resuming" in out
+    assert "claude_code" in out
+    # No redeem call.
+    mock_client.get.assert_not_called()
+    # No register call.
+    register_calls = [
+        c for c in mock_client.post.call_args_list
+        if c.args and c.args[0] == "/agent-sessions"
+    ]
+    assert register_calls == []
+
+
+def test_reuse_picks_latest_worktree_for_scope(
+    mock_client, mock_bootstrap
+) -> None:
+    """--reuse <scope> picks the latest matching worktree."""
+    import os
+    import time
+
+    older = mock_bootstrap.worktrees_root / "cc-test-20260501-aaaa"
+    older.mkdir(parents=True)
+    (older / ".powerloom-session.env").write_text(
+        "POWERLOOM_SESSION_ID=old-sess\n"
+        "POWERLOOM_RUNTIME=claude_code\n",
+        encoding="utf-8",
+    )
+    old_t = time.time() - 600
+    os.utime(older, (old_t, old_t))
+
+    newer = mock_bootstrap.worktrees_root / "cc-test-20260501-bbbb"
+    newer.mkdir(parents=True)
+    (newer / ".powerloom-session.env").write_text(
+        "POWERLOOM_SESSION_ID=new-sess\n"
+        "POWERLOOM_RUNTIME=claude_code\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["open", "--reuse", "cc-test-20260501"])
+    assert result.exit_code == 0, result.output
+    # Output normalisation: Rich line-wraps long paths with \n at terminal
+    # width. Strip whitespace before substring-checking so the path on
+    # disk vs. the path in the rendered output compare cleanly.
+    out = "".join(_strip_ansi(result.output).split())
+    assert str(newer).replace(" ", "") in out
+    mock_client.get.assert_not_called()
+
+
+def test_resume_unknown_session_id_exits_1(mock_client, mock_bootstrap) -> None:
+    result = runner.invoke(app, ["open", "--resume", "no-such-session"])
+    assert result.exit_code == 1
+    out = _strip_ansi(result.output)
+    assert "session_id" in out or "no worktree" in out.lower()
+
+
+def test_resume_with_token_argued_rejects(mock_client, mock_bootstrap) -> None:
+    """Pass either a token or --resume, not both."""
+    result = runner.invoke(
+        app, ["open", "lt_aaaaaaaaaaaaaaaaaaaaaa", "--resume", "x"]
+    )
+    assert result.exit_code == 2
+    assert "not both" in _strip_ansi(result.output).lower()
+
+
+def test_token_required_without_resume_or_reuse(mock_client) -> None:
+    """No token, no --resume, no --reuse — error out before doing anything."""
+    result = runner.invoke(app, ["open"])
+    assert result.exit_code == 2
+    out = _strip_ansi(result.output)
+    assert "token" in out.lower() or "resume" in out.lower()
+
+
 def test_session_register_failure_surfaces_actionable_message(
     mock_client, mock_bootstrap
 ) -> None:
@@ -347,28 +436,52 @@ def test_unknown_fields_in_response_are_ignored(
 # ---------------------------------------------------------------------------
 
 
-def test_future_flags_are_accepted_and_logged(
-    mock_client, mock_bootstrap, tmp_path
+def test_root_flag_overrides_worktree_root_path(
+    mock_client, tmp_path
 ) -> None:
+    """``--root <path>`` overrides the default worktree root for this run.
+
+    Note: this test deliberately does NOT use mock_bootstrap because we
+    want WeaveOpenPaths.default() *not* patched — we want to verify that
+    --root takes precedence over whatever default would have been used.
+    """
+    import subprocess as sp
+
     mock_client.get.return_value = _seed_spec()
-    result = runner.invoke(
-        app,
-        [
-            "open",
-            "lt_aaaaaaaaaaaaaaaaaaaaaa",
-            "--reuse",
-            "cc-test-20260501",
-            "--resume",
-            str(uuid.uuid4()),
-            "--root",
-            str(tmp_path / "alt_worktrees"),
-        ],
-    )
+    alt_root = tmp_path / "alt_worktrees"
+
+    def _fake_run(cmd, **kw):
+        if len(cmd) >= 4 and cmd[:3] == ["git", "worktree", "add"]:
+            __import__("pathlib").Path(cmd[3]).mkdir(parents=True, exist_ok=True)
+        return sp.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    def _exec_aborts(file, args, env):
+        raise SystemExit(0)
+
+    with patch("loomcli._open.git_ops.subprocess.run", side_effect=_fake_run):
+        with patch(
+            "loomcli._open.git_ops.shutil.which", return_value="/usr/bin/git"
+        ):
+            with patch(
+                "loomcli._open.runtime_exec.shutil.which",
+                return_value="/usr/bin/claude",
+            ):
+                with patch("loomcli._open.runtime_exec.os.chdir"):
+                    with patch(
+                        "loomcli._open.runtime_exec.os.execvpe",
+                        side_effect=_exec_aborts,
+                    ):
+                        result = runner.invoke(
+                            app,
+                            [
+                                "open",
+                                "lt_aaaaaaaaaaaaaaaaaaaaaa",
+                                "--root",
+                                str(alt_root),
+                            ],
+                        )
+
     assert result.exit_code == 0, result.output
-    out = _strip_ansi(result.output)
-    # --root is wired (worktree lands under the override path); --reuse +
-    # --resume are still future-thread stubs and surface in the TODO blurb.
-    assert "--reuse" in out
-    assert "--resume" in out
-    # --root is not in the unused-flags blurb because it IS wired.
+    out = "".join(_strip_ansi(result.output).split())
+    # The worktree path the bootstrap reported should sit under alt_root.
     assert "alt_worktrees" in out
