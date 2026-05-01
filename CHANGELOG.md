@@ -7,6 +7,37 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.16 — 2026-05-01 (CLI)
+
+**`weave open <token>` — paste-from-web bootstrap into a fully contextualised agent session.** Sprint 2 of the Weave Open Launch UX milestone (loomcli/8567b658). Engine half (POST/GET `/launches`, `tracker_launches` table, 5-min redeem cache) shipped in [Powerloom PR #301](https://github.com/shanerlevy-debug/Powerloom/pull/301).
+
+### One command, end-to-end bootstrap
+
+```
+weave open lt_a8f3b2c1d4e5f6
+```
+
+Redeems the launch token from the Powerloom web UI's "Open in agent" modal, then on the user's machine: pre-flights (`git`, runtime binary), bare-clones the project to `~/.powerloom/repos/<project>.git/`, `git worktree add`s a fresh checkout to `~/.powerloom/worktrees/<scope>-<short_id>/`, syncs CLAUDE.md / AGENTS.md / GEMINI.md from the org's live conventions, registers the agent-session, drops `.powerloom-session.env`, then `os.execvpe`'s the runtime binary so the user's terminal becomes the agent. Brand-new user, blank folder, single paste, ~10s.
+
+### What landed (six threads of sprint cli-weave-open-20260430)
+
+- **Skeleton + redeem (`c78ead6d`):** new `weave open` command. Args: `<token>`, `--dry-run`, `--reuse <scope>`, `--resume <session-id>`, `--root <path>`. Maps redeem 404 / 410 / 401 to actionable messages with the launches URL.
+- **Bare-clone + git worktree (`864c55a4`):** `loomcli/_open/git_ops.py`. `short_id` derives from `launch_id` so two clicks on the same scope create siblings (concurrency-safe), but a 5-min-cache resume returns the same launch_id → same short_id → idempotent worktree path → resume-on-interrupt works. Translates known git auth failures (401 / 403 / "Authentication failed") to `CloneAuthError` with hint.
+- **Session register + env file (`5fab82ed`):** `loomcli/_open/session_reg.py`. POST `/agent-sessions`, write `<worktree>/.powerloom-session.env` (POWERLOOM_SESSION_ID / SCOPE / PROJECT_ID / LAUNCH_TOKEN_REDEEMED_AT / RUNTIME / BRANCH), idempotently append the env file to `<worktree>/.gitignore`.
+- **Runtime hand-off (`53573d73`):** `loomcli/_open/runtime_exec.py`. RUNTIME_BINARIES table (`claude_code` → `claude`, `codex_cli` → `codex`, `gemini_cli` → `gemini`). `assert_runtime_available` pre-flight before clone. `os.execvpe` for clean signal propagation. Antigravity special-cased to instructional banner directing to `weave antigravity-worker`.
+- **`--resume` / `--reuse` / `worktree-root` config (`5790b2d6`):** new `loomcli/_open/resume.py` (find_by_session_id + find_by_scope by mtime + best-effort dirty probe). New profile field `worktree_root` (`weave profile set --worktree-root <path>`) for users on small home drives.
+- **Apply rules_sync directives (`53fddf29`):** `loomcli/_open/rules_sync.py`. Per-directive in `spec.rules_sync`, invokes `loomcli.commands.conventions_cmd.sync` per runtime so the worktree's CLAUDE.md / AGENTS.md / GEMINI.md reflect the org's *live* conventions (not just whatever was committed on the cloned branch). Per-runtime failures are non-fatal warnings.
+
+### New surfaces
+
+- `loomcli/_open/` private subpackage (one module per concern; orchestrator stays thin in `commands/open_cmd.py`).
+- `loomcli/schema/launch_spec.py` — Pydantic mirror of the engine's `LaunchSpec` with `extra="ignore"` for forward-compat.
+- `loomcli/config.py` + `loomcli/commands/profile_cmd.py` — `worktree_root` profile field.
+
+### Test plan
+
+70 new tests across `tests/test_open_*.py` covering each module independently + end-to-end through the orchestrator. Full suite: 855 passed, 1 skipped, 0 failed.
+
 ## v0.7.15 — 2026-04-30 (CLI)
 
 **Plugin platform-MCP bridge — hosted Powerloom tools for CC sessions outside the monorepo.** Closes the gap that surfaced right after powerloom monorepo PR #290 (CMA push gating refactor). Operators running `weave register --token=pat-deploy-...` from a directory **outside** the powerloom monorepo wrote a valid deployment credential but a fresh CC session in that directory had **no** Powerloom or Weave tools available — the previous architecture only exposed platform tools via the monorepo's project-local `.mcp.json`.
