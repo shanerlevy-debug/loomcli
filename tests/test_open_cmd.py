@@ -166,6 +166,12 @@ def mock_bootstrap(tmp_path, monkeypatch):
     ), patch(
         "loomcli.commands.conventions_cmd.sync",
         side_effect=_noop_sync,
+    ), patch(
+        # Preflight subsystem (sprint clone-auth-policy-20260430) does
+        # its own shutil.which lookups inside loomcli._open.preflight;
+        # mocking from there returns a binary path so the ok-checks pass.
+        "loomcli._open.preflight.shutil.which",
+        return_value="/usr/bin/exe",
     ):
         with patch(
             "loomcli._open.git_ops.subprocess.run", side_effect=_fake_run
