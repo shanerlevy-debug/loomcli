@@ -39,6 +39,11 @@ from loomcli._open.auth_bootstrap import (
     BootstrapResult,
     maybe_bootstrap_machine_credential,
 )
+from loomcli._open.launch_cache import (
+    clear_cached_spec,
+    read_cached_spec,
+    write_cached_spec,
+)
 from loomcli._open.git_ops import (
     CloneAuthError,
     GitOpError,
@@ -280,43 +285,60 @@ def run(
         raise typer.Exit(2) from None
 
     # ---- redeem ------------------------------------------------------------
+    # Sprint thread b594a3d6 — resume-on-interrupt cache. If we have a
+    # local entry for this token (Ctrl-C'd between redeem-and-clone in
+    # a prior run), pick up from there instead of round-tripping to
+    # the engine. Cache entries past their `expires_at` are pruned and
+    # treated as misses.
     cfg = load_runtime_config()
-    client = PowerloomClient(cfg)
-    try:
-        spec_json = client.get(f"/launches/{token}")
-    except PowerloomApiError as exc:
-        if exc.status_code == 404:
-            _emit_error(
-                "Launch token not found or expired.",
-                hint=(
-                    "Tokens are 15min single-use by default. "
-                    f"Mint a fresh one at {_LAUNCHES_HELP_URL}."
-                ),
+    cached = read_cached_spec(token)
+    if cached is not None:
+        spec_json = cached
+        client = PowerloomClient(cfg)
+        if not is_json_output():
+            _console.print(
+                "  [dim]cache hit:[/dim] resuming from local launch-spec cache."
             )
+    else:
+        client = PowerloomClient(cfg)
+        try:
+            spec_json = client.get(f"/launches/{token}")
+        except PowerloomApiError as exc:
+            if exc.status_code == 404:
+                _emit_error(
+                    "Launch token not found or expired.",
+                    hint=(
+                        "Tokens are 15min single-use by default. "
+                        f"Mint a fresh one at {_LAUNCHES_HELP_URL}."
+                    ),
+                )
+                raise typer.Exit(1) from None
+            if exc.status_code == 410:
+                _emit_error(
+                    "Launch token already redeemed (single-use).",
+                    hint=(
+                        "Within 5min of first redeem, retrying returns the "
+                        "same response (resume-on-interrupt). Past that, "
+                        "the token is consumed — mint a fresh one at "
+                        f"{_LAUNCHES_HELP_URL}."
+                    ),
+                )
+                raise typer.Exit(1) from None
+            if exc.status_code == 401:
+                _emit_error(
+                    "Not authorised to redeem this token.",
+                    hint=(
+                        "Tokens are bound to the user who minted them. "
+                        "Sign in as that user, or mint a new token from "
+                        f"{_LAUNCHES_HELP_URL}."
+                    ),
+                )
+                raise typer.Exit(1) from None
+            _emit_error(f"Redeem failed: {exc}")
             raise typer.Exit(1) from None
-        if exc.status_code == 410:
-            _emit_error(
-                "Launch token already redeemed (single-use).",
-                hint=(
-                    "Within 5min of first redeem, retrying returns the "
-                    "same response (resume-on-interrupt). Past that, the "
-                    "token is consumed — mint a fresh one at "
-                    f"{_LAUNCHES_HELP_URL}."
-                ),
-            )
-            raise typer.Exit(1) from None
-        if exc.status_code == 401:
-            _emit_error(
-                "Not authorised to redeem this token.",
-                hint=(
-                    "Tokens are bound to the user who minted them. "
-                    "Sign in as that user, or mint a new token from "
-                    f"{_LAUNCHES_HELP_URL}."
-                ),
-            )
-            raise typer.Exit(1) from None
-        _emit_error(f"Redeem failed: {exc}")
-        raise typer.Exit(1) from None
+        # Cache the freshly-redeemed spec for resume-on-interrupt
+        # (sprint thread b594a3d6). Cleared on successful exec.
+        write_cached_spec(token, spec_json)
 
     try:
         spec = LaunchSpec.model_validate(spec_json)
@@ -535,6 +557,13 @@ def run(
             )
         else:
             _console.print(f"\n[bold]→[/bold] Launching {spec.runtime} in {worktree}…")
+
+    # Sprint thread b594a3d6 — bootstrap reached the hand-off; clear
+    # the local launch-spec cache so the next `weave open <token>`
+    # for a different launch doesn't see a stale entry. exec replaces
+    # the process so this only runs on the antigravity branch + via
+    # the implicit pre-exec teardown on Unix; non-fatal either way.
+    clear_cached_spec(token)
 
     # Antigravity returns; everything else replaces the process.
     if spec.runtime == ANTIGRAVITY_RUNTIME:
