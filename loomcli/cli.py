@@ -38,9 +38,11 @@ from loomcli.commands import commands_cmd
 from loomcli.commands import compose_cmd
 from loomcli.commands import conventions_cmd
 from loomcli.commands import doctor_cmd
+from loomcli.commands import gc_cmd
 from loomcli.commands import migrate_cmd
 from loomcli.commands import open_cmd
 from loomcli.commands import plugin_cmd
+from loomcli.commands import reveal_cmd
 from loomcli.commands import thread_cmd
 from loomcli.commands import profile_cmd
 from loomcli.commands import session_cmd
@@ -239,6 +241,16 @@ app.add_typer(agent_register.app, name="register", help="Pair this host with an 
 # Single-command registration (not add_typer) so positional TOKEN parses
 # cleanly without a phantom COMMAND/ARGS suffix in the usage line.
 app.command("open", help="Bootstrap an agent session from a launch token (paste-from-web flow).")(open_cmd.run)
+# Sprint polish-doctor-resume-20260430. Single-command registrations
+# (not add_typer) so positional args parse cleanly under the parent app.
+app.command(
+    "reveal",
+    help="Open the worktree of the current/specified session in the OS file manager.",
+)(reveal_cmd.reveal_command)
+app.command(
+    "gc",
+    help="List + optionally remove abandoned `weave open` worktrees.",
+)(gc_cmd.gc_command)
 app.add_typer(agent_session_cmd.app, name="agent-session", help="Phase 14 coordination-session management.")
 app.add_typer(session_cmd.app, name="session", help="Inspect session event traces.")
 app.add_typer(thread_cmd.app, name="thread", help="Inspect tracker threads.")
