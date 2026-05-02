@@ -185,6 +185,11 @@ def doctor_command(
             )
         )
 
+    # Sprint polish-doctor-resume-20260430 / thread f3ebdda4 —
+    # launch readiness: clone-auth mode, machine credential health,
+    # active sessions count.
+    _append_launch_readiness_checks(checks, cfg)
+
     if is_json_output():
         typer.echo(json.dumps({"checks": checks, "capabilities": capabilities}, indent=2, default=str))
         return
@@ -199,6 +204,112 @@ def doctor_command(
 
     if any(row["status"] == "fail" for row in checks):
         raise typer.Exit(1)
+
+
+def _append_launch_readiness_checks(
+    checks: list[dict[str, Any]], cfg: Any
+) -> None:
+    """Sprint thread f3ebdda4 — extends `weave doctor` with launch-readiness.
+
+    Appends rows in-place to the shared ``checks`` list. Each helper
+    catches its own errors so one flaky engine call doesn't taint the
+    rest of the doctor run.
+    """
+    # Org clone-auth mode (drives whether `weave open` returns a
+    # server-minted GitHub App token or expects local creds).
+    clone_auth_mode: Optional[str] = None
+    try:
+        from loomcli.client import PowerloomClient as _PC
+
+        with _PC(cfg) as _client:
+            settings = _client.get("/organizations/me/settings")
+        if isinstance(settings, dict):
+            clone_auth_mode = settings.get("clone_auth_mode")
+    except Exception:  # noqa: BLE001
+        # Endpoint may not be available (older engine, no permission, etc.).
+        # Surface as warn rather than failing the whole doctor run.
+        clone_auth_mode = None
+
+    if clone_auth_mode:
+        checks.append(
+            _check(
+                "launch.org.clone_auth_mode",
+                "ok",
+                clone_auth_mode,
+            ),
+        )
+    else:
+        checks.append(
+            _check(
+                "launch.org.clone_auth_mode",
+                "warn",
+                "could not read /organizations/me/settings",
+            ),
+        )
+
+    # Machine credential — present? expires when?
+    try:
+        from loomcli.config import read_machine_credential as _read_mcred
+
+        mcred = _read_mcred()
+        if mcred is None:
+            checks.append(
+                _check(
+                    "launch.machine_credential",
+                    "info",
+                    "none on this host (run `weave open <token>` to bootstrap)",
+                ),
+            )
+        else:
+            expires = mcred.get("expires_at", "?")
+            credential_id = (mcred.get("credential_id") or "?")[:8]
+            checks.append(
+                _check(
+                    "launch.machine_credential",
+                    "ok",
+                    f"id={credential_id}… expires={expires}",
+                ),
+            )
+    except Exception:  # noqa: BLE001
+        # Pre-Sprint-3 loomcli (or import failure) — silent.
+        pass
+
+    # Local clone-auth check — only meaningful when org policy is
+    # local_credentials. Re-uses the preflight subsystem from sprint 4.
+    if clone_auth_mode == "local_credentials":
+        try:
+            from loomcli._open.preflight import (
+                check_local_clone_credentials as _check_creds,
+            )
+
+            cred_check = _check_creds("https://github.com")
+            checks.append(
+                _check(
+                    "launch.local_clone_credentials",
+                    cred_check.status,
+                    cred_check.message.splitlines()[0],
+                ),
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Active sessions for this user — count + quick "see `weave session list`".
+    try:
+        from loomcli.client import PowerloomClient as _PC
+
+        with _PC(cfg) as _client:
+            sessions = _client.get("/agent-sessions", status="active")
+        rows = sessions if isinstance(sessions, list) else []
+        active_count = len(rows)
+        checks.append(
+            _check(
+                "launch.active_sessions",
+                "ok",
+                f"{active_count} active session(s); `weave session list` for detail",
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _check(key: str, status: str, detail: str) -> dict[str, str]:
