@@ -44,11 +44,15 @@ from loomcli._open.git_ops import (
     GitOpError,
     WeaveOpenPaths,
     WorktreePathInvalidError,
-    assert_git_available,
     create_worktree,
     ensure_bare_clone,
     path_length_warning,
     short_id_from_launch_id,
+)
+from loomcli._open.preflight import (
+    PreflightFailed,
+    PreflightResult,
+    run_preflights,
 )
 from loomcli._open.resume import (
     ResumeError,
@@ -367,39 +371,47 @@ def run(
         # happy path — most invocations after the first.
 
     # ---- bootstrap (pre-flights + clone + worktree) -----------------------
-    # Pre-flights run before clone so users learn about missing tooling
-    # in seconds, not 30 seconds into a slow clone. Sprint
-    # clone-auth-policy-20260430 adds the broader checks (~/.powerloom
-    # writable, local creds when clone_auth.mode=local_credentials).
-    try:
-        assert_git_available()
-    except GitOpError as exc:
-        _emit_error(
-            str(exc),
-            hint="Install git and re-run. https://git-scm.com/downloads",
-        )
-        raise typer.Exit(1) from None
-    try:
-        assert_runtime_available(spec.runtime)
-    except RuntimeBinaryError as exc:
-        _emit_error(
-            str(exc),
-            hint=(
-                "Install the runtime first. The launch token will still "
-                "be valid (5min single-use cache) — re-run after install."
-            ),
-        )
-        raise typer.Exit(1) from None
-
-    # ``--root`` overrides the worktree root; threads not yet wired use
-    # the default. Sprint flags-polish (5790b2d6) will let users persist
-    # the override via ``weave config set worktree-root``.
+    # Aggregated pre-flights run before clone so users learn about every
+    # fixable problem in one pass instead of dribbling them out per
+    # slow failure. Sprint clone-auth-policy-20260430 / threads
+    # 9233e176 + 79e876b1.
     paths = (
         WeaveOpenPaths.with_worktree_root(__import__("pathlib").Path(root))
         if root
         else WeaveOpenPaths.default()
     )
+    pf_result = run_preflights(
+        runtime=spec.runtime,
+        repos_root=paths.repos_root,
+        worktrees_root=paths.worktrees_root,
+        repo_url=str(spec.project.repo_url),
+        clone_auth_mode=spec.clone_auth.mode,
+        admin_email=None,  # admin_email not exposed in launch spec yet
+    )
+    if not is_json_output():
+        for check in pf_result.checks:
+            color = {"ok": "green", "warn": "yellow", "fail": "red"}[check.status]
+            _console.print(
+                f"  [{color}][{check.status}][/{color}] {check.name}: "
+                f"{check.message.splitlines()[0]}"
+            )
+            if check.is_failure and check.fix_hint:
+                _console.print(f"      [dim]fix:[/dim] {check.fix_hint}")
+    if pf_result.any_failed:
+        if is_json_output():
+            import json as _json
+            _json.dump(pf_result.to_dict(), sys.stdout, indent=2, default=str)
+            sys.stdout.write("\n")
+        _emit_error(
+            "Pre-flight checks failed; not creating worktree.",
+            hint=(
+                "Address the [fail] items above and retry. The launch "
+                "token is still valid within its 5-min cache window."
+            ),
+        )
+        raise typer.Exit(1) from None
 
+    # ``paths`` already resolved above (used by the pre-flight runner).
     short_id = short_id_from_launch_id(spec.launch_id.hex)
 
     try:
