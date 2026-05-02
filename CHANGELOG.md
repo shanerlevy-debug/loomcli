@@ -7,6 +7,60 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.20 — 2026-05-02 (CLI)
+
+**Weave Open Launch UX milestone — complete.** End-to-end paste-from-web flow: brand-new user clicks "Open in agent" on the Powerloom web UI, copies a `weave open lt_…` command, pastes it on any terminal on any machine, and lands in a fully-contextualised agent session in <15 s — no `weave login`, no manual git config, no MCP wiring, no skill installs. Closes [milestone 8567b658](https://app.powerloom.org/projects/loomcli/milestones/8567b658-a7f8-45bb-9428-112d85577da7) on the loomcli side; the engine half landed across [Powerloom PRs #301, #316, #324, #326](https://github.com/shanerlevy-debug/Powerloom/pulls?q=is%3Apr+is%3Aclosed+launch).
+
+The big bump (0.7.16 → 0.7.20 in one shot) reflects the milestone-not-sprint cadence — five sprints of loomcli work landing together.
+
+### What `weave open <token>` does now
+
+1. **Redeem** the launch token (with a local cache so Ctrl-C between redeem-and-clone resumes cleanly — no fresh token needed from the web UI).
+2. **Auth bootstrap** — exchange the launch token for a 90-day machine credential at `~/.config/powerloom/auth.json`. After the first launch, subsequent weave commands authenticate automatically. Refreshes silently within the 14-day window via the engine's refresh endpoint.
+3. **Pre-flights** — git on PATH, runtime binary, `~/.powerloom/` writable, disk space, and (when org policy is `local_credentials`) usable git credentials for the host. Aggregated, fail-fast, every issue surfaced in one pass.
+4. **Bare-clone** the project to `~/.powerloom/repos/<project>.git/` (one per project, shared across worktrees).
+5. **`git worktree add`** a fresh checkout to `~/.powerloom/worktrees/<scope>-<short_id>/`.
+6. **MCP install** — drop a project-local `.mcp.json` with a pre-authed Powerloom server (when not already registered globally).
+7. **Skill install** — pull each `spec.skills[*]` from `/skills/{id}/archive` into `<worktree>/.claude/skills/<slug>/` with idempotent version sidecars.
+8. **Rules sync** — write `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` from the org's live convention overlay (per the launch spec's `rules_sync` directives).
+9. **Register** the agent-session via `POST /agent-sessions` and drop `<worktree>/.powerloom-session.env`.
+10. **`exec`** the runtime binary (`claude` / `codex` / `gemini`) in the worktree so the user's terminal becomes the agent.
+
+### New surfaces
+
+- **`weave open <token>`** — the headline paste-from-web command (sprint `cli-weave-open-20260430`).
+- **`weave open --resume <session-id>` / `--reuse <scope>`** — exec into an existing worktree without re-cloning.
+- **`weave reveal`** — open the worktree of the current/specified session in the OS file manager (Explorer / Finder / `xdg-open`). Addresses the "wait, my code is in `~/.powerloom/`?" confusion.
+- **`weave gc`** — list / `--apply` remove abandoned worktrees + bare clones + expired launch-spec cache entries. `--include-active` for explicit cleanup of in-progress sessions (typed-confirmation gated).
+- **`weave doctor`** — extended with a launch-readiness section: org clone-auth-mode, machine-credential health, local-cred probe (when applicable), active-sessions count.
+- **`weave profile set --worktree-root <path>`** — persist a non-home worktree root for users on small home drives.
+
+### New private modules in `loomcli/_open/`
+
+`auth_bootstrap.py`, `git_ops.py`, `launch_cache.py`, `mcp_install.py`, `preflight.py`, `resume.py`, `rules_sync.py`, `runtime_exec.py`, `session_reg.py`, `skill_updates.py`, `skills_install.py` — one module per concern, with `commands/open_cmd.py` as the thin orchestrator.
+
+### Engine-side dependencies (already shipped)
+
+- `POST /launches` / `GET /launches/{token}` (Powerloom PR #301)
+- `POST /auth/machine-credentials/exchange|revoke|refresh` + `GET /users/me/machines` (Powerloom PRs #316, #324)
+- `clone_auth_mode` org setting + GitHub App installation token mint (Powerloom PR #326)
+
+### Test plan / scope
+
+- 964 tests passing across the full suite (net +400 tests for this milestone).
+- Per-sprint integration tests pinned with mocked engines so CI is offline-friendly.
+- Manual smoke covered by the user (paste flow on a fresh machine end-to-end).
+
+### Sprint-by-sprint thread breakdown
+
+- **Sprint 2 (`cli-weave-open-20260430`):** `c78ead6d` skeleton + redeem; `864c55a4` bare-clone + worktree; `5fab82ed` register session + .env; `53573d73` exec runtime; `5790b2d6` --resume / --reuse / worktree-root; `53fddf29` apply rules_sync.
+- **Sprint 3 (`auth-bootstrap-20260430`):** `fbb69176` write/load 90d credential; `648bca84` refresh-on-use + expiry handling.
+- **Sprint 4 (`clone-auth-policy-20260430`):** `9233e176` pre-flight checks; `79e876b1` local-credentials path + actionable error UX.
+- **Sprint 6 (`skills-mcp-bootstrap-20260430`):** `d1b883af` skill install; `d240bfd7` drop .mcp.json with pre-authed Powerloom server; `647858ec` skill version pinning + resume update prompt.
+- **Sprint 7 (`polish-doctor-resume-20260430`):** `b594a3d6` resume-on-interrupt cache; `f3ebdda4` weave doctor launch-readiness; `f6d8f7b0` weave reveal; `7a81d721` weave gc.
+
+(Sprint 1 + 5 are engine + UI; tracked in the Powerloom repo.)
+
 ## v0.7.16 — 2026-05-01 (CLI)
 
 **`weave open <token>` — paste-from-web bootstrap into a fully contextualised agent session.** Sprint 2 of the Weave Open Launch UX milestone (loomcli/8567b658). Engine half (POST/GET `/launches`, `tracker_launches` table, 5-min redeem cache) shipped in [Powerloom PR #301](https://github.com/shanerlevy-debug/Powerloom/pull/301).
