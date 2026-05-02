@@ -65,6 +65,10 @@ from loomcli._open.skills_install import (
     SkillInstallResult,
     install_spec_skills,
 )
+from loomcli._open.mcp_install import (
+    McpInstallResult,
+    install_mcp_config,
+)
 from loomcli._open.runtime_exec import (
     ANTIGRAVITY_RUNTIME,
     RuntimeBinaryError,
@@ -469,6 +473,28 @@ def run(
         warn = path_length_warning(worktree)
         if warn:
             _console.print(f"  [yellow]warn:[/yellow] {warn}")
+
+    # ---- MCP config install (sprint thread d240bfd7) ----------------------
+    # Drop a project-local .mcp.json with the spec's MCP server entries
+    # so CC sees Powerloom tools immediately. Skipped silently when the
+    # user already has a global Powerloom MCP server registered or the
+    # spec carries no servers.
+    mcp_result = install_mcp_config(spec, worktree)
+    if not is_json_output():
+        if mcp_result.written_path is not None:
+            _console.print(
+                f"  [green]✓[/green] Wrote .mcp.json: {mcp_result.written_path.name} "
+                f"({', '.join(mcp_result.server_names)})"
+            )
+        elif mcp_result.skipped_reason == "global_powerloom_already_registered":
+            _console.print(
+                "  [dim][skip][/dim] Powerloom MCP server already registered globally."
+            )
+        elif mcp_result.error:
+            _console.print(
+                f"  [yellow]warn:[/yellow] MCP config: {mcp_result.error}"
+            )
+        # empty_spec is silent — most launches don't carry MCP servers.
 
     # ---- skill install (sprint thread d1b883af) ---------------------------
     # For each spec.skills[*]: pull from /skills/{id}/archive into
