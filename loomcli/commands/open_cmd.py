@@ -61,6 +61,10 @@ from loomcli._open.resume import (
     find_by_session_id,
 )
 from loomcli._open.rules_sync import apply_directives as _apply_rules_sync
+from loomcli._open.skills_install import (
+    SkillInstallResult,
+    install_spec_skills,
+)
 from loomcli._open.runtime_exec import (
     ANTIGRAVITY_RUNTIME,
     RuntimeBinaryError,
@@ -465,6 +469,23 @@ def run(
         warn = path_length_warning(worktree)
         if warn:
             _console.print(f"  [yellow]warn:[/yellow] {warn}")
+
+    # ---- skill install (sprint thread d1b883af) ---------------------------
+    # For each spec.skills[*]: pull from /skills/{id}/archive into
+    # <worktree>/.claude/skills/<slug>/. CC's resolution chain (project
+    # > user > builtin) lets the worktree-local copy win. Failures
+    # are non-fatal warnings — operator can run `weave skill install`
+    # after the fact.
+    skill_install_result = install_spec_skills(cfg, spec, worktree, client=client)
+    if not is_json_output():
+        for slug in skill_install_result.installed:
+            _console.print(f"  [green]✓[/green] Skill installed: {slug}")
+        for slug in skill_install_result.skipped:
+            _console.print(f"  [dim][skip][/dim] Skill already current: {slug}")
+        for slug, err in skill_install_result.failed:
+            _console.print(
+                f"  [yellow]warn:[/yellow] Skill {slug}: {err}"
+            )
 
     # ---- rules sync (CLAUDE.md / AGENTS.md / GEMINI.md) -------------------
     # Per-directive: write the org/OU/project convention overlay into the

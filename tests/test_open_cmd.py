@@ -160,9 +160,21 @@ def mock_bootstrap(tmp_path, monkeypatch):
     def _stub_bootstrap(*args, **kwargs):
         return _BR(minted=False, skipped_reason="already_have_machine_credential")
 
+    # Skills install (sprint thread d1b883af) — by default, the open
+    # flow calls install_spec_skills after the worktree is created.
+    # Stub it to a no-op so existing tests don't try to hit the
+    # engine /skills endpoints.
+    from loomcli._open.skills_install import SkillInstallResult as _SIR
+
+    def _stub_skills_install(*args, **kwargs):
+        return _SIR()
+
     with patch(
         "loomcli.commands.open_cmd.maybe_bootstrap_machine_credential",
         side_effect=_stub_bootstrap,
+    ), patch(
+        "loomcli.commands.open_cmd.install_spec_skills",
+        side_effect=_stub_skills_install,
     ), patch(
         "loomcli.commands.conventions_cmd.sync",
         side_effect=_noop_sync,
