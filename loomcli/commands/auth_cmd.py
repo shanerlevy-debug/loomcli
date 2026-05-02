@@ -115,6 +115,42 @@ def run_whoami() -> None:
     _console.print(
         f"{me.get('email')} ({me.get('id')}) @ org {me.get('organization_id')}"
     )
+    # Sprint auth-bootstrap-20260430: tell the user where their access
+    # token came from so brand-new `weave open` users see the
+    # 90d machine credential they just bootstrapped.
+    _print_credential_origin()
+
+
+def _print_credential_origin() -> None:
+    info = auth_api.credential_origin()
+    origin = info.get("origin")
+    if origin == auth_api.CREDENTIAL_ORIGIN_ENV_VAR:
+        _console.print("[dim]auth: POWERLOOM_ACCESS_TOKEN env var[/dim]")
+        return
+    if origin == auth_api.CREDENTIAL_ORIGIN_MACHINE:
+        prefix = info.get("token_prefix") or "?"
+        expires = info.get("expires_at") or "?"
+        name = info.get("name")
+        descriptor = f" ({name})" if name else ""
+        _console.print(
+            f"[dim]auth: machine credential{descriptor} "
+            f"[cyan]{prefix}…[/cyan] (expires {expires})[/dim]"
+        )
+        return
+    if origin == auth_api.CREDENTIAL_ORIGIN_PAT:
+        _console.print(f"[dim]auth: PAT file {info.get('path')}[/dim]")
+        return
+    # No active token. Surface expired-mcred specifically so the user
+    # knows which path to recover via.
+    expired = auth_api.expired_machine_credential_meta()
+    if expired is not None:
+        _console.print(
+            f"[yellow]Your machine credential expired on "
+            f"{expired.get('expires_at')}.[/yellow]\n"
+            f"[dim]Run `weave open <token>` from the web UI to re-pair.[/dim]"
+        )
+        return
+    _console.print("[dim]auth: (unknown origin)[/dim]")
 
 
 # ---------------------------------------------------------------------------

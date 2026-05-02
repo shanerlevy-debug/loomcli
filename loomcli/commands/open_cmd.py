@@ -35,6 +35,10 @@ from typing import Annotated, Optional
 import typer
 from rich.console import Console
 
+from loomcli._open.auth_bootstrap import (
+    BootstrapResult,
+    maybe_bootstrap_machine_credential,
+)
 from loomcli._open.git_ops import (
     CloneAuthError,
     GitOpError,
@@ -336,6 +340,31 @@ def run(
         if not is_json_output():
             _console.print("\n[dim]--dry-run: redeem succeeded; not creating worktree.[/dim]")
         raise typer.Exit(0)
+
+    # ---- auth bootstrap (sprint auth-bootstrap-20260430) -------------------
+    # After successful redeem, exchange the launch_token for a 90d
+    # machine credential if this host doesn't already have one. After
+    # this fires once, subsequent weave commands authenticate
+    # automatically via auth.json — `weave login` becomes optional.
+    bootstrap = maybe_bootstrap_machine_credential(
+        cfg,
+        launch_token=token,
+        name=spec.scope.friendly_name or spec.scope.slug,
+    )
+    if not is_json_output():
+        if bootstrap.minted:
+            _console.print(
+                f"  [green]✓[/green] Bootstrapped machine credential "
+                f"({(bootstrap.credential_id or '')[:8]}…) — "
+                f"future weave commands won't need `weave login`."
+            )
+        elif bootstrap.error:
+            _console.print(
+                f"  [yellow]warn:[/yellow] Auth bootstrap skipped "
+                f"({bootstrap.error}); falling back to existing auth."
+            )
+        # skipped_reason='already_have_machine_credential' is the silent
+        # happy path — most invocations after the first.
 
     # ---- bootstrap (pre-flights + clone + worktree) -----------------------
     # Pre-flights run before clone so users learn about missing tooling

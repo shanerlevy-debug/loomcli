@@ -109,12 +109,18 @@ def mock_client():
 
 
 @pytest.fixture
-def mock_bootstrap(tmp_path):
+def mock_bootstrap(tmp_path, monkeypatch):
     """Patch subprocess + paths so non-dry-run tests don't run real git.
 
     Returns the tmp-rooted ``WeaveOpenPaths`` so tests can assert on
     expected worktree locations without monkeypatching ``Path.home``.
     """
+    # Disable auto-refresh of machine credential — the resolver in
+    # ``config._read_credentials_file`` would otherwise try to phone
+    # the engine when a dev's real ``auth.json`` is in the refresh
+    # window. Test isolation, not a behavior change for users.
+    monkeypatch.setenv("POWERLOOM_DISABLE_AUTO_REFRESH", "1")
+
     import subprocess as sp
 
     from loomcli._open.git_ops import WeaveOpenPaths
@@ -142,7 +148,22 @@ def mock_bootstrap(tmp_path):
         # sync command which would hit the engine. Stub it for tests.
         return None
 
+    # Auth bootstrap (sprint auth-bootstrap-20260430) — by default the
+    # open flow calls maybe_bootstrap_machine_credential after redeem,
+    # which would otherwise hit the real engine. Stub it to a "skipped:
+    # already have credential" no-op so happy-path tests stay focused
+    # on the bootstrap pipeline. Tests that exercise auth-bootstrap
+    # specifically (test_open_auth_bootstrap.py) call the helper
+    # directly instead of going through `weave open`.
+    from loomcli._open.auth_bootstrap import BootstrapResult as _BR
+
+    def _stub_bootstrap(*args, **kwargs):
+        return _BR(minted=False, skipped_reason="already_have_machine_credential")
+
     with patch(
+        "loomcli.commands.open_cmd.maybe_bootstrap_machine_credential",
+        side_effect=_stub_bootstrap,
+    ), patch(
         "loomcli.commands.conventions_cmd.sync",
         side_effect=_noop_sync,
     ):
