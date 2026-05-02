@@ -38,6 +38,15 @@ from loomcli.schema.launch_spec import LaunchSpec
 SIDECAR_FILENAME = ".weave-version"
 
 
+# Companion sidecar (sprint thread 647858ec) that records the engine's
+# ``current_version_id`` at install time. The resume-update check
+# compares this against the engine's *current* current_version_id —
+# if they diverge, an upgrade is available. Separate file from
+# SIDECAR_FILENAME so the older plain-text idempotency check stays
+# backward-compatible with worktrees installed before this thread.
+VERSION_ID_SIDECAR_FILENAME = ".weave-skill-version-id"
+
+
 # Subdir within the worktree where Claude Code resolves project-local
 # skills. CC's resolution chain is project > user > builtin, so this
 # location wins over the user's global ``~/.claude/skills/``.
@@ -185,6 +194,22 @@ def _install_one(
         # silently considering this skill installed.
         result.failed.append((slug, f"sidecar write failed: {exc}"))
         return
+
+    # Sprint thread 647858ec — also stash the engine's
+    # current_version_id so the resume-update check can compare
+    # against the engine's latest. Best-effort: missing meta means
+    # the resume check skips this skill rather than flagging.
+    current_version_id = meta.get("current_version_id")
+    if current_version_id:
+        version_id_sidecar = target / VERSION_ID_SIDECAR_FILENAME
+        try:
+            version_id_sidecar.write_text(
+                str(current_version_id), encoding="utf-8"
+            )
+        except OSError:
+            # Non-fatal — install succeeded; resume check will skip
+            # the comparison for this skill rather than flag.
+            pass
 
     result.installed.append(slug)
 

@@ -65,6 +65,10 @@ from loomcli._open.skills_install import (
     SkillInstallResult,
     install_spec_skills,
 )
+from loomcli._open.skill_updates import (
+    check_skill_updates,
+    format_update_summary,
+)
 from loomcli._open.mcp_install import (
     McpInstallResult,
     install_mcp_config,
@@ -159,6 +163,24 @@ def _resume_via_target(
             ),
         )
         raise typer.Exit(1) from None
+
+    # Sprint thread 647858ec — check whether installed skill versions
+    # have drifted since install. No auto-upgrade (per the design
+    # decision: skills pinned at launch-time, resume preserves
+    # reproducibility); just surface a one-line summary so the user
+    # can decide to upgrade.
+    if not is_json_output():
+        try:
+            cfg = load_runtime_config()
+            update_result = check_skill_updates(cfg, target.worktree)
+            summary = format_update_summary(update_result)
+            if summary:
+                _console.print(f"  [yellow]update available:[/yellow] {summary}")
+                _console.print(
+                    "  [dim]Run `weave skill upgrade --in-worktree` to apply.[/dim]"
+                )
+        except Exception:  # noqa: BLE001 — never block resume on the update probe
+            pass
 
     try:
         assert_runtime_available(target.runtime)
