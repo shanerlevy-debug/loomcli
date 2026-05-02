@@ -61,6 +61,18 @@ from loomcli._open.resume import (
     find_by_session_id,
 )
 from loomcli._open.rules_sync import apply_directives as _apply_rules_sync
+from loomcli._open.skills_install import (
+    SkillInstallResult,
+    install_spec_skills,
+)
+from loomcli._open.skill_updates import (
+    check_skill_updates,
+    format_update_summary,
+)
+from loomcli._open.mcp_install import (
+    McpInstallResult,
+    install_mcp_config,
+)
 from loomcli._open.runtime_exec import (
     ANTIGRAVITY_RUNTIME,
     RuntimeBinaryError,
@@ -151,6 +163,24 @@ def _resume_via_target(
             ),
         )
         raise typer.Exit(1) from None
+
+    # Sprint thread 647858ec — check whether installed skill versions
+    # have drifted since install. No auto-upgrade (per the design
+    # decision: skills pinned at launch-time, resume preserves
+    # reproducibility); just surface a one-line summary so the user
+    # can decide to upgrade.
+    if not is_json_output():
+        try:
+            cfg = load_runtime_config()
+            update_result = check_skill_updates(cfg, target.worktree)
+            summary = format_update_summary(update_result)
+            if summary:
+                _console.print(f"  [yellow]update available:[/yellow] {summary}")
+                _console.print(
+                    "  [dim]Run `weave skill upgrade --in-worktree` to apply.[/dim]"
+                )
+        except Exception:  # noqa: BLE001 — never block resume on the update probe
+            pass
 
     try:
         assert_runtime_available(target.runtime)
@@ -465,6 +495,45 @@ def run(
         warn = path_length_warning(worktree)
         if warn:
             _console.print(f"  [yellow]warn:[/yellow] {warn}")
+
+    # ---- MCP config install (sprint thread d240bfd7) ----------------------
+    # Drop a project-local .mcp.json with the spec's MCP server entries
+    # so CC sees Powerloom tools immediately. Skipped silently when the
+    # user already has a global Powerloom MCP server registered or the
+    # spec carries no servers.
+    mcp_result = install_mcp_config(spec, worktree)
+    if not is_json_output():
+        if mcp_result.written_path is not None:
+            _console.print(
+                f"  [green]✓[/green] Wrote .mcp.json: {mcp_result.written_path.name} "
+                f"({', '.join(mcp_result.server_names)})"
+            )
+        elif mcp_result.skipped_reason == "global_powerloom_already_registered":
+            _console.print(
+                "  [dim][skip][/dim] Powerloom MCP server already registered globally."
+            )
+        elif mcp_result.error:
+            _console.print(
+                f"  [yellow]warn:[/yellow] MCP config: {mcp_result.error}"
+            )
+        # empty_spec is silent — most launches don't carry MCP servers.
+
+    # ---- skill install (sprint thread d1b883af) ---------------------------
+    # For each spec.skills[*]: pull from /skills/{id}/archive into
+    # <worktree>/.claude/skills/<slug>/. CC's resolution chain (project
+    # > user > builtin) lets the worktree-local copy win. Failures
+    # are non-fatal warnings — operator can run `weave skill install`
+    # after the fact.
+    skill_install_result = install_spec_skills(cfg, spec, worktree, client=client)
+    if not is_json_output():
+        for slug in skill_install_result.installed:
+            _console.print(f"  [green]✓[/green] Skill installed: {slug}")
+        for slug in skill_install_result.skipped:
+            _console.print(f"  [dim][skip][/dim] Skill already current: {slug}")
+        for slug, err in skill_install_result.failed:
+            _console.print(
+                f"  [yellow]warn:[/yellow] Skill {slug}: {err}"
+            )
 
     # ---- rules sync (CLAUDE.md / AGENTS.md / GEMINI.md) -------------------
     # Per-directive: write the org/OU/project convention overlay into the
