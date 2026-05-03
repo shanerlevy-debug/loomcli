@@ -7,6 +7,15 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.21 — 2026-05-03 (CLI)
+
+**`weave open` Windows fixes — bare-clone worktree ref + non-UTF-8 codepage decode.** Two bugs surfaced from a real Windows user trace running `weave open` on a host with `cp932` (Japanese) as the OEM codepage:
+
+- **Worktree creation failed with `fatal: not a valid object name: 'origin/main'`.** `git clone --bare` uses `+refs/heads/*:refs/heads/*` as its default fetch refspec, so upstream branches land directly under `refs/heads/*` in the bare repo — `refs/remotes/origin/*` never gets populated. The worktree-add now uses the bare branch name (resolved against `refs/heads/<branch>`, which `git fetch --prune origin` keeps in sync). Existing bare clones at `~/.powerloom/repos/<slug>.git/` survive — only the worktree-add command shape changed.
+- **`UnicodeDecodeError` on cp932 (and other non-UTF-8 OEM codepages).** The stdout reader thread of preflight subprocess calls (most likely `gh auth status`) crashed when the child emitted non-ASCII bytes (smart quotes, box-drawing chars). Every `subprocess.run` in `loomcli/_open/` now passes `encoding="utf-8", errors="replace"`. Affects `_run_git`, `_gh_auth_ok`, `_git_credential_helper_ok`, `_ssh_agent_has_github_key`, `_worktree_dirty`.
+
+PR: [#77](https://github.com/shanerlevy-debug/loomcli/pull/77).
+
 ## v0.7.20 — 2026-05-02 (CLI)
 
 **Weave Open Launch UX milestone — complete.** End-to-end paste-from-web flow: brand-new user clicks "Open in agent" on the Powerloom web UI, copies a `weave open lt_…` command, pastes it on any terminal on any machine, and lands in a fully-contextualised agent session in <15 s — no `weave login`, no manual git config, no MCP wiring, no skill installs. Closes [milestone 8567b658](https://app.powerloom.org/projects/loomcli/milestones/8567b658-a7f8-45bb-9428-112d85577da7) on the loomcli side; the engine half landed across [Powerloom PRs #301, #316, #324, #326](https://github.com/shanerlevy-debug/Powerloom/pulls?q=is%3Apr+is%3Aclosed+launch).
