@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -120,11 +122,20 @@ def exec_runtime(
     *,
     extra_env: Optional[dict[str, str]] = None,
 ) -> None:
-    """``cd worktree && exec <runtime_binary>`` with session env baked in.
+    """``cd worktree && run <runtime_binary>`` with session env baked in.
 
-    Replaces the current process via ``os.execvpe`` so signals (Ctrl-C,
-    SIGTERM) propagate cleanly to the runtime. Returns only on the
-    antigravity branch (which doesn't exec) or on error.
+    POSIX: replaces the current process via ``os.execvpe`` so signals
+    (Ctrl-C, SIGTERM) propagate cleanly to the runtime.
+
+    Windows: runs as a subprocess and ``sys.exit``s with the child's
+    return code. ``os.execvpe`` on Windows is implemented as
+    spawn-and-exit, which leaves Claude Code's "trust this folder?"
+    + Codex's first-run consent prompts unable to read keyboard input
+    because the parent shell closes the console before the child's
+    TTY is ready.
+
+    Returns only on the antigravity branch (which doesn't exec) or
+    on error before exec/spawn.
     """
     if runtime == ANTIGRAVITY_RUNTIME:
         # Antigravity can't be exec'd directly — its IDE-side worker
@@ -146,5 +157,26 @@ def exec_runtime(
     if extra_env:
         env.update(extra_env)
 
+    # POSIX: replace the process so signals (Ctrl-C, SIGTERM) propagate
+    # cleanly. The agent's binary becomes the user's shell.
+    #
+    # Windows: `os.execvpe` exists but Python's CRT implementation
+    # spawns the child and exits the parent — the parent shell may
+    # close the console handle before the child's TTY is ready, which
+    # left interactive prompts (Claude Code's "trust this folder?",
+    # Codex's first-run consent) unable to read keyboard input. Use
+    # `subprocess.run` with inherited stdio instead — slower (we hold
+    # a parent process for the lifetime of the agent) but the console
+    # passes through cleanly so prompts work.
+    if _is_windows():
+        completed = subprocess.run([binary_path], cwd=str(worktree), env=env)
+        sys.exit(completed.returncode)
     os.chdir(worktree)
     os.execvpe(binary, [binary], env)
+
+
+def _is_windows() -> bool:
+    """Indirection so tests can patch the platform check without mucking
+    with the real ``sys.platform`` attribute (which leaks across tests
+    and behaves unevenly under ``patch.object``)."""
+    return sys.platform == "win32"

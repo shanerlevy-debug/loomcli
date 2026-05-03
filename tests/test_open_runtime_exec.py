@@ -102,7 +102,7 @@ def test_load_session_env_returns_empty_when_missing(tmp_path: Path) -> None:
 
 
 def test_exec_runtime_calls_execvpe_with_binary(tmp_path: Path) -> None:
-    """Asserts cd-then-execvpe pattern with merged env."""
+    """Asserts cd-then-execvpe pattern with merged env (POSIX)."""
     (tmp_path / SESSION_ENV_FILENAME).write_text(
         "POWERLOOM_SESSION_ID=fromenvfile\n", encoding="utf-8"
     )
@@ -120,13 +120,16 @@ def test_exec_runtime_calls_execvpe_with_binary(tmp_path: Path) -> None:
         # raise to abort the call so we don't loop / continue.
         raise SystemExit(0)
 
-    with patch("loomcli._open.runtime_exec.shutil.which", return_value="/usr/bin/claude"):
-        with patch("loomcli._open.runtime_exec.os.chdir", side_effect=fake_chdir):
-            with patch(
-                "loomcli._open.runtime_exec.os.execvpe", side_effect=fake_execvpe
-            ):
-                with pytest.raises(SystemExit):
-                    exec_runtime(tmp_path, "claude_code")
+    # Force the POSIX branch — Windows takes a separate subprocess path
+    # (covered by test_exec_runtime_windows_uses_subprocess_for_tty_passthrough).
+    with patch("loomcli._open.runtime_exec._is_windows", return_value=False):
+        with patch("loomcli._open.runtime_exec.shutil.which", return_value="/usr/bin/claude"):
+            with patch("loomcli._open.runtime_exec.os.chdir", side_effect=fake_chdir):
+                with patch(
+                    "loomcli._open.runtime_exec.os.execvpe", side_effect=fake_execvpe
+                ):
+                    with pytest.raises(SystemExit):
+                        exec_runtime(tmp_path, "claude_code")
 
     assert captured["chdir"] == str(tmp_path)
     assert captured["binary"] == "claude"
@@ -141,6 +144,45 @@ def test_exec_runtime_antigravity_returns_without_exec(tmp_path: Path) -> None:
         result = exec_runtime(tmp_path, ANTIGRAVITY_RUNTIME)
         assert result is None
         mock_exec.assert_not_called()
+
+
+def test_exec_runtime_windows_uses_subprocess_for_tty_passthrough(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows: subprocess.run with inherited stdio so interactive
+    prompts (Claude Code's "trust this folder?" arrow-key picker)
+    can read keyboard input. `os.execvpe` on Windows leaves the TTY
+    in a half-detached state that swallows input."""
+    import loomcli._open.runtime_exec as rt_exec
+
+    captured = {}
+
+    class FakeCompleted:
+        returncode = 0
+
+    def fake_run(cmd, **kw):
+        captured["cmd"] = list(cmd)
+        captured["cwd"] = kw.get("cwd")
+        captured["env"] = dict(kw.get("env") or {})
+        return FakeCompleted()
+
+    def fake_exit(code):
+        captured["exit_code"] = code
+        raise SystemExit(code)
+
+    monkeypatch.setattr(rt_exec, "_is_windows", lambda: True)
+    monkeypatch.setattr(
+        rt_exec.shutil, "which", lambda _b: r"C:\Users\u\bin\claude.exe"
+    )
+    monkeypatch.setattr(rt_exec.subprocess, "run", fake_run)
+    monkeypatch.setattr(rt_exec.sys, "exit", fake_exit)
+
+    with pytest.raises(SystemExit):
+        exec_runtime(tmp_path, "claude_code")
+
+    assert captured["cmd"] == [r"C:\Users\u\bin\claude.exe"]
+    assert captured["cwd"] == str(tmp_path)
+    assert captured["exit_code"] == 0
 
 
 def test_exec_runtime_binary_disappeared_raises(tmp_path: Path) -> None:
