@@ -248,6 +248,8 @@ def _gh_auth_ok(host: str = "github.com") -> bool:
             ["gh", "auth", "status", "--hostname", host],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
             check=False,
         )
@@ -271,6 +273,8 @@ def _git_credential_helper_ok(host: str = "github.com") -> bool:
             input=f"protocol=https\nhost={host}\n\n",
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -297,6 +301,8 @@ def _ssh_agent_has_github_key() -> bool:
             ["ssh-add", "-L"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
             check=False,
         )

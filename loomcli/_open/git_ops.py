@@ -180,13 +180,22 @@ def _run_git(
     cwd: Optional[Path] = None,
     timeout: int = 120,
 ) -> subprocess.CompletedProcess:
-    """Run a git subprocess. Translates known auth failures to CloneAuthError."""
+    """Run a git subprocess. Translates known auth failures to CloneAuthError.
+
+    Forces UTF-8 decoding so Windows hosts with non-UTF-8 OEM code pages
+    (cp932 / cp936 / cp1252 / etc.) don't crash when git emits a smart
+    quote, box-drawing char, or other non-ASCII byte. ``errors="replace"``
+    keeps a malformed byte from killing the call — a single garbled
+    char in stderr is far better than a hard `UnicodeDecodeError`.
+    """
     try:
         return subprocess.run(
             cmd,
             cwd=str(cwd) if cwd else None,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             check=True,
         )
@@ -300,6 +309,12 @@ def create_worktree(
             cmd=["git", "worktree", "list"],
         )
 
+    # Bare clones don't track `refs/remotes/origin/*` — the default
+    # fetch refspec for `git clone --bare` is `+refs/heads/*:refs/heads/*`,
+    # so the upstream's branches land directly under `refs/heads/*`
+    # in the bare repo. Resolving `origin/<branch>` returns
+    # `fatal: not a valid object name`. Use the bare branch name —
+    # `git fetch --prune origin` keeps it in sync with the upstream.
     _run_git(
         [
             "git",
@@ -308,7 +323,7 @@ def create_worktree(
             str(target),
             "-b",
             branch_name,
-            f"origin/{branch_base}",
+            branch_base,
         ],
         cwd=bare_clone,
         timeout=120,
