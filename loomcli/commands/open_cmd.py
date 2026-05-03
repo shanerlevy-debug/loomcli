@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -77,6 +78,9 @@ from loomcli._open.skill_updates import (
 from loomcli._open.hooks_install import (
     InstallResult as HookInstallResult,
     install_runtime_hooks,
+)
+from loomcli._open.runtime_configs_install import (
+    install_runtime_configs,
 )
 from loomcli._open.mcp_install import (
     McpInstallResult,
@@ -595,6 +599,49 @@ def run(
             _console.print(
                 f"  [yellow]warn:[/yellow] Skill {slug}: {err}"
             )
+
+    # ---- runtime-config install (console-deployability PR4, thread `ea3be766`) ----
+    # For Codex / Gemini / Antigravity launches: fetch the engine-side
+    # translator output (`GET /launches/{token}/runtime-configs`) and
+    # write the per-runtime skill + MCP files to the host. Claude is a
+    # no-op here (its existing pipeline above covers it).
+    #
+    # Target dir = home for codex/gemini/antigravity (translators emit
+    # `.codex/...` / `.gemini/...` paths that resolve to host config dirs).
+    runtime_cfgs_result = install_runtime_configs(
+        cfg, spec, launch_token=token, target_dir=Path.home(), client=client,
+    )
+    if not is_json_output():
+        if runtime_cfgs_result.skipped_reason == "claude_runtime":
+            # Silent — the existing skills_install + mcp_install path
+            # covered Claude. No need to render a "skip" line.
+            pass
+        elif runtime_cfgs_result.skipped_reason == "empty_configs":
+            _console.print(
+                "  [dim][skip][/dim] No runtime-translator configs (launch had no skills + MCP)."
+            )
+        elif runtime_cfgs_result.skipped_reason == "fetch_failed":
+            for w in runtime_cfgs_result.warnings:
+                _console.print(f"  [yellow]warn:[/yellow] Runtime configs: {w}")
+        else:
+            for fr in runtime_cfgs_result.files:
+                if fr.action == "unchanged":
+                    _console.print(
+                        f"  [dim][skip][/dim] Runtime config already current: {fr.path.name}"
+                    )
+                elif fr.action in ("installed", "updated"):
+                    _console.print(
+                        f"  [green]✓[/green] Runtime config {fr.action}: {fr.path}"
+                    )
+                else:
+                    _console.print(
+                        f"  [yellow]warn:[/yellow] Runtime config {fr.path.name}: "
+                        f"{fr.detail or fr.action}"
+                    )
+            for w in runtime_cfgs_result.warnings:
+                _console.print(f"  [dim]note:[/dim] {w}")
+            for step in runtime_cfgs_result.post_install_steps:
+                _console.print(f"  [dim]→ {step}[/dim]")
 
     # ---- rules sync (CLAUDE.md / AGENTS.md / GEMINI.md) -------------------
     # Per-directive: write the org/OU/project convention overlay into the
