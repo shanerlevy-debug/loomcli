@@ -147,12 +147,14 @@ def test_exec_runtime_antigravity_returns_without_exec(tmp_path: Path) -> None:
 
 
 def test_exec_runtime_windows_uses_subprocess_for_tty_passthrough(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Windows: subprocess.run with inherited stdio so interactive
     prompts (Claude Code's "trust this folder?" arrow-key picker)
     can read keyboard input. `os.execvpe` on Windows leaves the TTY
     in a half-detached state that swallows input."""
+    import loomcli._open.runtime_exec as rt_exec
+
     captured = {}
 
     class FakeCompleted:
@@ -164,20 +166,23 @@ def test_exec_runtime_windows_uses_subprocess_for_tty_passthrough(
         captured["env"] = dict(kw.get("env") or {})
         return FakeCompleted()
 
-    with patch("loomcli._open.runtime_exec._is_windows", return_value=True):
-        with patch(
-            "loomcli._open.runtime_exec.shutil.which",
-            return_value=r"C:\Users\u\bin\claude.exe",
-        ):
-            with patch(
-                "loomcli._open.runtime_exec.subprocess.run", side_effect=fake_run
-            ):
-                with patch("loomcli._open.runtime_exec.sys.exit") as mock_exit:
-                    exec_runtime(tmp_path, "claude_code")
-                    mock_exit.assert_called_once_with(0)
+    def fake_exit(code):
+        captured["exit_code"] = code
+        raise SystemExit(code)
+
+    monkeypatch.setattr(rt_exec, "_is_windows", lambda: True)
+    monkeypatch.setattr(
+        rt_exec.shutil, "which", lambda _b: r"C:\Users\u\bin\claude.exe"
+    )
+    monkeypatch.setattr(rt_exec.subprocess, "run", fake_run)
+    monkeypatch.setattr(rt_exec.sys, "exit", fake_exit)
+
+    with pytest.raises(SystemExit):
+        exec_runtime(tmp_path, "claude_code")
 
     assert captured["cmd"] == [r"C:\Users\u\bin\claude.exe"]
     assert captured["cwd"] == str(tmp_path)
+    assert captured["exit_code"] == 0
 
 
 def test_exec_runtime_binary_disappeared_raises(tmp_path: Path) -> None:
