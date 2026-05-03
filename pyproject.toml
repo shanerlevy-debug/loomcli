@@ -96,6 +96,11 @@ packages = ["loomcli"]
 "plugins/codex" = "loomcli/_bundled_plugins/codex"
 "plugins/gemini" = "loomcli/_bundled_plugins/gemini"
 
+# console-deployability PR2 (thread `ebedfd86`): bundle Powerloom
+# runtime lifecycle hook templates so `weave open` can install them
+# on first-per-host run. Source mirrors powerloom/runtimes/{runtime}/
+# hooks/ from the Powerloom api repo.
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

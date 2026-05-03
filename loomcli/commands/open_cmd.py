@@ -74,6 +74,10 @@ from loomcli._open.skill_updates import (
     check_skill_updates,
     format_update_summary,
 )
+from loomcli._open.hooks_install import (
+    InstallResult as HookInstallResult,
+    install_runtime_hooks,
+)
 from loomcli._open.mcp_install import (
     McpInstallResult,
     install_mcp_config,
@@ -539,6 +543,41 @@ def run(
                 f"  [yellow]warn:[/yellow] MCP config: {mcp_result.error}"
             )
         # empty_spec is silent — most launches don't carry MCP servers.
+
+    # ---- runtime lifecycle hooks (console-deployability PR2, thread `ebedfd86`) ----
+    # First-run-on-this-host: install the Powerloom session_start /
+    # session_end hook scripts at `~/.codex/hooks/` etc. so the runtime
+    # POSTs lifecycle events to Powerloom on every session open/close.
+    # Idempotent — same content hash → `unchanged`. Skipped silently
+    # when the runtime root (e.g. `~/.codex/`) doesn't exist (means
+    # the runtime isn't installed on this host).
+    runtime_tag = spec.actor.runtime  # claude_code / codex_cli / gemini_cli / antigravity
+    hooks_result = install_runtime_hooks(runtime_tag)
+    if not is_json_output():
+        if hooks_result.skipped_reason:
+            # No-op for claude_code (native config replaces this) or
+            # runtime not detected on the host. Render as a dim line
+            # so the user sees what we did but doesn't think anything
+            # is broken.
+            _console.print(
+                f"  [dim][skip][/dim] Runtime hooks ({runtime_tag}): "
+                f"{hooks_result.skipped_reason}"
+            )
+        else:
+            for fr in hooks_result.files:
+                if fr.action == "unchanged":
+                    _console.print(
+                        f"  [dim][skip][/dim] Hook already current: {fr.path.name}"
+                    )
+                elif fr.action in ("installed", "updated"):
+                    _console.print(
+                        f"  [green]✓[/green] Hook {fr.action}: {fr.path}"
+                    )
+                else:
+                    _console.print(
+                        f"  [yellow]warn:[/yellow] Hook {fr.path.name}: "
+                        f"{fr.detail or fr.action}"
+                    )
 
     # ---- skill install (sprint thread d1b883af) ---------------------------
     # For each spec.skills[*]: pull from /skills/{id}/archive into
