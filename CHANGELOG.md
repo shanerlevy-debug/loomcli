@@ -7,6 +7,10 @@ All notable changes to the Powerloom schema and CLI are documented here. This re
 
 ## Unreleased
 
+## v0.7.22 — 2026-05-03 (CLI)
+
+**`weave open` Windows fix — interactive runtime prompts now work.** The Claude Code "trust this folder?" arrow-key picker (and Codex's first-run consent) couldn't read keyboard input after `weave open` on Windows. Root cause: `os.execvpe` on Windows is implemented as spawn-and-exit — the parent shell closes the console handle before the child's TTY is ready. Fixed by switching the Windows hand-off to `subprocess.run` with inherited stdio + `sys.exit` on the child's return code; the POSIX path (`os.execvpe`) is unchanged so signals still propagate cleanly there. PR: [#80](https://github.com/shanerlevy-debug/loomcli/pull/80).
+
 ## v0.7.21 — 2026-05-03 (CLI)
 
 **`weave open` Windows fixes — bare-clone worktree ref + non-UTF-8 codepage decode.** Two bugs surfaced from a real Windows user trace running `weave open` on a host with `cp932` (Japanese) as the OEM codepage:
