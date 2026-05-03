@@ -83,6 +83,8 @@ def _is_dirty(worktree: Path) -> bool:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=True,
         )

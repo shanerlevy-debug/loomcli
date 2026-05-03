@@ -245,7 +245,11 @@ def test_create_worktree_first_time_runs_git_worktree_add(
     assert str(result) in add_cmd
     assert "-b" in add_cmd
     assert "session/cc-x-20260501" in add_cmd
-    assert "origin/main" in add_cmd
+    # Bare clones don't track refs/remotes/origin/* — `origin/main`
+    # would resolve to "not a valid object name". Use the bare branch
+    # head, which `git fetch --prune origin` keeps in sync.
+    assert "main" in add_cmd
+    assert "origin/main" not in add_cmd
 
 
 def test_create_worktree_idempotent_on_registered_path(
