@@ -168,8 +168,15 @@ def exec_runtime(
     # `subprocess.run` with inherited stdio instead — slower (we hold
     # a parent process for the lifetime of the agent) but the console
     # passes through cleanly so prompts work.
-    if sys.platform == "win32":
+    if _is_windows():
         completed = subprocess.run([binary_path], cwd=str(worktree), env=env)
         sys.exit(completed.returncode)
     os.chdir(worktree)
     os.execvpe(binary, [binary], env)
+
+
+def _is_windows() -> bool:
+    """Indirection so tests can patch the platform check without mucking
+    with the real ``sys.platform`` attribute (which leaks across tests
+    and behaves unevenly under ``patch.object``)."""
+    return sys.platform == "win32"

@@ -122,7 +122,7 @@ def test_exec_runtime_calls_execvpe_with_binary(tmp_path: Path) -> None:
 
     # Force the POSIX branch — Windows takes a separate subprocess path
     # (covered by test_exec_runtime_windows_uses_subprocess_for_tty_passthrough).
-    with patch("loomcli._open.runtime_exec.sys.platform", "linux"):
+    with patch("loomcli._open.runtime_exec._is_windows", return_value=False):
         with patch("loomcli._open.runtime_exec.shutil.which", return_value="/usr/bin/claude"):
             with patch("loomcli._open.runtime_exec.os.chdir", side_effect=fake_chdir):
                 with patch(
@@ -164,7 +164,7 @@ def test_exec_runtime_windows_uses_subprocess_for_tty_passthrough(
         captured["env"] = dict(kw.get("env") or {})
         return FakeCompleted()
 
-    with patch("loomcli._open.runtime_exec.sys.platform", "win32"):
+    with patch("loomcli._open.runtime_exec._is_windows", return_value=True):
         with patch(
             "loomcli._open.runtime_exec.shutil.which",
             return_value=r"C:\Users\u\bin\claude.exe",
