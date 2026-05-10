@@ -49,6 +49,10 @@ _APPLY_ORDER = {
     "GroupMembership": 70,
     "RoleBinding": 80,
     "SkillAccessGrant": 80,
+    # Workflows reference Agents via `agent_ref` node fields, so they must
+    # land after agents + their attachments. Mirrors the JSON schema's
+    # x-powerloom-apply-order=100 hint.
+    "Workflow": 90,
 }
 
 
