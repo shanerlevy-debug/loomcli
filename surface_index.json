@@ -713,6 +713,15 @@
       "known_gaps": []
     },
     {
+      "path": "weave enforce-check",
+      "module": "loomcli.commands.enforce_check_cmd:enforce_check_command",
+      "summary": "Pattern-match a tool invocation against a policy pattern file. Invoked from `PreToolUse` hooks for warn-mode and Codex enforce-mode tool_deny conventions (agent-governance arc, workstream 0c).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
       "path": "weave gc",
       "module": "loomcli.commands.gc_cmd:gc_command",
       "summary": "List + optionally remove abandoned `weave open` worktrees.",
