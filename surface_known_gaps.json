@@ -1,0 +1,25 @@
+{
+  "$comment": "Source of truth for hand-annotated drift the surface_index.json emitter merges into the generated baseline. Each entry MUST reference a Powerloom tracker thread. The emitter (scripts/build_surface_index.py) reads this file at generation time. The drift test (tests/test_surface_index_drift.py) asserts (a) every gap here corresponds to a real entity, (b) every entry has a thread reference, (c) the generated surface_index.json contains exactly these gaps + no others.",
+  "$schema_version": "1",
+  "manifest_kinds": {
+    "WorkflowType": {
+      "gaps": [
+        {"kind": "missing_handler", "thread": "e1518478", "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"},
+        {"kind": "missing_apply_order", "thread": "e1518478", "note": "paired with handler wire-up"}
+      ]
+    },
+    "MemoryPolicy": {
+      "gaps": [
+        {"kind": "missing_handler", "thread": "e1518478", "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"},
+        {"kind": "missing_apply_order", "thread": "e1518478", "note": "paired with handler wire-up"}
+      ]
+    },
+    "Scope": {
+      "gaps": [
+        {"kind": "missing_handler", "thread": "e1518478", "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"},
+        {"kind": "missing_apply_order", "thread": "e1518478", "note": "paired with handler wire-up"}
+      ]
+    }
+  },
+  "cli_commands": {}
+}
