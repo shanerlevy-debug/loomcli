@@ -1,0 +1,1373 @@
+{
+  "$schema_version": "1",
+  "repo": "loomcli",
+  "manifest_kinds": [
+    {
+      "name": "Agent",
+      "schema_path": "schema/v1/kinds/agent.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:AgentHandler",
+      "apply_order": 40,
+      "category": "agents",
+      "known_gaps": []
+    },
+    {
+      "name": "AgentMCPServer",
+      "schema_path": "schema/v1/kinds/agent-mcp-server.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:AgentMcpHandler",
+      "apply_order": 50,
+      "category": "agents",
+      "known_gaps": []
+    },
+    {
+      "name": "AgentSkill",
+      "schema_path": "schema/v1/kinds/agent-skill.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:AgentSkillHandler",
+      "apply_order": 50,
+      "category": "agents",
+      "known_gaps": []
+    },
+    {
+      "name": "Credential",
+      "schema_path": "schema/v1/kinds/credential.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:CredentialHandler",
+      "apply_order": 60,
+      "category": "secrets",
+      "known_gaps": []
+    },
+    {
+      "name": "Group",
+      "schema_path": "schema/v1/kinds/group.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:GroupHandler",
+      "apply_order": 20,
+      "category": "identity",
+      "known_gaps": []
+    },
+    {
+      "name": "GroupMembership",
+      "schema_path": "schema/v1/kinds/group-membership.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:GroupMembershipHandler",
+      "apply_order": 70,
+      "category": "identity",
+      "known_gaps": []
+    },
+    {
+      "name": "MCPDeployment",
+      "schema_path": "schema/v1/kinds/mcp-deployment.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:McpDeploymentHandler",
+      "apply_order": 35,
+      "category": "content",
+      "known_gaps": []
+    },
+    {
+      "name": "MCPServerRegistration",
+      "schema_path": "schema/v1/kinds/mcp-server-registration.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:McpServerRegistrationHandler",
+      "apply_order": 30,
+      "category": "content",
+      "known_gaps": []
+    },
+    {
+      "name": "MemoryPolicy",
+      "schema_path": "schema/v1/kinds/memory-policy.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": null,
+      "apply_order": null,
+      "category": "governance",
+      "known_gaps": [
+        {
+          "kind": "missing_handler",
+          "thread": "e1518478",
+          "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"
+        },
+        {
+          "kind": "missing_apply_order",
+          "thread": "e1518478",
+          "note": "paired with handler wire-up"
+        }
+      ]
+    },
+    {
+      "name": "OU",
+      "schema_path": "schema/v1/kinds/ou.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:OUHandler",
+      "apply_order": 10,
+      "category": "identity",
+      "known_gaps": []
+    },
+    {
+      "name": "RoleBinding",
+      "schema_path": "schema/v1/kinds/role-binding.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:RoleBindingHandler",
+      "apply_order": 80,
+      "category": "rbac",
+      "known_gaps": []
+    },
+    {
+      "name": "Scope",
+      "schema_path": "schema/v1/kinds/scope.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": null,
+      "apply_order": null,
+      "category": "identity",
+      "known_gaps": [
+        {
+          "kind": "missing_handler",
+          "thread": "e1518478",
+          "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"
+        },
+        {
+          "kind": "missing_apply_order",
+          "thread": "e1518478",
+          "note": "paired with handler wire-up"
+        }
+      ]
+    },
+    {
+      "name": "Skill",
+      "schema_path": "schema/v1/kinds/skill.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:SkillHandler",
+      "apply_order": 30,
+      "category": "content",
+      "known_gaps": []
+    },
+    {
+      "name": "SkillAccessGrant",
+      "schema_path": "schema/v1/kinds/skill-access-grant.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:SkillGrantHandler",
+      "apply_order": 80,
+      "category": "rbac",
+      "known_gaps": []
+    },
+    {
+      "name": "Workflow",
+      "schema_path": "schema/v1/kinds/workflow.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": "loomcli.manifest.handlers:WorkflowHandler",
+      "apply_order": 90,
+      "category": "workflows",
+      "known_gaps": []
+    },
+    {
+      "name": "WorkflowType",
+      "schema_path": "schema/v1/kinds/workflow-type.schema.json",
+      "in_kinds_registry": true,
+      "handler_class": null,
+      "apply_order": null,
+      "category": "content",
+      "known_gaps": [
+        {
+          "kind": "missing_handler",
+          "thread": "e1518478",
+          "note": "v1.2.0 kind, schema+KINDS shipped, handler not wired"
+        },
+        {
+          "kind": "missing_apply_order",
+          "thread": "e1518478",
+          "note": "paired with handler wire-up"
+        }
+      ]
+    }
+  ],
+  "cli_commands": [
+    {
+      "path": "weave agent",
+      "module": null,
+      "summary": "Inspect agents and manage identities.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent config",
+      "module": "loomcli.commands.agent_cmd:config_command",
+      "summary": "Show provider/runtime and model configuration for one agent.",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent run",
+      "module": "loomcli.commands.agent_daemon:run_command",
+      "summary": "Run the self-hosted-agent daemon for AGENT (foreground; Ctrl+C to stop).",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent sessions",
+      "module": "loomcli.commands.agent_cmd:sessions_command",
+      "summary": "List recent sessions for one agent.",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent set-model",
+      "module": "loomcli.commands.agent_cmd:set_model_command",
+      "summary": "Update an agent's model using the Agent PATCH API.",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent status",
+      "module": "loomcli.commands.agent_cmd:status_command",
+      "summary": "Show an agent snapshot: runtime/model, sync state, and sessions.",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent sub-principal",
+      "module": null,
+      "summary": null,
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent sub-principal mint",
+      "module": "loomcli.commands.agent_cmd:subprincipal_mint_command",
+      "summary": "Register a new agent sub-principal and mint its first token.",
+      "parent": "weave agent sub-principal",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent watch",
+      "module": "loomcli.commands.agent_cmd:watch_command",
+      "summary": "Poll an agent status snapshot until interrupted.",
+      "parent": "weave agent",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session",
+      "module": null,
+      "summary": "Phase 14 coordination-session management.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session bootstrap",
+      "module": "loomcli.commands.agent_session_cmd:bootstrap_cmd",
+      "summary": "Bootstrap an empty-folder client into a Powerloom project.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session end",
+      "module": "loomcli.commands.agent_session_cmd:end_cmd",
+      "summary": "Terminate an active session with outcome merged or abandoned.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session get",
+      "module": "loomcli.commands.agent_session_cmd:get_cmd",
+      "summary": "Fetch one session's full detail.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session init",
+      "module": "loomcli.commands.agent_session_cmd:init_cmd",
+      "summary": "Create a new feature branch and register it as a coordination session.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session ls",
+      "module": "loomcli.commands.agent_session_cmd:ls_cmd",
+      "summary": "List sessions.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session register",
+      "module": "loomcli.commands.agent_session_cmd:register_cmd",
+      "summary": "Register a new active agent session.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session start",
+      "module": "loomcli.commands.agent_session_cmd:start_cmd",
+      "summary": "Friendly interactive shortcut for `register`. No git required.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session status",
+      "module": "loomcli.commands.agent_session_cmd:status_cmd",
+      "summary": "Show one coordination session plus its assigned workflow tasks.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session task-complete",
+      "module": "loomcli.commands.agent_session_cmd:task_complete_cmd",
+      "summary": "Mark an assigned task done or failed. Emits a work-chain event;",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session tasks",
+      "module": "loomcli.commands.agent_session_cmd:tasks_cmd",
+      "summary": "List workflow steps currently assigned to this session.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session update",
+      "module": "loomcli.commands.agent_session_cmd:update_cmd",
+      "summary": "Update metadata for an active agent session.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave agent-session watch",
+      "module": "loomcli.commands.agent_session_cmd:watch_cmd",
+      "summary": "Poll one coordination session until interrupted or terminal.",
+      "parent": "weave agent-session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave antigravity-worker",
+      "module": null,
+      "summary": "Daemon to dispatch tasks to local Antigravity IDE.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave apply",
+      "module": "loomcli.commands.apply:apply_command",
+      "summary": "Apply a manifest (create/update resources).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval",
+      "module": null,
+      "summary": "Inspect + decide on approval requests (list/get/approve/reject/cancel/bulk-cancel).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval approve",
+      "module": "loomcli.commands.approval_cmd:approve",
+      "summary": "Approve a pending request.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval bulk-cancel",
+      "module": "loomcli.commands.approval_cmd:bulk_cancel",
+      "summary": "Cancel ALL of YOUR pending approval requests matching the filters.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval cancel",
+      "module": "loomcli.commands.approval_cmd:cancel",
+      "summary": "Cancel your own pending request (requester only).",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval get",
+      "module": "loomcli.commands.approval_cmd:get_approval",
+      "summary": "Show full detail on one approval request.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval list",
+      "module": "loomcli.commands.approval_cmd:list_approvals",
+      "summary": "List approval requests.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval reject",
+      "module": "loomcli.commands.approval_cmd:reject",
+      "summary": "Reject a pending request.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave approval wait",
+      "module": "loomcli.commands.approval_cmd:wait_approval",
+      "summary": "Poll one approval request until it leaves pending.",
+      "parent": "weave approval",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave ask",
+      "module": "loomcli.commands.agent_cmd:ask_command",
+      "summary": "Ask a Powerloom agent and stream the answer.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave audit",
+      "module": null,
+      "summary": "Query the Powerloom audit log.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth",
+      "module": null,
+      "summary": "Login / logout / whoami / PAT management.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth configure",
+      "module": "loomcli.commands.auth_cmd:configure",
+      "summary": "Configure CLI profiles (AWS-style wizard).",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth login",
+      "module": "loomcli.commands.auth_cmd:login",
+      "summary": "Sign in to Powerloom.",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth logout",
+      "module": "loomcli.commands.auth_cmd:logout",
+      "summary": "Clear local credentials.",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth mcp-url",
+      "module": "loomcli.commands.auth_cmd:mcp_url",
+      "summary": "Print the hosted MCP server URL for this account.",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth pat",
+      "module": null,
+      "summary": null,
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth pat create",
+      "module": "loomcli.commands.auth_cmd:pat_create_cmd",
+      "summary": "Mint a new PAT. The raw token is shown ONCE — copy it immediately.",
+      "parent": "weave auth pat",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth pat list",
+      "module": "loomcli.commands.auth_cmd:pat_list_cmd",
+      "summary": "List all PATs on this account (metadata only — tokens are not recoverable).",
+      "parent": "weave auth pat",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth pat revoke",
+      "module": "loomcli.commands.auth_cmd:pat_revoke_cmd",
+      "summary": "Revoke a PAT by its UUID. Revoked tokens stop working immediately.",
+      "parent": "weave auth pat",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth token",
+      "module": "loomcli.commands.auth_cmd:token_cmd",
+      "summary": "Print the stored Personal Access Token.",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave auth whoami",
+      "module": "loomcli.commands.auth_cmd:whoami",
+      "summary": "Print the signed-in user + their organization.",
+      "parent": "weave auth",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave batch",
+      "module": "loomcli.commands.batch_cmd:batch_command",
+      "summary": "Run multiple weave commands sequentially.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave chat",
+      "module": "loomcli.commands.agent_cmd:chat_command",
+      "summary": "Start an interactive terminal chat with a Powerloom agent.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave commands",
+      "module": "loomcli.commands.commands_cmd:commands_command",
+      "summary": "List command metadata for autocomplete and clients.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave compose",
+      "module": null,
+      "summary": "Author, lint, and inspect v2.0.0 Compose kinds (scaffold/lint/show).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave compose lint",
+      "module": "loomcli.commands.compose_cmd:lint",
+      "summary": "Parse + validate a Compose manifest. Runs three checks:",
+      "parent": "weave compose",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave compose scaffold",
+      "module": "loomcli.commands.compose_cmd:scaffold",
+      "summary": "Print a starter Compose manifest to stdout. Redirect to a file",
+      "parent": "weave compose",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave compose show",
+      "module": "loomcli.commands.compose_cmd:show",
+      "summary": "Fetch the effective resolved schema for a registered composed",
+      "parent": "weave compose",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave conventions",
+      "module": null,
+      "summary": "Sync OU-scoped Powerloom conventions into CLAUDE.md / AGENTS.md / GEMINI.md (sync / show / list).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave conventions list",
+      "module": "loomcli.commands.conventions_cmd:list_conventions",
+      "summary": "List every convention visible to your org (cross-OU view).",
+      "parent": "weave conventions",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave conventions show",
+      "module": "loomcli.commands.conventions_cmd:show",
+      "summary": "Print the conventions that would be synced for a given scope.",
+      "parent": "weave conventions",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave conventions sync",
+      "module": "loomcli.commands.conventions_cmd:sync",
+      "summary": "Fetch OU-scoped conventions from Powerloom and sync into the",
+      "parent": "weave conventions",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave describe",
+      "module": "loomcli.commands.describe:describe_command",
+      "summary": "Show a single resource with full detail.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave destroy",
+      "module": "loomcli.commands.destroy:destroy_command",
+      "summary": "Delete the resources in a manifest.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave doctor",
+      "module": "loomcli.commands.doctor_cmd:doctor_command",
+      "summary": "Check local auth, server capabilities, and plugin prerequisites.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave gc",
+      "module": "loomcli.commands.gc_cmd:gc_command",
+      "summary": "List + optionally remove abandoned `weave open` worktrees.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave get",
+      "module": "loomcli.commands.get:get_command",
+      "summary": "List or show a resource kind.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave import",
+      "module": "loomcli.commands.import_:import_command",
+      "summary": "Adopt an existing resource into a manifest.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave import-project",
+      "module": "loomcli.commands.import_project_cmd:import_project_command",
+      "summary": "Import a Powerloom-shaped repo into the tracker (v059 self-import MVP).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave login",
+      "module": "loomcli.commands.auth_cmd:login",
+      "summary": "Sign in to Powerloom (alias for `weave auth login`).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave logout",
+      "module": "loomcli.commands.auth_cmd:logout",
+      "summary": "Clear credentials (alias for `weave auth logout`).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave migrate",
+      "module": null,
+      "summary": "Upgrade manifests between schema versions (v1->v2).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave migrate v1-to-v2",
+      "module": "loomcli.commands.migrate_cmd:v1_to_v2",
+      "summary": "Migrate v1.2.0 manifests → v2.0.0.",
+      "parent": "weave migrate",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave open",
+      "module": "loomcli.commands.open_cmd:run",
+      "summary": "Bootstrap an agent session from a launch token (paste-from-web flow).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plan",
+      "module": "loomcli.commands.plan:plan_command",
+      "summary": "Show what apply would do, without making changes.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plugin",
+      "module": null,
+      "summary": "Inspect and install Powerloom client plugins.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plugin doctor",
+      "module": "loomcli.commands.plugin_cmd:doctor_cmd",
+      "summary": "Check local plugin files and client binaries.",
+      "parent": "weave plugin",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plugin install",
+      "module": "loomcli.commands.plugin_cmd:install_cmd",
+      "summary": "Install or print the install command for one client plugin.",
+      "parent": "weave plugin",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plugin instructions",
+      "module": "loomcli.commands.plugin_cmd:instructions_cmd",
+      "summary": "Print install/setup instructions for one client.",
+      "parent": "weave plugin",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave plugin path",
+      "module": "loomcli.commands.plugin_cmd:path_cmd",
+      "summary": "Print the exported plugin path for one client.",
+      "parent": "weave plugin",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave profile",
+      "module": null,
+      "summary": "Manage local CLI profiles and defaults.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave profile clear",
+      "module": "loomcli.commands.profile_cmd:clear_profile",
+      "summary": "Clear one or more profile defaults.",
+      "parent": "weave profile",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave profile set",
+      "module": "loomcli.commands.profile_cmd:set_profile",
+      "summary": "Set local defaults for a profile and make it active.",
+      "parent": "weave profile",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave profile show",
+      "module": "loomcli.commands.profile_cmd:show_profile",
+      "summary": "Show local defaults for one profile.",
+      "parent": "weave profile",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave profile switch",
+      "module": "loomcli.commands.profile_cmd:switch_profile",
+      "summary": "Switch the active profile.",
+      "parent": "weave profile",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave project",
+      "module": null,
+      "summary": "Inspect tracker projects (ls / show).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave project ls",
+      "module": "loomcli.commands.project_cmd:ls",
+      "summary": "List tracker projects visible to the current user.",
+      "parent": "weave project",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave project show",
+      "module": "loomcli.commands.project_cmd:show",
+      "summary": "Show full detail for one project.",
+      "parent": "weave project",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave register",
+      "module": null,
+      "summary": "Pair this host with an agent deployment via a registration token.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave reveal",
+      "module": "loomcli.commands.reveal_cmd:reveal_command",
+      "summary": "Open the worktree of the current/specified session in the OS file manager.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave session",
+      "module": null,
+      "summary": "Inspect session event traces.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave session events",
+      "module": "loomcli.commands.session_cmd:events_command",
+      "summary": "Print durable events for a session.",
+      "parent": "weave session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave session tail",
+      "module": "loomcli.commands.session_cmd:tail_command",
+      "summary": "Poll and print session events.",
+      "parent": "weave session",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave setup-claude-code",
+      "module": null,
+      "summary": "Wire the Powerloom MCP plugin into a Claude Code project (idempotent).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave skill",
+      "module": null,
+      "summary": "Manage Skill archives (upload + activate versions).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave skill activate",
+      "module": "loomcli.commands.skill_cmd:activate",
+      "summary": "Set a skill's current_version_id to the given version UUID.",
+      "parent": "weave skill",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave skill upload",
+      "module": "loomcli.commands.skill_cmd:upload",
+      "summary": "Upload a new version of an existing Skill's archive.",
+      "parent": "weave skill",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave skill upload-and-activate",
+      "module": "loomcli.commands.skill_cmd:upload_and_activate",
+      "summary": "Upload a new version AND set it as the active version.",
+      "parent": "weave skill",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave skill versions",
+      "module": "loomcli.commands.skill_cmd:versions",
+      "summary": "List all uploaded versions for a skill.",
+      "parent": "weave skill",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint",
+      "module": null,
+      "summary": "Manage tracker sprints (create / list / show / update / activate / complete / archive / add-thread / remove-thread / threads).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint activate",
+      "module": "loomcli.commands.sprint_cmd:activate",
+      "summary": "Mark a sprint as active (work is in progress).",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint add-thread",
+      "module": "loomcli.commands.sprint_cmd:add_thread",
+      "summary": "Link one or more threads to a sprint. Idempotent — already-present pairs",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint archive",
+      "module": "loomcli.commands.sprint_cmd:archive",
+      "summary": "Mark a sprint as archived (engine auto-stamps closed_at).",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint complete",
+      "module": "loomcli.commands.sprint_cmd:complete",
+      "summary": "Mark a sprint as completed (engine auto-stamps closed_at).",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint create",
+      "module": "loomcli.commands.sprint_cmd:create",
+      "summary": "Create a sprint in <project>. Slug auto-generates from name when",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint delete",
+      "module": "loomcli.commands.sprint_cmd:delete",
+      "summary": "Delete a sprint. Cascades to the M2M sprint_threads rows but threads",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint list",
+      "module": "loomcli.commands.sprint_cmd:list_sprints",
+      "summary": "List sprints in a project. Optional --milestone filters to sprints",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint remove-thread",
+      "module": "loomcli.commands.sprint_cmd:remove_thread",
+      "summary": "Unlink a thread from a sprint. Thread itself is unaffected.",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint show",
+      "module": "loomcli.commands.sprint_cmd:show",
+      "summary": "Show full detail for one sprint.",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint threads",
+      "module": "loomcli.commands.sprint_cmd:threads",
+      "summary": "List threads in a sprint, sorted by priority then created_at.",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave sprint update",
+      "module": "loomcli.commands.sprint_cmd:update",
+      "summary": "Generic sprint update — set any combination of fields via PATCH.",
+      "parent": "weave sprint",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread",
+      "module": null,
+      "summary": "Inspect tracker threads.",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread bulk-create",
+      "module": "loomcli.commands.thread_cmd:bulk_create",
+      "summary": "Create multiple threads from a structured file.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread close",
+      "module": "loomcli.commands.thread_cmd:close",
+      "summary": "Close a thread — scope abandoned but might still be relevant.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread create",
+      "module": "loomcli.commands.thread_cmd:create",
+      "summary": "Create a new tracker thread.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread done",
+      "module": "loomcli.commands.thread_cmd:done",
+      "summary": "Mark a thread as done — the work shipped.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread list",
+      "module": "loomcli.commands.thread_cmd:list_threads",
+      "summary": "List tracker threads — by project, by status, or your own queue.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread move",
+      "module": "loomcli.commands.thread_cmd:move_cmd",
+      "summary": "Move a thread to a different project (with safe cleanup of cross-project references).",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread my-work",
+      "module": "loomcli.commands.thread_cmd:my_work",
+      "summary": "Show tracker threads assigned to, plucked by, or created by me.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread orphans",
+      "module": "loomcli.commands.thread_cmd:orphans_cmd",
+      "summary": "List threads in the project with no parent and no sprint membership.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread pluck",
+      "module": "loomcli.commands.thread_cmd:pluck",
+      "summary": "Claim a thread for the current session (sets status=in_progress).",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread reply",
+      "module": "loomcli.commands.thread_cmd:reply",
+      "summary": "Post a reply to a thread (decisions, blockers, scope changes).",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread search",
+      "module": "loomcli.commands.thread_cmd:search",
+      "summary": "Global thread search across every project in your org.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread show",
+      "module": "loomcli.commands.thread_cmd:show",
+      "summary": "Show full detail for one thread — fields, metadata, reply timeline.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread sprint-tree",
+      "module": "loomcli.commands.thread_cmd:sprint_tree_cmd",
+      "summary": "Render every top-level thread in the sprint as a tree.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread tree",
+      "module": "loomcli.commands.thread_cmd:tree",
+      "summary": "Print the parent/child tree rooted at <thread_id>.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread update",
+      "module": "loomcli.commands.thread_cmd:update",
+      "summary": "Generic thread update — set any combination of fields via PATCH.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave thread wont-do",
+      "module": "loomcli.commands.thread_cmd:wont_do",
+      "summary": "Mark a thread as wont_do — decided not to ship.",
+      "parent": "weave thread",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave whoami",
+      "module": "loomcli.commands.auth_cmd:whoami",
+      "summary": "Show signed-in user (alias for `weave auth whoami`).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow",
+      "module": null,
+      "summary": "Workflow definitions + runs (Phase 14).",
+      "parent": "weave",
+      "deprecated": false,
+      "is_group": true,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow apply",
+      "module": "loomcli.commands.workflow_cmd:apply_cmd",
+      "summary": "Apply (upsert) a workflow definition from a YAML manifest.",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow approvals",
+      "module": "loomcli.commands.workflow_cmd:approvals_cmd",
+      "summary": "List workflow-step approvals currently pending. Unified Phase 12",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow approve",
+      "module": "loomcli.commands.workflow_cmd:approve_cmd",
+      "summary": "Approve a waiting `kind: approval` step.",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow cancel",
+      "module": "loomcli.commands.workflow_cmd:cancel_cmd",
+      "summary": "Cancel a running workflow. Cascades to child runs + pending timers.",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow ls",
+      "module": "loomcli.commands.workflow_cmd:ls_cmd",
+      "summary": "List workflow definitions (default) or recent runs (`--runs`).",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow reject",
+      "module": "loomcli.commands.workflow_cmd:reject_cmd",
+      "summary": "Reject a waiting `kind: approval` step. Transitions the step to",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow run",
+      "module": "loomcli.commands.workflow_cmd:run_cmd",
+      "summary": "Start a new workflow run. Returns the run id; the scheduler",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    },
+    {
+      "path": "weave workflow status",
+      "module": "loomcli.commands.workflow_cmd:status_cmd",
+      "summary": "Show a workflow run's current state with per-step status.",
+      "parent": "weave workflow",
+      "deprecated": false,
+      "is_group": false,
+      "known_gaps": []
+    }
+  ]
+}
