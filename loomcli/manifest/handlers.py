@@ -33,6 +33,7 @@ from loomcli.manifest.schema import (
     Resource,
     RoleBindingMetadata,
     SkillGrantMetadata,
+    WorkflowSpec,
 )
 
 
@@ -891,3 +892,104 @@ class SkillGrantHandler:
 
 
 register(SkillGrantHandler())
+
+
+# ===========================================================================
+# Workflow (Phase 14 runtime, monorepo v031)
+# ===========================================================================
+# Wire shape: POST /workflows accepts {name, ou_id, definition: {...}}.
+# The server is upsert-by-(name, ou_id) — re-applying the same canonical
+# definition is a no-op, mutating bumps version. There is no DELETE
+# endpoint on /workflows today (definitions are append-only versioned;
+# `deprecated_at` is set via a separate path that's not exposed yet),
+# so destroy raises NotImplementedError — same posture as McpDeployment.
+@dataclass
+class WorkflowHandler:
+    kind: str = "Workflow"
+
+    def read(self, r: Resource, resolver: AddressResolver):
+        assert isinstance(r.metadata, OUPathScopedMetadata)
+        ou_id = resolver.try_ou_path_to_id(r.metadata.ou_path)
+        if ou_id is None:
+            raise AddressResolutionError(
+                f"OU {r.metadata.ou_path} not yet created"
+            )
+        # /workflows filters by name only; we narrow to the matching ou_id
+        # client-side. List is small (workflows-per-org is the cap metric).
+        try:
+            rows = resolver._client.get(  # type: ignore[attr-defined]
+                "/workflows", name=r.metadata.name
+            )
+        except PowerloomApiError as e:
+            if e.status_code == 404:
+                return None
+            raise
+        # Some endpoints wrap the list; the workflows route returns
+        # {"workflows": [...], "total": N}.
+        if isinstance(rows, dict):
+            rows = rows.get("workflows") or []
+        if not isinstance(rows, list):
+            return None
+        for row in rows:
+            if row.get("name") == r.metadata.name and (
+                row.get("ou_id") == ou_id
+                # The server permits ou_id=None for org-scoped workflows;
+                # match those when the manifest also targets the root OU.
+                or (row.get("ou_id") is None and ou_id is None)
+            ):
+                return row
+        return None
+
+    def map_spec_to_server_fields(self, spec: WorkflowSpec, *, current):
+        # Diff against the server's stored `definition_json`. Pydantic's
+        # `model_dump(by_alias=True)` round-trips edge `from`/`from_node`
+        # and emits the exact dict shape we POSTed at create time.
+        return {"definition_json": _build_definition_dict(spec)}
+
+    def create(self, r: Resource, resolver, client):
+        assert isinstance(r.metadata, OUPathScopedMetadata)
+        assert isinstance(r.spec, WorkflowSpec)
+        ou_id = resolver.ou_path_to_id(r.metadata.ou_path)
+        out = client.post(
+            "/workflows",
+            {
+                "name": r.metadata.name,
+                "ou_id": ou_id,
+                "definition": _build_definition_dict(r.spec),
+            },
+        )
+        resolver.invalidate_cache_for("/workflows")
+        # The route returns WorkflowApplyOut = {definition: {...}, created_new: bool}.
+        # Unwrap so downstream sees the row shape `read` would return.
+        if isinstance(out, dict) and "definition" in out:
+            return out["definition"]
+        return out
+
+    def update(self, r: Resource, current, resolver, client):
+        # Same upsert endpoint — POST is idempotent for unchanged
+        # definitions, and version-bumps for changes.
+        return self.create(r, resolver, client)
+
+    def delete(self, r: Resource, current, resolver, client) -> None:
+        raise NotImplementedError(
+            "Workflow definitions are append-only versioned; there's no "
+            "DELETE /workflows in v031. Mark the workflow `archived` via "
+            "spec.status and re-apply if you want to retire it."
+        )
+
+
+def _build_definition_dict(spec: WorkflowSpec) -> dict[str, Any]:
+    """Project the manifest spec onto the API's `definition_json` shape."""
+    return {
+        "display_name": spec.display_name,
+        "description": spec.description,
+        "status": spec.status,
+        "nodes": [n.model_dump(exclude_none=True) for n in spec.nodes],
+        "edges": [
+            e.model_dump(by_alias=True, exclude_none=True)
+            for e in spec.edges
+        ],
+    }
+
+
+register(WorkflowHandler())

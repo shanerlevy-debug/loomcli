@@ -283,6 +283,51 @@ class SkillGrantSpec(_BaseSpec):
 
 
 # ---------------------------------------------------------------------------
+# Workflow (Phase 14 runtime, monorepo v031) — DAG of agent / condition /
+# approval / transform / subflow / output nodes. Schema lives at
+# schema/v1/kinds/workflow.schema.json. Wire-format apply target is
+# `POST /workflows` with body `{name, ou_id, definition: {...}}` —
+# the server upserts (re-applying same canonical JSON is a no-op,
+# mutation creates version N+1).
+# ---------------------------------------------------------------------------
+class WorkflowNode(BaseModel):
+    """One node in the workflow DAG. Fields are kind-dependent — the JSON
+    schema enforces per-kind required fields via if/then constraints. We
+    keep the Pydantic shape permissive (extra='allow') to round-trip every
+    valid node shape without re-enumerating the per-kind rules here; the
+    upstream JSON-schema validator already rejected anything malformed."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    kind: Literal[
+        "trigger", "agent", "condition", "approval",
+        "transform", "subflow", "output",
+    ]
+
+
+class WorkflowEdge(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    # `from` is a Python keyword, so we accept the YAML key via alias.
+    from_node: str = Field(..., alias="from")
+    to: str
+    when_true: bool | None = None
+
+
+class WorkflowSpec(_BaseSpec):
+    """v1 — DAG definition. Maps 1:1 onto the API's
+    `WorkflowApplyIn.definition` dict (display_name + description +
+    status + nodes + edges)."""
+
+    display_name: str
+    description: str | None = None
+    status: Literal["draft", "deployed", "archived"] | None = "draft"
+    nodes: list[WorkflowNode] = Field(..., min_length=1)
+    edges: list[WorkflowEdge] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Kind registry
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -337,6 +382,11 @@ KINDS: dict[str, KindSpec] = {
     ),
     "Scope": KindSpec(
         "Scope", OUIdScopedMetadata, ScopeSpec, "identity"
+    ),
+    # Workflow uses ou_path (not ou_id) per
+    # schema/v1/kinds/workflow.schema.json. Apply target: POST /workflows.
+    "Workflow": KindSpec(
+        "Workflow", OUPathScopedMetadata, WorkflowSpec, "workflows"
     ),
 }
 
