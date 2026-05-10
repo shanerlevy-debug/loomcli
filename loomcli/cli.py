@@ -38,6 +38,7 @@ from loomcli.commands import commands_cmd
 from loomcli.commands import compose_cmd
 from loomcli.commands import conventions_cmd
 from loomcli.commands import doctor_cmd
+from loomcli.commands import enforce_check_cmd
 from loomcli.commands import gc_cmd
 from loomcli.commands import migrate_cmd
 from loomcli.commands import open_cmd
@@ -269,6 +270,14 @@ app.add_typer(profile_cmd.app, name="profile", help="Manage local CLI profiles a
 app.add_typer(setup_cmd.app, name="setup-claude-code", help="Wire the Powerloom MCP plugin into a Claude Code project (idempotent).")
 app.command("commands", help="List command metadata for autocomplete and clients.")(commands_cmd.commands_command)
 app.command("doctor", help="Check local auth, server capabilities, and plugin prerequisites.")(doctor_cmd.doctor_command)
+app.command(
+    "enforce-check",
+    help=(
+        "Pattern-match a tool invocation against a policy pattern file. "
+        "Invoked from `PreToolUse` hooks for warn-mode and Codex enforce-mode "
+        "tool_deny conventions (agent-governance arc, workstream 0c)."
+    ),
+)(enforce_check_cmd.enforce_check_command)
 app.command("ask", help="Ask a Powerloom agent and stream the answer.")(agent_cmd.ask_command)
 app.command("chat", help="Start an interactive terminal chat with a Powerloom agent.")(agent_cmd.chat_command)
 app.command("batch", help="Run multiple weave commands sequentially.")(batch_cmd.batch_command)
